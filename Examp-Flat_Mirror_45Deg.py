@@ -91,32 +91,27 @@ for j in range(-tam, tam + 1):
             Rayos1.push()
             RayosT.push()
 
-            # W=0.5
-            # Doblete.Trace(pSource_0, dCos,W)
-            # Rayos2.push()
-            # RayosT.push()
+            W=0.5
+            Doblete.Trace(pSource_0, dCos,W)
+            Rayos2.push()
+            RayosT.push()
 
-            # W=0.6
-            # Doblete.Trace(pSource_0, dCos,W)
-            # Rayos3.push()
-            # RayosT.push()
+            W=0.6
+            Doblete.Trace(pSource_0, dCos,W)
+            Rayos3.push()
+            RayosT.push()
 
 kn.display3d(Doblete, RayosT, 2)
 
-# display2d(Doblete,Rayos1,0)
-
-print(Doblete.EFFL)
-
-X, Y, Z, L, M, N = RayosT.pick(-1)
+# X, Y, Z, L, M, N = RayosT.pick(-1)
+# plt.plot(X, Z, 'x')
+X, Y, Z, L, M, N = Rayos1.pick(-1)
+plt.plot(X, Z, 'x')
+X, Y, Z, L, M, N = Rayos2.pick(-1)
+plt.plot(X, Z, 'x')
+X, Y, Z, L, M, N = Rayos3.pick(-1)
 plt.plot(X, Z, 'x')
 
-# plotpoints1=rayjuggler(Rayos2)
-# X,Y,Z,L,M,N=plotpoints1.pick(-1)
-# plt.plot(X,Y, 'x')
-
-# plotpoints2=rayjuggler(Rayos3)
-# X,Y,Z,L,M,N=plotpoints2.pick(-1)
-# plt.plot(X,Y, 'x')
 
 
 # axis labeling
@@ -128,28 +123,3 @@ plt.title('Dot Plot : Red Dots')
 plt.axis('square')
 plt.show()
 
-# plotpoints0=rayjuggler(Rayos1)
-
-# X,Y,Z,L,M,N=plotpoints0.pick(-1)
-# plt.plot(X,Y, 'x')
-
-# plotpoints1=rayjuggler(Rayos2)
-# X,Y,Z,L,M,N=plotpoints1.pick(-1)
-# plt.plot(X,Y, 'x')
-
-# plotpoints2=rayjuggler(Rayos3)
-# X,Y,Z,L,M,N=plotpoints2.pick(-1)
-# plt.plot(X,Y, 'x')
-
-
-# # axis labeling
-# plt.xlabel('numbers')
-# plt.ylabel('values')
-
-# # figure name
-# plt.title('Dot Plot : Red Dots')
-# plt.axis('square')
-# plt.show() 
-
-
-# print("--- %s seconds ---" % (time.time() - start_time))
