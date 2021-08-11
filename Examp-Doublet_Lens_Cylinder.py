@@ -11,7 +11,6 @@ import numpy as np
 import Kraken as kn
 
 ##############################################################    
-
 P_Obj = kn.surf()
 P_Obj.Rc = 0.0
 P_Obj.Thickness = 10
@@ -19,19 +18,28 @@ P_Obj.Glass = "AIR"
 P_Obj.Diameter = 30.0
 
 L1a = kn.surf()
-L1a.Rc = 0
-L1a.Thickness = 26.0
+L1a.Rc = 9.284706570002484E+001
+L1a.Thickness = 6.0
 L1a.Glass = "BK7"
 L1a.Diameter = 30.0
 
-L1c = kn.surf()
-L1c.Rc = 0
-L1c.Thickness = 9.737604742910693E+001
-L1c.Axicon = -35.0
-L1c.ShiftY = 0
+L1b = kn.surf()
+L1b.Rc = -3.071608670000159E+001
+L1b.Thickness = 3.0
+L1b.Glass = "F2"
+L1b.Diameter = 30
+L1b.TiltZ = 30
+L1b.AxisMove = 0
 
+L1c = kn.surf()
+L1c.Rc = -7.819730726078505E+001
+L1c.Thickness = 9.737604742910693E+001
 L1c.Glass = "AIR"
 L1c.Diameter = 30
+L1c.Cylinder_Rxy_Ratio = 0
+# Ojo, reparar rotación en Z
+L1c.TiltZ = 45
+L1c.AxisMove = 0
 
 P_Ima = kn.surf()
 P_Ima.Rc = 0.0
@@ -40,11 +48,12 @@ P_Ima.Glass = "AIR"
 P_Ima.Diameter = 100.0
 P_Ima.Name = "Plano imagen"
 
+A = [P_Obj, L1a, L1b, L1c, P_Ima]
 ######################
 
 
 configuracion_1 = kn.Kraken_setup()
-A = [P_Obj, L1a, L1c, P_Ima]
+
 Doblete = kn.system(A, configuracion_1)
 Rayos = kn.raykeeper(Doblete)
 
@@ -75,4 +84,4 @@ for i in range(-tam, tam + 1):
             Doblete.Trace(pSource_0, dCos, W)
             Rayos.push()
 
-kn.display3d(Doblete, Rayos, 2)
+kn.display3d(Doblete, Rayos, 1)

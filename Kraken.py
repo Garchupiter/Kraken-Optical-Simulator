@@ -12,7 +12,7 @@ import random
 currentDirectory = os.getcwd()
 sys.path.insert(1, currentDirectory + '/library')
 
-from physics import FresnelEnergy, fresnell_dielectric, fresnell_metal, n_wave_dispersion, ParaxCalc
+from physics import FresnelEnergy, fresnel_dielectric, fresnel_metal, n_wave_dispersion, ParaxCalc
 from display import display3d, display2d
 from physics_class import snell_refraction_vector_physics, paraxial_exact_physics, diffraction_grating_physics
 from Surf_class import surf
@@ -26,6 +26,7 @@ from HitOnSurf import Hit_Solver
 from InterNormalCalc import InterNormalCalc
 from WavefrontFit import Zernike_Fitting
 from SeidelTool import Seidel
+from SourceRand import SourceRnd
 
 rute = currentDirectory
 
@@ -33,7 +34,7 @@ rute = currentDirectory
 ##############################################################################
 
 
-def prov(pro):
+def prob(pro):
     a_list = [0, 1]
     prob = pro
     distribution = [prob, 1.0 - prob]
@@ -223,6 +224,7 @@ class system:
 
     def __EmptyCollect(self, pS, dC, WaveLength, j):
         Empty = np.asarray([])
+        RayTraceType=0
         ValToSav = [Empty,
                     Empty,
                     pS,
@@ -238,7 +240,7 @@ class system:
                     Empty,
                     Empty,
                     Empty,
-                    j]
+                    j,RayTraceType]
         self.__CollectData(ValToSav)
 
     def __WavePrecalc(self):
@@ -252,11 +254,7 @@ class system:
                 self.N_Prec.append(NP)
                 self.AlphaPrecal.append(AP)
 
-            # self.Parax(self.Wave)
-            # print(self.Wave)
-            # Prx=ParaxCalc(self.N_Prec, self.SDT, self.SuTo, self.n, self.Glass)
-            # self.SistemMatrix, self.S_Matrix, self.N_Matrix, self.a, self.b, self.c, self.d, self.EFFL, self.PPA, self.PPP=Prx
-
+  
     def __CollectData(self, ValToSav):
         [Glass,
          alpha,
@@ -273,7 +271,7 @@ class system:
          Ord,
          GrSpa,
          Name,
-         j] = ValToSav
+         j, RayTraceType] = ValToSav
 
         global tt
         self.SURFACE.append(j)
@@ -294,8 +292,8 @@ class system:
         self.TOP = self.TOP + (dist * PrevN)
         self.TOP_S.append(self.TOP)
         self.ALPHA.append(alpha)
-        IT = np.exp(-alpha * dist)
-        self.BULK_TRANS.append(IT)
+       
+ 
 
         self.S_LMN.append(SurfNorm)
         self.LMN.append(ImpVec)
@@ -309,6 +307,7 @@ class system:
 
         self.ORDER.append(Ord)
         self.GRATING.append(GrSpa)
+        
         if self.val == 1:
             Rp, Rs, Tp, Ts = FresnelEnergy(Glass, PrevN, CurrN, ImpVec, SurfNorm, ResVec, self.SETUP, self.Wave)
         else:
@@ -318,12 +317,17 @@ class system:
         self.RS.append(Rs)
         self.TP.append(Tp)
         self.TS.append(Ts)
-
-        if Glass == "MIRROR":
-            tt = 1.0 * (Rp + Rs) / 2.0
-        if Glass != "MIRROR":
-            tt = IT * (Tp + Ts) / 2.0
-
+        if RayTraceType==0:
+            if Glass == "MIRROR":
+                tt = 1.0 * (Rp + Rs) / 2.0
+                self.BULK_TRANS.append(tt)
+            if Glass != "MIRROR":
+                IT = np.exp(-alpha * dist)
+                self.BULK_TRANS.append(IT)
+                tt = IT * (Tp + Ts) / 2.0
+        else:
+            tt=1.0
+            
         self.TTBE.append(tt)
         self.TT = self.TT * tt
         return None
@@ -465,6 +469,7 @@ class system:
 
                 SIGN = SIGN * sign
                 Name = self.SDT[j].Name
+                RayTraceType=0
                 ValToSav = [Glass,
                             alpha,
                             RayOrig,
@@ -480,7 +485,7 @@ class system:
                             Ord,
                             GrSpa,
                             Name,
-                            j]
+                            j, RayTraceType]
                 self.__CollectData(ValToSav)
                 PrevN = CurrN
                 RayOrig = pTarget
@@ -594,7 +599,7 @@ class system:
                 if self.Glass[j] != "MIRROR":
                     tt = (Tp0 + Ts0) / 2.0
 
-                PROB = prov(tt)[0]
+                PROB = prob(tt)[0]
 
                 # print(self.Glass[j], tt, PROB)
 
@@ -602,9 +607,10 @@ class system:
                     Secuent = 1
                     ResVec, CurrN, sign = self.SDT[j].PHYSICS.calculate(ResVec, R, N, Np, D, Ord, GrSpa, self.Wave,
                                                                         Secuent)
-
+                
                 SIGN = SIGN * sign
                 Name = self.SDT[j].Name
+                RayTraceType=1
                 ValToSav = [Glass,
                             alpha,
                             RayOrig,
@@ -620,7 +626,7 @@ class system:
                             Ord,
                             GrSpa,
                             Name,
-                            j]
+                            j, RayTraceType]
                 self.__CollectData(ValToSav)
 
                 if a == b:
