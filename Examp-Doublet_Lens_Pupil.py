@@ -52,12 +52,9 @@ P_Ima.Name = "Plano imagen"
 
 A = [P_Obj, L1a, L1b, L1c, pupila, P_Ima]
 
-######################
+
 config_1 = kn.Kraken_setup()
-
 Doblete = kn.system(A, config_1)
-
-
 Rayos = kn.raykeeper(Doblete)
 
 
@@ -96,15 +93,12 @@ for i in range(0, len(x)):
     Doblete.Trace(pSource_0, dCos, W)
     Rayos.push()
 
-
 Pup.FieldY = -1.0
 x, y, z, L, M, N = Pup.Pattern2Field()
 for i in range(0, len(x)):
     pSource_0 = [x[i], y[i], z[i]]
     dCos = [L[i], M[i], N[i]]
-
     Doblete.Trace(pSource_0, dCos, W)
     Rayos.push()
-
 kn.display2d(Doblete, Rayos, 0)
 
