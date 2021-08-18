@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Sun Aug  2 12:04:14 2020
+"""Examp Multicore"""
 
-@author: joelherreravazquez
-"""
 import multiprocessing
 import time
-
 import numpy as np
-
 import Kraken as kn
+
+#______________________________________#
 
 start_time = time.time()
 
-##############################################################
+#______________________________________#
+
 P_Obj = kn.surf()
 P_Obj.Rc = 0.0
 P_Obj.Thickness = 10
 P_Obj.Glass = "AIR"
 P_Obj.Diameter = 30.0
+
+#______________________________________#
 
 L1a = kn.surf()
 L1a.Rc = 9.284706570002484E+001
@@ -28,18 +28,23 @@ L1a.Glass = "BK7"
 L1a.Diameter = 30.0
 L1a.Axicon = 0
 
+#______________________________________#
+
 L1b = kn.surf()
 L1b.Rc = -3.071608670000159E+001
-
 L1b.Thickness = 3.0
 L1b.Glass = "F2"
 L1b.Diameter = 30
+
+#______________________________________#
 
 L1c = kn.surf()
 L1c.Rc = -7.819730726078505E+001
 L1c.Thickness = 9.737604742910693E+001
 L1c.Glass = "AIR"
 L1c.Diameter = 30
+
+#______________________________________#
 
 P_Ima = kn.surf()
 P_Ima.Rc = 0.0
@@ -48,27 +53,29 @@ P_Ima.Glass = "AIR"
 P_Ima.Diameter = 3.0
 P_Ima.Name = "Plano imagen"
 
-A = [P_Obj, L1a, L1b, L1c, P_Ima]
+#______________________________________#
 
-######################
+A = [P_Obj, L1a, L1b, L1c, P_Ima]
 config_1 = kn.Kraken_setup()
+
+#______________________________________#
 
 Doblete1 = kn.system(A, config_1)
 
+#______________________________________#
 
 def trax1(xyz, lmn, w, q):
     Rayos = kn.raykeeper(Doblete1)
     start_time = time.time()
-
     for i in range(0, 700):
         Doblete1.Trace(xyz, lmn, w)
         Rayos.push()
     A = Rayos.pick(-1)
     Rayos.clean()
     q.put(A[0])
-
     print("--- %s seconds ---" % (time.time() - start_time))
 
+#______________________________________#
 
 if __name__ == '__main__':
     start_time = time.time()
@@ -86,12 +93,7 @@ if __name__ == '__main__':
     p8 = multiprocessing.Process(target=trax1, args=(pSource_0, dCos, w + 0.8, q))
     p9 = multiprocessing.Process(target=trax1, args=(pSource_0, dCos, w + 0.1, q))
     p10 = multiprocessing.Process(target=trax1, args=(pSource_0, dCos, w + 0.2, q))
-    # p11 = multiprocessing.Process(target=trax1, args=(pSource_0,dCos,w+0.3, q))
-    # p12 = multiprocessing.Process(target=trax1, args=(pSource_0,dCos,w+0.4, q))
-    # p13 = multiprocessing.Process(target=trax1, args=(pSource_0,dCos,w+0.5, q))
-    # p14 = multiprocessing.Process(target=trax1, args=(pSource_0,dCos,w+0.6, q))
-    # p15 = multiprocessing.Process(target=trax1, args=(pSource_0,dCos,w+0.7, q))
-
+    
     p1.start()
     p2.start()
     p3.start()
@@ -102,12 +104,7 @@ if __name__ == '__main__':
     p8.start()
     p9.start()
     p10.start()
-    # p11.start()
-    # p12.start()
-    # p13.start()
-    # p14.start()
-    # p15.start()
-
+    
     p1.join()
     p2.join()
     p3.join()
@@ -118,11 +115,6 @@ if __name__ == '__main__':
     p8.join()
     p9.join()
     p10.join()
-    # p11.join()
-    # p12.join()
-    # p13.join()
-    # p14.join()
-    # p15.join()
 
     print(".................................................")
     print("Total time :")

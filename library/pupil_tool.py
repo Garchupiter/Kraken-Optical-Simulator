@@ -16,6 +16,7 @@ from scipy import optimize
 from scipy.optimize import fmin_cg
 
 from scipy.optimize import fsolve
+from AstroAtmosphere import *
 
 
 ##############################################################################
@@ -248,6 +249,19 @@ class pupilcalc:
         self.teta = 0
         self.PupilInpFactor = 0.99
         self.menter = 1.0
+        
+        
+        
+        self.AtmosRef=0
+        self.T   = 283.15    # k
+        self.P   = 100500    # Pa
+        self.H   = 0.0       # ratio 1 to 0
+        self.xc  = 450       # ppm
+        self.lat = 50    # degrees
+        self.h   = 0      # m
+        self.l1  = 5000.60169      # micron
+        self.l2  = 0.50169      # micron
+        self.z0  = 75.0
 
         # EPD Entrance pupil diameter
         # STP defined by stop diameter
@@ -500,8 +514,58 @@ class pupilcalc:
         Px, Py, Pz = self.PosPupInp
 
         if self.FieldType == "angle":
-            shiftX = Pz * np.sin(np.deg2rad(-self.FieldX))
-            shiftY = Pz * np.sin(np.deg2rad(-self.FieldY))
+            if self.AtmosRef==1:
+                
+                # Parameters at Cerro Armazones
+                T   = self.T
+                P   = self.P
+                H   = self.H
+                xc  = self.xc
+                lat = self.lat
+                h   = self.h
+                l1  = self.l1
+                l2  = self.l2
+                z0  = self.z0
+                    
+                # Initializing dispersion model
+                at  = Observatory()
+                
+                # Calculating indices of refraction for l1 and l2
+                n1  = at.n_tph(l=l1, T=T, p=P, RH=H, xc=xc)
+                n2  = at.n_tph(l=l2, T=T, p=P, RH=H, xc=xc)
+                
+                
+                # Density of the atmosphere (following CIPM-81/91 equations)
+                rho = at.rho(p=P, T=T, RH=H, xc=xc)
+                
+                # Initializing refraction model and setting the reduced height
+                disp = dispersion(lat, h)
+                disp.setReducedHeight(P, rho)
+                
+                
+                        
+                f_x = z0 + self.FieldX    
+                f_y = self.FieldY    
+                
+                Z0=np.sqrt((f_x**2)+(f_y**2))    
+                # Calculation of the atmopheric dipsersion
+                atm_dispersion = disp.cassini(n1, n2, Z0)
+                # print ('The dispersion is %.03f milli arc seconds' %(atm_dispersion), l2)            
+                        
+            
+                teta = np.arctan2(f_x, f_y)
+                
+                tx = self.FieldX  + (atm_dispersion * np.sin(teta))
+                ty = self.FieldY  + (atm_dispersion * np.cos(teta))
+                
+                shiftX = Pz * np.sin(np.deg2rad(-tx))
+                shiftY = Pz * np.sin(np.deg2rad(-ty))
+                
+            else:
+            
+                shiftX = Pz * np.sin(np.deg2rad(-self.FieldX))
+                shiftY = Pz * np.sin(np.deg2rad(-self.FieldY))
+            
             f_type = 1.
         else:
             shiftX = -self.FieldX

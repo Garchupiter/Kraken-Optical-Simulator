@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pyvista as pv
-
+import scipy
 import Kraken as kn
 
 P_Obj = kn.surf()
@@ -37,29 +37,65 @@ Telescope = kn.system(A, configur)
 Rays = kn.raykeeper(Telescope)
 
 W = 0.633
+Sun = kn.SourceRnd()
 
+examp=4
+if examp == 0:
+    # Sun distribution
+    def f(x):
+        teta=x
+        FI=np.zeros_like(teta)
+        Arg2=np.argwhere(teta>(4.65/1000.0))
+        FI=np.cos(0.326 * teta)/np.cos(0.308*teta)
+        
+        Chi2=.03
+        k=0.9* np.log(13.5*Chi2)*np.power(Chi2,-0.3)
+        r=(2.2* np.log(0.52*Chi2)*np.power(Chi2,0.43))-1.0
+        FI[Arg2]= np.exp(k)*np.power(teta[Arg2] * 1.0e3 , r)
+        return FI
+    Sun.field =20*np.rad2deg((4.65/1000.0))
 
-def f(x):
-    Wh=0.025
-    r=(x*90.0/0.025)*np.pi
-    res=np.sin(r)/r
-    return res
+if examp == 1:
+    # Sinc cunction
+    def f(x):
+        Wh=0.025
+        r=(x*90.0/0.025)*np.pi
+        res=np.sin(r)/r
+        return res
+    Sun.field =0.025*3
 
-# def f(x):
-#     res=1
-#     return res
+if examp == 2:
+    #Flat
+    def f(x):
+        res=1
+        return res
+    Sun.field =1.2/(2.*3600.)
 
-# def f(x):
-#     r=(x*90.0/0.025)
-#     res=r**2
-#     return res
+if examp == 3:
+    # Parabolic
+    def f(x):
+        r=(x*90.0/0.025)
+        res=r**2
+        return res
+    Sun.field =1.2/(2.*3600.)
+    
+if examp == 4:    
+    # Gaussian (Seeing)
+    def f(x):
+        x=np.rad2deg(x)
+        seing=1.2/3600.0
+        sigma=seing/2.3548
+        mean = 0
+        standard_deviation = sigma
+        y=scipy.stats.norm(mean, standard_deviation)
+        res=y.pdf(x)
+        return res
+    Sun.field=4*1.2/(2.0*3600.0)
+    
 
-
-Sun=kn.SourceRnd()
-Sun.fun=f
-Sun.dim=3000
-Sun.field=0.025*3
-Sun.num=100000
+Sun.fun = f
+Sun.dim = 3000
+Sun.num = 100000
 L, M, N, X, Y, Z = Sun.rays()
 
          

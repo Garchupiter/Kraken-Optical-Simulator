@@ -1,27 +1,20 @@
 # !/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Sun Aug  2 12:04:14 2020
-
-@author: joelherreravazquez
-"""
+"""Examp  TEl 2M Pupila"""
 
 import matplotlib.pyplot as plt
 import numpy as np
-
 import Kraken as kn
 
-
-# import time
-
-# from Kraken import *
-
-##############################################################    
+#______________________________________#
+  
 P_Obj = kn.surf()
 P_Obj.Rc = 0
 P_Obj.Thickness = 1000 + 3.452200000000000E+003
 P_Obj.Glass = "AIR"
 P_Obj.Diameter = 1.059E+003 * 2.0
+
+#______________________________________#
 
 Thickness = 3.452200000000000E+003
 M1 = kn.surf()
@@ -31,6 +24,8 @@ M1.k = -1.077310000000000E+000
 M1.Glass = "MIRROR"
 M1.Diameter = 1.059E+003 * 2.0
 M1.InDiameter = 250 * 2.0
+
+#______________________________________#
 
 M2 = kn.surf()
 M2.Rc = -3.93E+003
@@ -42,26 +37,20 @@ M2.TiltY = 0.1
 M2.TiltX = 0.1
 M2.AxisMove = 0
 
+#______________________________________#
+
 P_Ima = kn.surf()
 P_Ima.Diameter = 300.0
 P_Ima.Glass = "AIR"
 P_Ima.Name = "Plano imagen"
 
+#______________________________________#
+
 A = [P_Obj, M1, M2, P_Ima]
-
-######################
-
-
 configuracion_1 = kn.Kraken_setup()
-
 Telescopio = kn.system(A, configuracion_1)
 
-# W = 0.4
-# sup = 1
-# AperType="EPD"
-# AperVal=100
-# Pup = kn.pupilcalc(Telescopio, sup, W, AperType, AperVal)
-
+#______________________________________#
 
 W = 0.4
 sup = 1
@@ -69,6 +58,7 @@ AperVal = 2010
 AperType = "EPD" # "STOP"
 Pup = kn.pupilcalc(Telescopio, sup, W, AperType, AperVal)
 
+#______________________________________#
 
 print("Radio pupila de entrada: ")
 print(Pup.RadPupInp)
@@ -89,32 +79,29 @@ TetY = np.rad2deg(np.arcsin(L / np.cos(np.arcsin(-M))))
 print(TetX, TetY)
 print("---------------------------------------------------------------")
 
-# Pup.Ptype="hexapolar"
-# Pup.Ptype="square"
-# Pup.Ptype="fan"
-# Pup.Ptype="fanx"
-# Pup.Ptype="fany"
-# Pup.Ptype="rand"
+#______________________________________#
 
 Pup.Samp = 10
 Pup.Ptype = "hexapolar"
-# Pup.Pattern()
-
 Pup.FieldY = 0.0
 Pup.FieldType = "angle"
 x, y, z, L, M, N = Pup.Pattern2Field()
-
 Rayos = kn.raykeeper(Telescopio)
+
+#______________________________________#
 
 for i in range(0, len(x)):
     pSource_0 = [x[i], y[i], z[i]]
     dCos = [L[i], M[i], N[i]]
-
     W = 0.4
     Telescopio.Trace(pSource_0, dCos, W)
     Rayos.push()
 
+#______________________________________#
+
 kn.display3d(Telescopio, Rayos, 2)
+
+#______________________________________#
 
 X, Y, Z, L, M, N = Rayos.pick(-1)
 plt.figure(300)

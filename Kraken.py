@@ -317,7 +317,7 @@ class system:
         self.RS.append(Rs)
         self.TP.append(Tp)
         self.TS.append(Ts)
-        if RayTraceType==0:
+        if RayTraceType==0 or RayTraceType==1:
             if Glass == "MIRROR":
                 tt = 1.0 * (Rp + Rs) / 2.0
                 self.BULK_TRANS.append(tt)
@@ -600,7 +600,6 @@ class system:
                     tt = (Tp0 + Ts0) / 2.0
 
                 PROB = prob(tt)[0]
-
                 # print(self.Glass[j], tt, PROB)
 
                 if PROB > 0:

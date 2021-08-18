@@ -76,8 +76,9 @@ class snell_refraction_vector_physics:
             R = 2.0
 
         if R > 1:
-            if Secuen == 0:
-                print("---- reflexion interna= ", R)
+            # if Secuen == 0:
+            #     print(" - Total internal reflection -")
+                
 
             n2 = -n1
             NN = n1 / n2
