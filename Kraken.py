@@ -27,7 +27,7 @@ from InterNormalCalc import InterNormalCalc
 from WavefrontFit import Zernike_Fitting
 from SeidelTool import Seidel
 from SourceRand import SourceRnd
-
+from RMSlib import R_RMS_delta, RMS, BestFocus
 rute = currentDirectory
 
 
@@ -50,6 +50,9 @@ class system:
 
         self.SDT = SurfData
 
+
+
+
         self.update = False
         self.S_Matrix = []
         self.N_Matrix = []
@@ -59,6 +62,10 @@ class system:
         self.SETUP = KN_Setup
 
         self.n = len(self.SDT)
+
+        for ii in range(0,self.n):
+            self.SDT[ii].SaveSetup()
+
         self.SuTo = SUT(self.SDT)
 
         self.Object_Num = np.arange(0, self.n, 1)
@@ -254,7 +261,7 @@ class system:
                 self.N_Prec.append(NP)
                 self.AlphaPrecal.append(AP)
 
-  
+
     def __CollectData(self, ValToSav):
         [Glass,
          alpha,
@@ -292,8 +299,8 @@ class system:
         self.TOP = self.TOP + (dist * PrevN)
         self.TOP_S.append(self.TOP)
         self.ALPHA.append(alpha)
-       
- 
+
+
 
         self.S_LMN.append(SurfNorm)
         self.LMN.append(ImpVec)
@@ -307,7 +314,7 @@ class system:
 
         self.ORDER.append(Ord)
         self.GRATING.append(GrSpa)
-        
+
         if self.val == 1:
             Rp, Rs, Tp, Ts = FresnelEnergy(Glass, PrevN, CurrN, ImpVec, SurfNorm, ResVec, self.SETUP, self.Wave)
         else:
@@ -327,12 +334,24 @@ class system:
                 tt = IT * (Tp + Ts) / 2.0
         else:
             tt=1.0
-            
+
         self.TTBE.append(tt)
         self.TT = self.TT * tt
         return None
 
-    def ResetData(self):
+
+
+    def RestoreData(self):
+        for ii in range(0,self.n):
+            self.SDT[ii].RestoreSetup()
+        self.SetData()
+
+    def StoreData(self):
+        for ii in range(0,self.n):
+            self.SDT[ii].SaveSetup()
+        self.SetData()
+
+    def SetData(self):
         self.SuTo = SUT(self.SDT)
         self.Object_Num = np.arange(0, self.n, 1)
         self.__SurFuncSuscrip()
@@ -342,7 +361,7 @@ class system:
 
         self.INORM = InterNormalCalc(self.SDT, self.TypeTotal, self.Pr3D, self.HS)
 
-    def ResetSolid(self):
+    def SetSolid(self):
         self.__SurFuncSuscrip()
         self.Pr3D.Prerequisites3SMath()
         self.Pr3D.Prerequisites3DSolids()
@@ -606,7 +625,7 @@ class system:
                     Secuent = 1
                     ResVec, CurrN, sign = self.SDT[j].PHYSICS.calculate(ResVec, R, N, Np, D, Ord, GrSpa, self.Wave,
                                                                         Secuent)
-                
+
                 SIGN = SIGN * sign
                 Name = self.SDT[j].Name
                 RayTraceType=1

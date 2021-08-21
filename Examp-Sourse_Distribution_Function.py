@@ -47,12 +47,13 @@ if examp == 0:
         FI=np.zeros_like(teta)
         Arg2=np.argwhere(teta>(4.65/1000.0))
         FI=np.cos(0.326 * teta)/np.cos(0.308*teta)
-        
+
         Chi2=.03
         k=0.9* np.log(13.5*Chi2)*np.power(Chi2,-0.3)
         r=(2.2* np.log(0.52*Chi2)*np.power(Chi2,0.43))-1.0
         FI[Arg2]= np.exp(k)*np.power(teta[Arg2] * 1.0e3 , r)
         return FI
+
     Sun.field =20*np.rad2deg((4.65/1000.0))
 
 if examp == 1:
@@ -78,8 +79,8 @@ if examp == 3:
         res=r**2
         return res
     Sun.field =1.2/(2.*3600.)
-    
-if examp == 4:    
+
+if examp == 4:
     # Gaussian (Seeing)
     def f(x):
         x=np.rad2deg(x)
@@ -91,14 +92,14 @@ if examp == 4:
         res=y.pdf(x)
         return res
     Sun.field=4*1.2/(2.0*3600.0)
-    
+
 
 Sun.fun = f
 Sun.dim = 3000
 Sun.num = 100000
 L, M, N, X, Y, Z = Sun.rays()
 
-         
+
 Xr=np.zeros_like(L)
 Yr=np.zeros_like(L)
 Nr=np.zeros_like(L)
@@ -109,7 +110,7 @@ for i in range(0,Sun.num):
     if con2==10:
         print(100.*i/Sun.num)
         con2=0
-    
+
     pSource_0 = [X[i], Y[i], Z[i]]
     dCos = [L[i], M[i], N[i]]
     Telescope.Trace(pSource_0, dCos, W)
