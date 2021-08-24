@@ -27,8 +27,8 @@ def FresnelEnergy(vidrio, NP, NC, ImpVec, SurfNorm, ResVec, SETUP, Wave):
 ##############################################################################
 
 def fresnel_dielectric(NP, NC, LMN_Inc, LMN_nor_surf, LMN_result):
-    CosTeta0 = np.abs(np.dot(LMN_Inc, LMN_nor_surf))
-    CosTeta1 = np.abs(np.dot(LMN_result, LMN_nor_surf))
+    CosTheta0 = np.abs(np.dot(LMN_Inc, LMN_nor_surf))
+    CosTheta1 = np.abs(np.dot(LMN_result, LMN_nor_surf))
     n0 = NP
     n1 = NC
 
@@ -40,11 +40,11 @@ def fresnel_dielectric(NP, NC, LMN_Inc, LMN_nor_surf, LMN_result):
 
     # rs, rp, ts,tp are the amplitudes reflection and refractions
 
-    rs = (n0 * CosTeta0 - n1 * CosTeta1) / (n0 * CosTeta0 + n1 * CosTeta1)
-    rp = (n1 * CosTeta0 - n0 * CosTeta1) / (n1 * CosTeta0 + n0 * CosTeta1)
+    rs = (n0 * CosTheta0 - n1 * CosTheta1) / (n0 * CosTheta0 + n1 * CosTheta1)
+    rp = (n1 * CosTheta0 - n0 * CosTheta1) / (n1 * CosTheta0 + n0 * CosTheta1)
 
-    # No utilizado, no borrar- ts=2*n0*CosTeta0/(n0*CosTeta0+n1*CosTeta1)
-    # No utilizado, no borrar - tp=2*n0*CosTeta0/(n1*CosTeta0+n0*CosTeta1)
+    # No utilizado, no borrar- ts=2*n0*CosTheta0/(n0*CosTheta0+n1*CosTheta1)
+    # No utilizado, no borrar - tp=2*n0*CosTheta0/(n1*CosTheta0+n0*CosTheta1)
     # Jones matrix for reflection [[-rp,0][0,rs]]
     # Jones matrix for transmition [[tp,0][0,ts]]
     # http://www.ub.edu/javaoptics/docs_applets/Doc_PolarEn.html
@@ -64,12 +64,12 @@ def fresnel_metal(NP, n_metal, k_complex, LMN_Inc, LMN_nor_surf):
     n1 = NP
     n2 = np.complex(n_metal, k_complex)
     
-    CosTeta0 = np.abs(np.dot(LMN_Inc, LMN_nor_surf))
-    tetai=np.arccos(CosTeta0)
-    tetat = np.arcsin(n1/n2*np.sin(tetai)) 
+    CosTheta0 = np.abs(np.dot(LMN_Inc, LMN_nor_surf))
+    Thetai=np.arccos(CosTheta0)
+    Thetat = np.arcsin(n1/n2*np.sin(Thetai)) 
     
-    rs = (n1*np.cos(tetai)-n2*np.cos(tetat)) / (n1*np.cos(tetai)+n2*np.cos(tetat))
-    rp = (n2*np.cos(tetai)-n1*np.cos(tetat)) / (n1*np.cos(tetat)+n2*np.cos(tetai))
+    rs = (n1*np.cos(Thetai)-n2*np.cos(Thetat)) / (n1*np.cos(Thetai)+n2*np.cos(Thetat))
+    rp = (n2*np.cos(Thetai)-n1*np.cos(Thetat)) / (n1*np.cos(Thetat)+n2*np.cos(Thetai))
     
     Rs = np.abs(rs)**2
     Rp = np.abs(rp)**2

@@ -53,7 +53,6 @@ P_Ima.Rc = 0.0
 P_Ima.Thickness = 0.0
 P_Ima.Glass = "MIRROR"
 P_Ima.Diameter = 30.0
-P_Ima.Name = "Plano imagen"
 P_Ima.DespZ = 10
 P_Ima.TiltX = 6.
 
@@ -73,7 +72,7 @@ tam = 10
 rad = 14.0
 tsis = len(A) - 1
 for nsc in range(0, 100):
-    for j in range(-tam, tam + 1):     
+    for j in range(-tam, tam + 1):
         x_0 = (0 / tam) * rad
         y_0 = (j / tam) * rad
         r = np.sqrt((x_0 * x_0) + (y_0 * y_0))
@@ -84,7 +83,7 @@ for nsc in range(0, 100):
             W = 0.4
             Doblete.NsTrace(pSource_0, dCos, W)
             Rayos.push()
-            
+
 #_________________________________________#
 
-kn.display2d(Doblete, Rayos, 0)
+kn.display3d(Doblete, Rayos, 2)

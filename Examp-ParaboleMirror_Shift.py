@@ -6,7 +6,7 @@ import numpy as np
 import Kraken as kn
 
 #______________________________________#
- 
+
 P_Obj = kn.surf()
 P_Obj.Thickness = 1000.0
 P_Obj.Diameter = 300
@@ -60,4 +60,4 @@ for i in range(-tam, tam + 1):
 
 #______________________________________#
 
-kn.display3d(Espejo, Rayos, 0)
+kn.display2d(Espejo, Rayos, 0)

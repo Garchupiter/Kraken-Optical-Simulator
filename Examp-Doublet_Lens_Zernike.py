@@ -7,7 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import time
 
-#______________________________________#   
+#______________________________________#
 
 P_Obj = kn.surf()
 P_Obj.Rc = 0.0
@@ -59,7 +59,6 @@ P_Ima.Rc = 0.0
 P_Ima.Thickness = 0.0
 P_Ima.Glass = "AIR"
 P_Ima.Diameter = 100.0
-P_Ima.Name = "Plano imagen"
 
 #______________________________________#
 
@@ -92,4 +91,4 @@ for i in range(-tam, tam + 1):
 #______________________________________#
 
 kn.display3d(Doblete, Rayos, 2)
-kn.display2d(Doblete, Rayos, 0)
+kn.display2d(Doblete, Rayos, 1)

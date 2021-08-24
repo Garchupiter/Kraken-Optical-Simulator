@@ -130,7 +130,7 @@ plt.xlabel('x')
 plt.ylabel('y')
 
 # figure name
-plt.title('Dot Plot')
+plt.title('Spot diagram')
 plt.axis('square')
 plt.show()
 

@@ -42,9 +42,8 @@ C2=kn.surf()
 C2.Thickness=C1.Thickness
 C2.Glass="F2"
 C2.Diameter=100
-C2.TiltY = 1.55
+C2.TiltY = 0
 C2.AxisMove=0
-E=C2.TiltY*100.0
 
 C3=kn.surf()
 C3.Thickness= C1.Thickness + 288.631
@@ -138,17 +137,17 @@ for i in range(0,len(xa)):
 
 ############################################
 
-# kn.display2d(Telescopio,Rayos,1)
+kn.display3d(Telescopio,Rayos,1)
 
 X,Y,Z,L,M,N=Rayos1.pick(-1)
-plt.plot(X*1000.0,Y*1000.0+E, 'x', c="b")
+plt.plot(X*1000.0,Y*1000.0, 'x', c="b", ms=2)
 
 
 X,Y,Z,L,M,N=Rayos3.pick(-1)
-plt.plot(X*1000.0,Y*1000.0+E, 'x', c="g")
+plt.plot(X*1000.0,Y*1000.0, 'x', c="g", ms=2)
 
 X,Y,Z,L,M,N=Rayos2.pick(-1)
-plt.plot(X*1000.0,Y*1000.0+E, 'x', c="r")
+plt.plot(X*1000.0,Y*1000.0, 'x', c="r", ms=2)
 
 
 # axis labeling
@@ -158,7 +157,7 @@ plt.ylabel('y')
 # figure name
 plt.title('Spot Diagram')
 plt.axis('square')
-plt.ylim(151,159)
+plt.ylim(-5, 5)
 plt.show()
 
 

@@ -8,7 +8,7 @@ import pyvista as pv
 import Kraken as kn
 
 #______________________________________#
- 
+
 P_Obj = kn.surf()
 P_Obj.Rc = 0
 P_Obj.Thickness = 1000
@@ -119,8 +119,12 @@ X, Y, Z, L, M, N = Rayos.pick(-1)
 #______________________________________#
 
 plt.plot(X, Y, 'x')
-plt.xlabel('numbers')
-plt.ylabel('values')
-plt.title('Spot Diagram')
+plt.xlabel('X')
+plt.ylabel('Y')
+plt.title('Spot diagram')
 plt.axis('square')
 plt.show()
+
+
+
+

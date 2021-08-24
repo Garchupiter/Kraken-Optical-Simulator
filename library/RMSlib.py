@@ -27,7 +27,7 @@ def RMS(X,Y,Z,L,M,N):
     y1 = Y - cenY
     R2 = (( x1 * x1 ) + ( y1 * y1 ))
     R_RMS = np.sqrt(np.mean( R2 ))
-    return R_RMS
+    return R_RMS, cenX, cenY
 
 def BestFocus(X,Y,Z,L,M,N):
     delta_Z=0

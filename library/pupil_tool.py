@@ -21,10 +21,10 @@ from AstroAtmosphere import *
 
 ##############################################################################
 
-def RMS_Pupil(r, SYSTEM, sup, W):
-    SYSTEM.TargSurf(sup)
+def RMS_Pupil(r, SYSTEM, Surf, W):
+    SYSTEM.TargSurf(Surf)
     SYSTEM.IgnoreVignetting(0)
-    SYSTEM.SurfFlat(sup, 0)
+    SYSTEM.SurfFlat(Surf, 0)
 
     RP = raykeeper(SYSTEM)
     tet = 0.1
@@ -56,7 +56,7 @@ def RMS_Pupil(r, SYSTEM, sup, W):
     SYSTEM.Trace(s_0, c_4, W)
     RP.push()
 
-    X, Y, Z, L, M, N = RP.pick(sup)
+    X, Y, Z, L, M, N = RP.pick(Surf)
 
     delta_Z = 0
     X = ((L / N) * delta_Z) + X
@@ -160,16 +160,16 @@ def SolveVectCross(XYZa, LMNa, XYZb, LMNb, xy):
 
 ##############################################################################
 
-def DerFpupil(SYSTEM, XY, H, sup, tet, W, xy):
+def DerFpupil(SYSTEM, XY, H, Surf, tet, W, xy):
     h = 0.0000001
-    der = Fpupil(SYSTEM, XY + h, H, sup, tet, W, xy) - Fpupil(SYSTEM, XY - h, H, sup, tet, W, xy)
+    der = Fpupil(SYSTEM, XY + h, H, Surf, tet, W, xy) - Fpupil(SYSTEM, XY - h, H, Surf, tet, W, xy)
     DER = der / (2.0 * h)
     return DER
 
 
 ##############################################################################
 
-def Fpupil(SYSTEM, XY, H, sup, tet, W, xy):
+def Fpupil(SYSTEM, XY, H, Surf, tet, W, xy):
     if xy == 0:
         pSource_0 = [XY, 0.0, 0.0]
         dCos = [np.sin(np.deg2rad(tet)), 0.0, np.cos(np.deg2rad(tet))]
@@ -179,8 +179,8 @@ def Fpupil(SYSTEM, XY, H, sup, tet, W, xy):
 
     SYSTEM.Trace(pSource_0, dCos, W)
 
-    s = np.asarray(SYSTEM.SURFACE)
-    a = np.squeeze(np.argwhere(s == sup))
+    s = np.asarray(SYSTEM.SurfACE)
+    a = np.squeeze(np.argwhere(s == Surf))
     [X2, Y2, Z2] = SYSTEM.OST_XYZ[a]
 
     if xy == 0:
@@ -193,12 +193,12 @@ def Fpupil(SYSTEM, XY, H, sup, tet, W, xy):
 
 #######################################################################
 
-def SolveRayPupil(SYSTEM, H, tet, W, sup, xy):
+def SolveRayPupil(SYSTEM, H, tet, W, Surf, xy):
     XY0 = 0.0000001
     cnt = 0
 
     while True:
-        XY1 = XY0 - (Fpupil(SYSTEM, XY0, H, sup, tet, W, xy) / DerFpupil(SYSTEM, XY0, H, sup, tet, W, xy))
+        XY1 = XY0 - (Fpupil(SYSTEM, XY0, H, Surf, tet, W, xy) / DerFpupil(SYSTEM, XY0, H, Surf, tet, W, xy))
         if np.abs(XY0 - XY1) < 0.000001:  # si la distancia entre raiz y funcion es de 0.001micras
             break
         else:
@@ -220,12 +220,15 @@ def SolveRayPupil(SYSTEM, H, tet, W, sup, xy):
 
 
 class pupilcalc:
-    def __init__(self, SYSTEM, sup, W, ApTyp="EPD", AV=1.0):
+    def __init__(self, system, Surf, W, ApTyp="EPD", AV=1.0):
+        self.Surf=Surf
+        self.W=W
+        self.SYSTEM=system
         if AV == 0:
-            print("ERROR: Aperture cannot be set equal to zero, default value will be used (1.0)")
+            # print("ERROR: Aperture cannot be set equal to zero, default value will be used (1.0)")
             AV = 1.0
-        if ApTyp == "STOP":
-            print("Note: STOP surface has been selected, entrance aperture is calculated with STOP diameter")
+        # if ApTyp == "STOP":
+        #     print("Note: STOP Surface has been selected, entrance aperture is calculated with STOP diameter")
 
         # print("kajshskajdhkajdhkajhdskjahskdjhaksjdhkajshkdjahkjsh")
         # print(" pupil2 is in tha house")
@@ -246,12 +249,12 @@ class pupilcalc:
         self.FieldY = 0.
         self.DirPupSal = [0.0, 0.0, 0.0]
         self.rad = 0
-        self.teta = 0
+        self.theta = 0
         self.PupilInpFactor = 0.99
         self.menter = 1.0
-        
-        
-        
+
+
+
         self.AtmosRef=0
         self.T   = 283.15    # k
         self.P   = 100500    # Pa
@@ -274,10 +277,10 @@ class pupilcalc:
         cnt = 0
 
         while True:
-            fun = RMS_Pupil(r, SYSTEM, sup, W)
+            fun = RMS_Pupil(r, self.SYSTEM, Surf, self.W)
             h = 0.0000001
-            f1 = RMS_Pupil(r + h, SYSTEM, sup, W)
-            f2 = RMS_Pupil(r - h, SYSTEM, sup, W)
+            f1 = RMS_Pupil(r + h, self.SYSTEM, Surf, self.W)
+            f2 = RMS_Pupil(r - h, self.SYSTEM, Surf, self.W)
             der = (f1 - f2) / (2 * h)
 
             r2 = r - (fun / der)
@@ -291,9 +294,9 @@ class pupilcalc:
                 break
             cnt = cnt + 1
 
-        SYSTEM.IgnoreVignetting(0)
+        self.SYSTEM.IgnoreVignetting(0)
 
-        RP = raykeeper(SYSTEM)
+        RP = raykeeper(self.SYSTEM)
         tet = 0.1
 
         ######################################################################
@@ -301,62 +304,62 @@ class pupilcalc:
         s_0 = [0.0, 0.0, 0.0]
 
         c_0 = [0.0, 0.0, 1.0]
-        SYSTEM.Trace(s_0, c_0, W)
+        self.SYSTEM.Trace(s_0, c_0, self.W)
         RP.push()
 
         c_1 = [np.sin(np.deg2rad(tet)), 0.0, np.cos(np.deg2rad(tet))]
         s_0 = [r, 0.0, 0.0]
-        SYSTEM.Trace(s_0, c_1, W)
+        self.SYSTEM.Trace(s_0, c_1, self.W)
         RP.push()
 
         c_2 = [np.sin(np.deg2rad(-tet)), 0.0, np.cos(np.deg2rad(-tet))]
         s_0 = [-r, 0.0, 0.0]
-        SYSTEM.Trace(s_0, c_2, W)
+        self.SYSTEM.Trace(s_0, c_2, self.W)
         RP.push()
 
         c_3 = [0.0, np.sin(np.deg2rad(tet)), np.cos(np.deg2rad(tet))]
         s_0 = [0.0, r, 0.0]
-        SYSTEM.Trace(s_0, c_3, W)
+        self.SYSTEM.Trace(s_0, c_3, self.W)
         RP.push()
 
         c_4 = [0.0, np.sin(np.deg2rad(-tet)), np.cos(np.deg2rad(-tet))]
         s_0 = [0.0, -r, 0.0]
-        SYSTEM.Trace(s_0, c_4, W)
+        self.SYSTEM.Trace(s_0, c_4, self.W)
         RP.push()
 
-        """ Angulos en las superficies, para sacar la amplificacion de la pupila """
+        """ Angulos en las Surferficies, para sacar la amplificacion de la pupila """
 
         X, Y, Z, L, M, N = RP.pick(0)
-        teta = 0
+        theta = 0
         for s in range(1, 5):
-            teta = teta + np.rad2deg(np.arccos(L[0] * L[s] + M[0] * M[s] + N[0] * N[s]))
-        tetaIni = np.abs(teta / 4.0)
-        # print(tetaIni, " Angulo")
+            theta = theta + np.rad2deg(np.arccos(L[0] * L[s] + M[0] * M[s] + N[0] * N[s]))
+        thetaIni = np.abs(theta / 4.0)
+        # print(thetaIni, " Angulo")
 
-        X, Y, Z, L, M, N = RP.pick(sup)
-        teta = 0
+        X, Y, Z, L, M, N = RP.pick(Surf)
+        theta = 0
         for s in range(1, 5):
-            teta = teta + np.rad2deg(np.arccos(L[0] * L[s] + M[0] * M[s] + N[0] * N[s]))
-        tetaSup = np.abs(teta / 4.0)
-        # print(tetaSup, " Angulo")
+            theta = theta + np.rad2deg(np.arccos(L[0] * L[s] + M[0] * M[s] + N[0] * N[s]))
+        thetaSurf = np.abs(theta / 4.0)
+        # print(thetaSurf, " Angulo")
 
         X, Y, Z, L, M, N = RP.pick(-1)
-        teta = 0
+        theta = 0
         for s in range(1, 5):
-            teta = teta + np.rad2deg(np.arccos(L[0] * L[s] + M[0] * M[s] + N[0] * N[s]))
-        tetaEnd = np.abs(teta / 4.0)
-        # print(tetaEnd, " Angulo")
+            theta = theta + np.rad2deg(np.arccos(L[0] * L[s] + M[0] * M[s] + N[0] * N[s]))
+        thetaEnd = np.abs(theta / 4.0)
+        # print(thetaEnd, " Angulo")
 
-        M_ENTER_P = tetaIni / tetaSup
+        M_ENTER_P = thetaIni / thetaSurf
         # print("Amplificación pupila de entrada respecto al STOP: ", M_ENTER_P)
-        M_EXIT_P = tetaIni / tetaEnd
+        M_EXIT_P = thetaIni / thetaEnd
         # print("Amplificación pupila de entrada respecto a pupila de entrada: ", M_EXIT_P)
 
         ##############################################################
 
-        """ Tamanio del system STOP """
+        """ Tamanio del self.SYSTEM STOP """
 
-        STOP_DIAM = SYSTEM.SDT[sup].Diameter
+        STOP_DIAM = self.SYSTEM.SDT[Surf].Diameter
         # print("Tamanio del STOP: ", STOP_DIAM)
 
         if self.ApertureType == "EPD":
@@ -413,10 +416,10 @@ class pupilcalc:
         PosPupOutFoc = np.asarray([px[0], py[0], pz[0]])
         # print("Exit pupil coordinates from image plane: ", px, py, pz)
 
-        # kn.display2d(SYSTEM,RP,0)
-        # kn.display2d(SYSTEM,RP,1)
+        # kn.display2d(self.SYSTEM,RP,0)
+        # kn.display2d(self.SYSTEM,RP,1)
 
-        SYSTEM.Vignetting(0)
+        self.SYSTEM.Vignetting(0)
         RP.clean()
 
         self.RadPupInp = RadPupInp
@@ -451,9 +454,9 @@ class pupilcalc:
         x = []
         y = []
 
-        if self.Ptype == "rteta":
-            x.append(self.rad * np.cos(np.deg2rad(self.teta)))
-            y.append(self.rad * np.sin(np.deg2rad(self.teta)))
+        if self.Ptype == "rtheta":
+            x.append(self.rad * np.cos(np.deg2rad(self.theta)))
+            y.append(self.rad * np.sin(np.deg2rad(self.theta)))
 
         if self.Ptype == "chief":
             x.append(0.0)
@@ -515,7 +518,7 @@ class pupilcalc:
 
         if self.FieldType == "angle":
             if self.AtmosRef==1:
-                
+
                 # Parameters at Cerro Armazones
                 T   = self.T
                 P   = self.P
@@ -526,46 +529,46 @@ class pupilcalc:
                 l1  = self.l1
                 l2  = self.l2
                 z0  = self.z0
-                    
+
                 # Initializing dispersion model
                 at  = Observatory()
-                
+
                 # Calculating indices of refraction for l1 and l2
                 n1  = at.n_tph(l=l1, T=T, p=P, RH=H, xc=xc)
                 n2  = at.n_tph(l=l2, T=T, p=P, RH=H, xc=xc)
-                
-                
-                # Density of the atmosphere (following CIPM-81/91 equations)
+
+
+                # Density of the atmosphere (folloself.Wing CIPM-81/91 equations)
                 rho = at.rho(p=P, T=T, RH=H, xc=xc)
-                
+
                 # Initializing refraction model and setting the reduced height
                 disp = dispersion(lat, h)
                 disp.setReducedHeight(P, rho)
-                
-                
-                        
-                f_x = z0 + self.FieldX    
-                f_y = self.FieldY    
-                
-                Z0=np.sqrt((f_x**2)+(f_y**2))    
+
+
+
+                f_x = z0 + self.FieldX
+                f_y = self.FieldY
+
+                Z0=np.sqrt((f_x**2)+(f_y**2))
                 # Calculation of the atmopheric dipsersion
                 atm_dispersion = disp.cassini(n1, n2, Z0)
-                # print ('The dispersion is %.03f milli arc seconds' %(atm_dispersion), l2)            
-                        
-            
-                teta = np.arctan2(f_x, f_y)
-                
-                tx = self.FieldX  + (atm_dispersion * np.sin(teta))
-                ty = self.FieldY  + (atm_dispersion * np.cos(teta))
-                
+                # print ('The dispersion is %.03f milli arc seconds' %(atm_dispersion), l2)
+
+
+                theta = np.arctan2(f_x, f_y)
+
+                tx = self.FieldX  + (atm_dispersion * np.sin(theta))
+                ty = self.FieldY  + (atm_dispersion * np.cos(theta))
+
                 shiftX = Pz * np.sin(np.deg2rad(-tx))
                 shiftY = Pz * np.sin(np.deg2rad(-ty))
-                
+
             else:
-            
+
                 shiftX = Pz * np.sin(np.deg2rad(-self.FieldX))
                 shiftY = Pz * np.sin(np.deg2rad(-self.FieldY))
-            
+
             f_type = 1.
         else:
             shiftX = -self.FieldX

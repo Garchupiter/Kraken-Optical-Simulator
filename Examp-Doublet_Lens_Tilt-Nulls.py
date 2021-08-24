@@ -6,7 +6,7 @@ import numpy as np
 import Kraken as kn
 
 #_________________________________________#
-  
+
 P_Obj = kn.surf()
 P_Obj.Rc = 0.0
 P_Obj.Thickness = 1
@@ -60,8 +60,8 @@ P_Ima = kn.surf()
 P_Ima.Rc = 0.0
 P_Ima.Thickness = 0.0
 P_Ima.Glass = "AIR"
-P_Ima.Diameter = 100.0
-P_Ima.Name = "Plano imagen"
+P_Ima.Diameter = 10.0
+P_Ima.Name = "Image plane"
 
 #_________________________________________#
 
@@ -99,4 +99,4 @@ for i in range(-tam, tam + 1):
 
 #_________________________________________#
 
-kn.display2d(Doblete, Rayos, 0)
+kn.display3d(Doblete, Rayos, 2)

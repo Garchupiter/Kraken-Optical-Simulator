@@ -24,8 +24,21 @@ def R_RMS(delta_Z, L, M, N, X, Y):
     return R_RMS
 
 
-def Phase(SYSTEM, sup, W, ApType, ApVal, configuracion_1, Samp=10, Ptype="hexapolar", FieldY=0., FieldX=0.,
-          FieldType="angle"):
+def Phase(PUPIL):
+    SYSTEM = PUPIL.SYSTEM
+    sup = PUPIL.Surf
+    W = PUPIL.W
+    ApType = PUPIL.ApertureType
+    ApVal = PUPIL.ApertureValue
+    configuracion_1 = SYSTEM.SETUP
+    Samp = PUPIL.Samp
+    Ptype = PUPIL.Ptype
+    FieldY = PUPIL.FieldY
+    FieldX = PUPIL.FieldX
+    FieldType = PUPIL.FieldType
+
+
+
     pSource_0 = [0., 0., 0.]
     dCos = [0., 0., 1.]
     W = W
@@ -120,7 +133,7 @@ def Phase(SYSTEM, sup, W, ApType, ApVal, configuracion_1, Samp=10, Ptype="hexapo
 
     XYZ0 = [Xc, Yc, Zc]
     LMN0 = [Lc, Mc, Nc]
-    # print("Orientacion de la pupila de salida: ",L,M,N)          
+    # print("Orientacion de la pupila de salida: ",L,M,N)
 
     # [Pxf,Pyf,Pzf] = Pup.PosPupOutFoc
     AP = S  # np.linalg.norm([Px-X,Py-Y,Pz-Z])
@@ -135,7 +148,7 @@ def Phase(SYSTEM, sup, W, ApType, ApVal, configuracion_1, Samp=10, Ptype="hexapo
 
     P_P = kn.surf()
     SYSTEM.Parax(W)
-    # P_P.Rc=(SYSTEM.EFFL*Pup.RadPupOut/Pup.RadPupInp)#*1.00013425    #np.abs(AP) 
+    # P_P.Rc=(SYSTEM.EFFL*Pup.RadPupOut/Pup.RadPupInp)#*1.00013425    #np.abs(AP)
     P_P.Rc = np.abs(AP)
     P_P.Thickness = 0
     P_P.Diameter = P_P.Rc * .99 * 2.
@@ -191,4 +204,4 @@ def Phase(SYSTEM, sup, W, ApType, ApVal, configuracion_1, Samp=10, Ptype="hexapo
     # print("Peak to valley: ",P2V)
     # display2d(PS,RR,1)
 
-    return RRR, YPUP / 1000., XPUP / 1000., P2V
+    return YPUP / 1000., XPUP / 1000., RRR, P2V

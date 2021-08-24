@@ -12,7 +12,7 @@ import Kraken as kn
 start_time = time.time()
 
 #______________________________________#
-  
+
 P_Obj = kn.surf()
 P_Obj.Rc = 0.0
 P_Obj.Thickness = 10
@@ -116,8 +116,8 @@ X, Y, Z, L, M, N = Rayos2.pick(-1)
 plt.plot(X, Z, 'x')
 X, Y, Z, L, M, N = Rayos3.pick(-1)
 plt.plot(X, Z, 'x')
-plt.xlabel('numbers')
-plt.ylabel('values')
+plt.xlabel('X')
+plt.ylabel('Y')
 plt.title('Spot Diagram')
 plt.axis('square')
 plt.show()

@@ -10,7 +10,7 @@ import Kraken as kn
 start_time = time.time()
 
 #______________________________________#
-    
+
 P_Obj = kn.surf()
 P_Obj.Rc = 0.0
 P_Obj.Thickness = 10
@@ -59,7 +59,6 @@ config_1 = kn.Kraken_setup()
 #______________________________________#
 
 Doblete = kn.system(A, config_1)
-print("Calculando para cierta wave --------")
 Prx = Doblete.Parax(0.4)
 SistemMatrix, S_Matrix, N_Matrix, a, b, c, d, EFFL, PPA, PPP, CC, N_Prec, DD = Prx
 print(EFFL)
@@ -67,8 +66,7 @@ print(EFFL)
 #______________________________________#
 
 L1a.Rc = L1a.Rc + 1
-Doblete.ResetData()
-print("Calculando para cierta wave --------")
+Doblete.SetData()
 Prx = Doblete.Parax(0.4)
 SistemMatrix, S_Matrix, N_Matrix, a, b, c, d, EFFL, PPA, PPP, CC, N_Prec, DD = Prx
 print(EFFL)
@@ -76,8 +74,7 @@ print(EFFL)
 #______________________________________#
 
 L1a.Rc = L1a.Rc + 1
-Doblete.ResetData()
-print("Calculando para cierta wave --------")
+Doblete.SetData()
 Prx = Doblete.Parax(0.4)
 SistemMatrix, S_Matrix, N_Matrix, a, b, c, d, EFFL, PPA, PPP, CC, N_Prec, DD = Prx
 print(EFFL)
@@ -86,8 +83,7 @@ print(EFFL)
 
 
 L1a.Rc = L1a.Rc + 1
-Doblete.ResetData()
-print("Calculando para cierta wave --------")
+Doblete.SetData()
 Prx = Doblete.Parax(0.4)
 SistemMatrix, S_Matrix, N_Matrix, a, b, c, d, EFFL, PPA, PPP, CC, N_Prec, DD = Prx
 print(EFFL)

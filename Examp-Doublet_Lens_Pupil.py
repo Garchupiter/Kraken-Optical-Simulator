@@ -55,7 +55,7 @@ P_Ima.Rc = 0.0
 P_Ima.Thickness = 0.0
 P_Ima.Glass = "AIR"
 P_Ima.Diameter = 20.0
-P_Ima.Name = "Plano imagen"
+
 
 #_________________________________________#
 
@@ -100,7 +100,7 @@ print(L, M, N)
 Pup.Samp = 5
 Pup.Ptype = "fan"
 Pup.FieldType = "angle"
-Pup.FieldY = 1.0
+Pup.FieldY = 2.0
 x, y, z, L, M, N = Pup.Pattern2Field()
 for i in range(0, len(x)):
     pSource_0 = [x[i], y[i], z[i]]
@@ -110,7 +110,7 @@ for i in range(0, len(x)):
 
 #_________________________________________#
 
-Pup.FieldY = -1.0
+Pup.FieldY = -2.0
 x, y, z, L, M, N = Pup.Pattern2Field()
 for i in range(0, len(x)):
     pSource_0 = [x[i], y[i], z[i]]

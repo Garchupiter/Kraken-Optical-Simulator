@@ -6,7 +6,7 @@ import numpy as np
 import Kraken as kn
 
 #_________________________________________#
- 
+
 P_Obj = kn.surf()
 P_Obj.Rc = 0.0
 P_Obj.Thickness = 10
@@ -39,7 +39,7 @@ L1c.Thickness = 9.737604742910693E+001
 L1c.Glass = "AIR"
 L1c.Diameter = 30
 L1c.Cylinder_Rxy_Ratio = 0
-L1c.TiltZ = 45
+L1c.TiltZ = 90
 L1c.AxisMove = 0
 
 #_________________________________________#
@@ -48,8 +48,8 @@ P_Ima = kn.surf()
 P_Ima.Rc = 0.0
 P_Ima.Thickness = 0.0
 P_Ima.Glass = "AIR"
-P_Ima.Diameter = 100.0
-P_Ima.Name = "Plano imagen"
+P_Ima.Diameter = 10.0
+
 
 #_________________________________________#
 
@@ -84,7 +84,7 @@ for i in range(-tam, tam + 1):
             W = 0.6
             Doblete.Trace(pSource_0, dCos, W)
             Rayos.push()
-            
+
 #_________________________________________#
 
-kn.display3d(Doblete, Rayos, 1)
+kn.display2d(Doblete, Rayos, 0)

@@ -212,7 +212,7 @@ class zernike__surf:
         return ZSP
 
 
-def zernike_polynomials(term, ro, teta, Zern_pol, z_pow):
+def zernike_polynomials(term, ro, theta, Zern_pol, z_pow):
     j, n, m, par, raiz = Zern_pol[term]
     ct = z_pow[term][0]
     pot = z_pow[term][1]
@@ -223,9 +223,9 @@ def zernike_polynomials(term, ro, teta, Zern_pol, z_pow):
     if par == 1:
         S = raiz * NR
     if par == 3:
-        S = raiz * NR * np.cos(m * teta)
+        S = raiz * NR * np.cos(m * theta)
     if par == 2:
-        S = raiz * NR * np.sin(m * teta)
+        S = raiz * NR * np.sin(m * theta)
     return S
 
 

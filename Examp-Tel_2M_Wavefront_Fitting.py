@@ -7,7 +7,9 @@ import sys
 import matplotlib.pyplot as plt
 import numpy as np
 import Kraken as kn
-from PhaseCalc import Phase
+
+
+
 
 #______________________________________#
 
@@ -46,8 +48,8 @@ M2.Glass = "MIRROR"
 M2.Diameter = 3.365E+002 * 2.0
 M2.TiltY = 0.0
 M2.TiltX = 0.0
-M2.DespY = 0.05
-M2.DespX = 0.1
+M2.DespY = 0.0
+M2.DespX = 0.4
 M2.AxisMove = 0
 
 #______________________________________#
@@ -65,58 +67,39 @@ Telescopio = kn.system(A, configuracion_1)
 
 #______________________________________#
 
-W = 0.4
-sup = 1
-Samp = 10
-Ptype = "hexapolar"  
-FieldY = 0.13
-FieldX = -0.01
-FieldType = "angle"
-
-#______________________________________#
-
+Surf = 1
+W = 0.5016
+AperVal = 2000.
 AperType = "STOP"
-fieldType = "angle"
-AperVal = 2100.
+Pupil = kn.pupilcalc(Telescopio, Surf, W, AperType, AperVal)
+Pupil.Samp = 10
+Pupil.Ptype = "hexapolar"
+Pupil.FieldY = 0.1
+Pupil.FieldX = 0.0
+Pupil.FieldType = "angle"
 
-#______________________________________#
-
-Z, X, Y, P2V = Phase(Telescopio, sup, W, AperType, AperVal, configuracion_1, Samp, Ptype, FieldY, FieldX, FieldType)
-NC = 38
-A = np.ones(NC)
-
-#______________________________________#
-
-z_coeff, MatNotation, w_rms, fitt_error = kn.Zernike_Fitting(X, Y, Z, A)
-A = np.abs(z_coeff)
-Zeros = np.argwhere(A > 0.0001)
-AA = np.zeros_like(A)
-AA[Zeros] = 1
-A = AA
-z_coeff, MatNotation, w_rms, fitt_error = kn.Zernike_Fitting(X, Y, Z, A)
+X, Y, Z, P2V = kn.Phase(Pupil)
 print("Peak to valley: ", P2V)
+NC = 18
+A = np.ones(38)
 
-#______________________________________#
+Zcoef, Mat, w_rms = kn.Zernike_Fitting(X, Y, Z, A)
 
 for i in range(0, NC):
-    print("z ", i + 1, "  ", "{0:.6f}".format(float(z_coeff[i])), "  :  ", MatNotation[i])
-
+    print("z", i + 1, "  ", "{0:.6f}".format(float(Zcoef[i])),":",Mat[i])
 #______________________________________#
 
-print("RMS: ", "{:.4f}".format(float(w_rms)), " Error del ajuste: ", fitt_error)
-z_coeff[0] = 0
-print("RMS to chief: ", np.sqrt(np.sum(z_coeff * z_coeff)))
-z_coeff[1] = 0
-z_coeff[2] = 0
-print("RMS to centroid: ", np.sqrt(np.sum(z_coeff * z_coeff)))
+# print("RMS: ", "{:.4f}".format(float(w_rms)), " Error del ajuste: ", fitt_error)
+# z_coeff[0] = 0
+# print("RMS to chief: ", np.sqrt(np.sum(z_coeff * z_coeff)))
+# z_coeff[1] = 0
+# z_coeff[2] = 0
+# print("RMS to centroid: ", np.sqrt(np.sum(z_coeff * z_coeff)))
 
-#______________________________________#
+# #______________________________________#
 
 RR = kn.raykeeper(Telescopio)
-Pup = kn.pupilcalc(Telescopio, sup, W, AperType, AperVal)
-Pup.FieldX = FieldX
-Pup.FieldY = FieldY
-x, y, z, L, M, N = Pup.Pattern2Field()
+x, y, z, L, M, N = Pupil.Pattern2Field()
 
 #______________________________________#
 
@@ -128,7 +111,7 @@ for i in range(0, len(x)):
 
 #______________________________________#
 
-kn.display3d(Telescopio, RR, 2)
+# kn.display3d(Telescopio, RR, 2)
 X, Y, Z, L, M, N = RR.pick(-1)
 
 #______________________________________#
@@ -139,3 +122,23 @@ plt.ylabel('values')
 plt.title('spot Diagram')
 plt.axis('square')
 plt.show()
+
+
+
+
+
+
+ima=kn.WavefrontData2Image(Zcoef,400)
+
+Type="interferogram"
+kn.ZernikeDataImage2Plot(ima, Type)
+
+
+
+
+AB = kn.Seidel(Pupil)
+
+print("--------------------------------------")
+print(AB.SCW_AN)
+print(AB.SCW_NM)
+print(AB.SCW_TOTAL)

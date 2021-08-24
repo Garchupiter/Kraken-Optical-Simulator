@@ -114,8 +114,8 @@ X, Y, Z, L, M, N = Rayos.pick(-1)
 #______________________________________#
 
 plt.plot(X, Y, 'x')
-plt.xlabel('numbers')
-plt.ylabel('values')
+plt.xlabel('X')
+plt.ylabel('Y')
 plt.title('Spot Diagram')
 plt.axis('square')
 plt.show()

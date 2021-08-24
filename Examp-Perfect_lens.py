@@ -86,8 +86,8 @@ X, Y, Z, L, M, N = Rayos1.pick(-1)
 #______________________________________#
 
 plt.plot(X, Y, 'x')
-plt.xlabel('numbers')
-plt.ylabel('values')
+plt.xlabel('X')
+plt.ylabel('Y')
 plt.title('Stop Diagram')
 plt.axis('square')
 plt.show()

@@ -6,7 +6,7 @@ import Kraken as kn
 import numpy as np
 
 #_________________________________________#
-   
+
 P_Obj = kn.surf()
 P_Obj.Rc = 0.0
 P_Obj.Thickness = 100
@@ -55,7 +55,7 @@ P_Ima.Rc = 0.0
 P_Ima.Thickness = 0.0
 P_Ima.Glass = "AIR"
 P_Ima.Diameter = 20.0
-P_Ima.Name = "Plano imagen"
+
 
 #_________________________________________#
 
@@ -69,36 +69,59 @@ Doblete = kn.system(A, config_1)
 #_________________________________________#
 
 W = 0.6
-sup = 4
+Surf = 4
 AperVal = 3
 AperType = "EPD"
-field = 3.25
 fieldType = "angle"
 
-#_________________________________________#
-
-AB = kn.Seidel(Doblete, sup, W, AperType, AperVal, field, fieldType)
-print( AB[0][0])
-print(np.sum(AB[1][0]), np.sum(AB[1][1]), np.sum(AB[1][2]), np.sum(AB[1][3]), np.sum(AB[1][4]))
-
-j=1
-print( AB[0][0+j])
-print(np.sum(AB[1+j][0]), np.sum(AB[1+j][1]), np.sum(AB[1+j][2]), np.sum(AB[1+j][3]), np.sum(AB[1+j][4]))
-
-j=2
-print( AB[0][0+j])
-print(np.sum(AB[1+j][0]), np.sum(AB[1+j][1]), np.sum(AB[1+j][2]), np.sum(AB[1+j][3]), np.sum(AB[1+j][4]))
-
-j=3
-print( AB[0][0+j])
-print(np.sum(AB[1+j][0]), np.sum(AB[1+j][1]), np.sum(AB[1+j][2]), np.sum(AB[1+j][3]), np.sum(AB[1+j][4]))
-
-#_________________________________________#
-
-Pup = kn.pupilcalc(Doblete, sup, W, AperType, AperVal)
+Pup = kn.pupilcalc(Doblete, Surf, W, AperType, AperVal)
 Pup.Samp = 25
 Pup.Ptype = "fan"
-Pup.FieldY = field
+Pup.FieldY = 3.25
+
+#_________________________________________#
+
+AB = kn.Seidel(Pup)
+
+print("--------------------------------------")
+print(AB.SAC_AN)
+print(AB.SAC_NM)
+print(AB.SAC_TOTAL)
+print("--------------------------------------")
+print(AB.SCW_AN)
+print(AB.SCW_NM)
+print(AB.SCW_TOTAL)
+print("--------------------------------------")
+print(AB.TAC_AN)
+print(AB.TAC_NM)
+print(AB.TAC_TOTAL)
+print("--------------------------------------")
+print(AB.LAC_AN)
+print(AB.LAC_NM)
+print(AB.LAC_TOTAL)
+print("--------------------------------------")
+
+
+
+# print( AB[0][0])
+# print(np.sum(AB[1][0]), np.sum(AB[1][1]), np.sum(AB[1][2]), np.sum(AB[1][3]), np.sum(AB[1][4]))
+
+# j=1
+# print( AB[0][0+j])
+# print(np.sum(AB[1+j][0]), np.sum(AB[1+j][1]), np.sum(AB[1+j][2]), np.sum(AB[1+j][3]), np.sum(AB[1+j][4]))
+
+# j=2
+# print( AB[0][0+j])
+# print(np.sum(AB[1+j][0]), np.sum(AB[1+j][1]), np.sum(AB[1+j][2]), np.sum(AB[1+j][3]), np.sum(AB[1+j][4]))
+
+# j=3
+# print( AB[0][0+j])
+# print(np.sum(AB[1+j][0]), np.sum(AB[1+j][1]), np.sum(AB[1+j][2]), np.sum(AB[1+j][3]), np.sum(AB[1+j][4]))
+
+# #_________________________________________#
+
+
+
 x, y, z, L, M, N = Pup.Pattern2Field()
 Rayos = kn.raykeeper(Doblete)
 
