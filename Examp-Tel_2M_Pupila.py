@@ -7,7 +7,7 @@ import numpy as np
 import Kraken as kn
 
 #______________________________________#
-  
+
 P_Obj = kn.surf()
 P_Obj.Rc = 0
 P_Obj.Thickness = 1000 + 3.452200000000000E+003
@@ -56,7 +56,7 @@ W = 0.4
 sup = 1
 AperVal = 2010
 AperType = "EPD" # "STOP"
-Pup = kn.pupilcalc(Telescopio, sup, W, AperType, AperVal)
+Pup = kn.PupilCalc(Telescopio, sup, W, AperType, AperVal)
 
 #______________________________________#
 

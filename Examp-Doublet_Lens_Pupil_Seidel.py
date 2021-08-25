@@ -74,7 +74,7 @@ AperVal = 3
 AperType = "EPD"
 fieldType = "angle"
 
-Pup = kn.pupilcalc(Doblete, Surf, W, AperType, AperVal)
+Pup = kn.PupilCalc(Doblete, Surf, W, AperType, AperVal)
 Pup.Samp = 25
 Pup.Ptype = "fan"
 Pup.FieldY = 3.25

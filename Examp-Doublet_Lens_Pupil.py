@@ -73,7 +73,7 @@ W = 0.4
 sup = 4
 AperVal = 10
 AperType = "EPD"
-Pup = kn.pupilcalc(Doblete, sup, W, AperType, AperVal)
+Pup = kn.PupilCalc(Doblete, sup, W, AperType, AperVal)
 
 #_________________________________________#
 

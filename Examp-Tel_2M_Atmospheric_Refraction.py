@@ -52,7 +52,7 @@ W = 0.4
 sup = 1
 AperVal = 2000
 AperType = "EPD" # "STOP"
-Pup = kn.pupilcalc(Telescopio, sup, W, AperType, AperVal)
+Pup = kn.PupilCalc(Telescopio, sup, W, AperType, AperVal)
 Pup.Samp=11
 Pup.FieldType = "angle"
 

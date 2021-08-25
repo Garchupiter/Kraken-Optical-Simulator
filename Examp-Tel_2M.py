@@ -6,9 +6,9 @@ import Kraken as kn
 import numpy as np
 import matplotlib.pyplot as plt
 import time
- 
+
 #______________________________________#
- 
+
 P_Obj=kn.surf()
 P_Obj.Rc=0
 P_Obj.Thickness=1000+3.452200000000000E+003
@@ -55,9 +55,9 @@ Rayos=kn.raykeeper(Telescopio)
 W = 0.4
 sup = 1
 AperVal = 2010
-AperType = "EPD" 
-Pup = kn.pupilcalc(Telescopio, sup, W, AperType, AperVal)
-Pup.Samp=7 
+AperType = "EPD"
+Pup = kn.PupilCalc(Telescopio, sup, W, AperType, AperVal)
+Pup.Samp=7
 Pup.FieldType = "angle"
 
 #______________________________________#
@@ -80,7 +80,7 @@ Pup.FieldY = -.5
 Pup.Ptype = "rand"
 xc,yc,zc,Lc,Mc,Nc=Pup.Pattern2Field()
 
-#______________________________________#   
+#______________________________________#
 
 for i in range(0,len(xa)):
     pSource_0 = [xa[i], ya[i], za[i]]
@@ -102,9 +102,9 @@ for i in range(0,len(xc)):
     dCos=[Lc[i], Mc[i], Nc[i]]
     Telescopio.Trace(pSource_0, dCos, W)
     Rayos.push()
-  
-#______________________________________#    
-        
+
+#______________________________________#
+
 kn.display3d(Telescopio,Rayos,2)
 X,Y,Z,L,M,N=Rayos.pick(-1)
 
@@ -115,4 +115,4 @@ plt.xlabel('x')
 plt.ylabel('y')
 plt.title('Spot Diagram')
 plt.axis('square')
-plt.show()        
+plt.show()

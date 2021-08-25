@@ -78,7 +78,7 @@ W = 0.60169
 sup = 1 # Difining M1 as enter pupil diameter
 AperVal = 2000
 AperType = "EPD" # "STOP"
-Pup = kn.pupilcalc(Telescopio, sup, W, AperType, AperVal)
+Pup = kn.PupilCalc(Telescopio, sup, W, AperType, AperVal)
 Pup.Samp=5
 Pup.FieldType = "angle"
 

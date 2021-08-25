@@ -93,7 +93,7 @@ if __name__ == '__main__':
     p8 = multiprocessing.Process(target=trax1, args=(pSource_0, dCos, w + 0.8, q))
     p9 = multiprocessing.Process(target=trax1, args=(pSource_0, dCos, w + 0.1, q))
     p10 = multiprocessing.Process(target=trax1, args=(pSource_0, dCos, w + 0.2, q))
-    
+
     p1.start()
     p2.start()
     p3.start()
@@ -104,7 +104,7 @@ if __name__ == '__main__':
     p8.start()
     p9.start()
     p10.start()
-    
+
     p1.join()
     p2.join()
     p3.join()
@@ -120,6 +120,9 @@ if __name__ == '__main__':
     print("Total time :")
     print("--- %s seconds ---" % (time.time() - start_time))
 
-    while q:
+    print("Restart python kernel by hand because at this moment it is hang, it is inevitable until i know")
+
+    # while q:
+    for i in range(0,11):
         A = q.get()
         print(len(A))
