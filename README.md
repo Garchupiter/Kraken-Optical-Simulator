@@ -18,7 +18,6 @@ The library has been tested with the following packages and versions.
 • vtk '8.2'          
 • csv '1.0'          
 • Place the directory “Kraken” in the same path where the code to be executed is located.          
-• All the files included in the directory and that begin their name with the word “ Example - - ” are examples in which the library functions are used.
 
 ## Surfaces and the optical system
 The library has been simplified to the point of having only two classes of objects for the definition of a system, these are surf and system.
@@ -63,4 +62,4 @@ Very important, read the user manual (Kraken_User_Manual.pdf) included and the s
 • Examp-Tel_2M_Atmospheric_Refraction.py          
 • Examp-Tel_2M_Wavefront_Fitting.py         
 
-Enjoy it
+Enjoy it!!
