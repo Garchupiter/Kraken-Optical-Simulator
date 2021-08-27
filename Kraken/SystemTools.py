@@ -8,6 +8,7 @@ Created on Sat Mar 13 17:42:47 2021
 import csv
 import numpy as np
 
+
 def load_alluminum_complex(file):
     """ hsahdasjhgd """
 

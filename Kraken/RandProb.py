@@ -8,6 +8,7 @@ Created on Mon Jun 21 08:41:55 2021
 
 import random
 
+
 def prov(pro):
     """prov.
 

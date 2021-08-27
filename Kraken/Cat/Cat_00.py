@@ -10,5 +10,5 @@ import glob
 txtfiles = []
 for file in glob.glob("*.AGF"):
     txtfiles.append(file)
-    
-print(txtfiles)    
+
+print(txtfiles)

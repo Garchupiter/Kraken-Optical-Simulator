@@ -127,7 +127,6 @@ class surf:
                 FUNC_1 = aspheric__surf(self.AspherData)
                 self.SURF_FUNC.append(FUNC_1)
 
-
             if self.Rc != 0:
                 FUNC_2 = conic__surf(self.Rc, self.k, self.Cylinder_Rxy_Ratio)
                 self.SURF_FUNC.append(FUNC_2)
@@ -144,8 +143,6 @@ class surf:
                 [X, Y, Z, SPACE] = self.Error_map
                 FUNC_5 = error_map__surf(X, Y, Z, SPACE)
                 self.SURF_FUNC.append(FUNC_5)
-
-
 
             # --------------------------------------------------------
         if self.Surface_type == 1:  # 1 for Difraction grating """
@@ -233,68 +230,64 @@ class surf:
 
         return self.General_Status
 
-
-
     def SaveSetup(self):
-            """SaveSetup."""
-            self.Sv_Rc = self.Rc
-            self.Sv_Thickness = self.Thickness
-            self.Sv_Diameter = self.Diameter
-            self.Sv_InDiameter = self.InDiameter
-            self.Sv_k = self.k
-            self.Sv_ZNK = self.ZNK
-            self.Sv_Glass = self.Glass
-            self.Sv_DespX = self.DespX
-            self.Sv_DespY = self.DespY
-            self.Sv_DespZ = self.DespZ
-            self.Sv_TiltX = self.TiltX
-            self.Sv_TiltY = self.TiltY
-            self.Sv_TiltZ = self.TiltZ
-            self.Sv_Order = self.Order
-            self.Sv_AxisMove = self.AxisMove
-            self.Sv_Diff_Ord = self.Diff_Ord
-            self.Sv_Grating_D = self.Grating_D
-            self.Sv_Grating_Angle = self.Grating_Angle
-            self.Sv_ShiftX = self.ShiftX
-            self.Sv_ShiftY = self.ShiftY
-            self.Sv_Mask_Type = self.Mask_Type
-            self.Sv_Cylinder_Rxy_Ratio = self.Cylinder_Rxy_Ratio
-            self.Sv_Axicon = self.Axicon
-            self.Sv_AspherData = self.AspherData
-            self.Sv_ExtraData = self.ExtraData
-            self.Sv_Thin_Lens = self.Thin_Lens
-            self.Sv_Error_map = self.Error_map
-
+        """SaveSetup."""
+        self.Sv_Rc = self.Rc
+        self.Sv_Thickness = self.Thickness
+        self.Sv_Diameter = self.Diameter
+        self.Sv_InDiameter = self.InDiameter
+        self.Sv_k = self.k
+        self.Sv_ZNK = self.ZNK
+        self.Sv_Glass = self.Glass
+        self.Sv_DespX = self.DespX
+        self.Sv_DespY = self.DespY
+        self.Sv_DespZ = self.DespZ
+        self.Sv_TiltX = self.TiltX
+        self.Sv_TiltY = self.TiltY
+        self.Sv_TiltZ = self.TiltZ
+        self.Sv_Order = self.Order
+        self.Sv_AxisMove = self.AxisMove
+        self.Sv_Diff_Ord = self.Diff_Ord
+        self.Sv_Grating_D = self.Grating_D
+        self.Sv_Grating_Angle = self.Grating_Angle
+        self.Sv_ShiftX = self.ShiftX
+        self.Sv_ShiftY = self.ShiftY
+        self.Sv_Mask_Type = self.Mask_Type
+        self.Sv_Cylinder_Rxy_Ratio = self.Cylinder_Rxy_Ratio
+        self.Sv_Axicon = self.Axicon
+        self.Sv_AspherData = self.AspherData
+        self.Sv_ExtraData = self.ExtraData
+        self.Sv_Thin_Lens = self.Thin_Lens
+        self.Sv_Error_map = self.Error_map
 
     def RestoreSetup(self):
-            """RestoreSetup."""
-            self.Rc = self.Sv_Rc
-            self.Thickness = self.Sv_Thickness
-            self.Diameter = self.Sv_Diameter
-            self.InDiameter = self.Sv_InDiameter
-            self.k = self.Sv_k
-            self.ZNK = self.Sv_ZNK
-            self.Glass = self.Sv_Glass
-            self.DespX = self.Sv_DespX
-            self.DespY = self.Sv_DespY
-            self.DespZ = self.Sv_DespZ
-            self.TiltX = self.Sv_TiltX
-            self.TiltY = self.Sv_TiltY
-            self.TiltZ = self.Sv_TiltZ
-            self.Order = self.Sv_Order
-            self.AxisMove = self.Sv_AxisMove
-            self.Diff_Ord = self.Sv_Diff_Ord
-            self.Grating_D = self.Sv_Grating_D
-            self.Grating_Angle = self.Sv_Grating_Angle
-            self.ShiftX = self.Sv_ShiftX
-            self.ShiftY = self.Sv_ShiftY
-            self.Mask_Type = self.Sv_Mask_Type
-            self.Cylinder_Rxy_Ratio = self.Sv_Cylinder_Rxy_Ratio
-            self.Axicon = self.Sv_Axicon
-            self.AspherData = self.Sv_AspherData
-            self.ExtraData = self.Sv_ExtraData
-            self.Thin_Lens = self.Sv_Thin_Lens
-            self.Error_map = self.Sv_Error_map
-
+        """RestoreSetup."""
+        self.Rc = self.Sv_Rc
+        self.Thickness = self.Sv_Thickness
+        self.Diameter = self.Sv_Diameter
+        self.InDiameter = self.Sv_InDiameter
+        self.k = self.Sv_k
+        self.ZNK = self.Sv_ZNK
+        self.Glass = self.Sv_Glass
+        self.DespX = self.Sv_DespX
+        self.DespY = self.Sv_DespY
+        self.DespZ = self.Sv_DespZ
+        self.TiltX = self.Sv_TiltX
+        self.TiltY = self.Sv_TiltY
+        self.TiltZ = self.Sv_TiltZ
+        self.Order = self.Sv_Order
+        self.AxisMove = self.Sv_AxisMove
+        self.Diff_Ord = self.Sv_Diff_Ord
+        self.Grating_D = self.Sv_Grating_D
+        self.Grating_Angle = self.Sv_Grating_Angle
+        self.ShiftX = self.Sv_ShiftX
+        self.ShiftY = self.Sv_ShiftY
+        self.Mask_Type = self.Sv_Mask_Type
+        self.Cylinder_Rxy_Ratio = self.Sv_Cylinder_Rxy_Ratio
+        self.Axicon = self.Sv_Axicon
+        self.AspherData = self.Sv_AspherData
+        self.ExtraData = self.Sv_ExtraData
+        self.Thin_Lens = self.Sv_Thin_Lens
+        self.Error_map = self.Sv_Error_map
 
 ##############################################################

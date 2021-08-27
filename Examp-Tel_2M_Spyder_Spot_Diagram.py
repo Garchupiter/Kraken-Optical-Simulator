@@ -7,15 +7,15 @@ import numpy as np
 import pyvista as pv
 import Kraken as kn
 
-#______________________________________#
-    
+# ______________________________________#
+
 P_Obj = kn.surf()
 P_Obj.Rc = 0
 P_Obj.Thickness = 1000
 P_Obj.Glass = "AIR"
 P_Obj.Diameter = 1.059E+003 * 2.0
 
-#______________________________________#
+# ______________________________________#
 
 Spider = kn.surf()
 Spider.Rc = 999999999999.0
@@ -35,7 +35,7 @@ Spider.Mask_Shape = AAA
 Spider.Mask_Type = 2
 Spider.TiltZ = 0
 
-#______________________________________#
+# ______________________________________#
 
 Thickness = 3.452229924716749E+003
 M1 = kn.surf()
@@ -46,34 +46,34 @@ M1.Glass = "MIRROR"
 M1.Diameter = 1.059E+003 * 2.0
 M1.InDiameter = 250 * 2.0
 
-#______________________________________#
+# ______________________________________#
 
 M2 = kn.surf()
 M2.Rc = -3.93E+003
-focusShift=1.0 # Set cero to focus, 1 is only to see the spider is the spot diagram
+focusShift = 1.0  # Set cero to focus, 1 is only to see the spider is the spot diagram
 M2.Thickness = Thickness + 1.037179115116706E+003 + focusShift
 M2.k = -4.328100000000000E+000
 M2.Glass = "MIRROR"
 M2.Diameter = 3.365E+002 * 2.0
 
-#______________________________________#
+# ______________________________________#
 
 P_Ima = kn.surf()
 P_Ima.Diameter = 100.0
 P_Ima.Glass = "AIR"
 P_Ima.Name = "Plano imagen"
 
-#______________________________________#
+# ______________________________________#
 
 A = [P_Obj, Spider, M1, M2, P_Ima]
 configuracion_1 = kn.Kraken_setup()
 
-#______________________________________#
+# ______________________________________#
 
 Telescopio = kn.system(A, configuracion_1)
 Rayos = kn.raykeeper(Telescopio)
 
-#______________________________________#
+# ______________________________________#
 
 tam = 7
 rad = 2200 / 2
@@ -91,12 +91,12 @@ for i in range(-tam, tam + 1):
             Telescopio.Trace(pSource_0, dCos, W)
             Rayos.push()
 
-#______________________________________#
+# ______________________________________#
 
 kn.display3d(Telescopio, Rayos, 2)
 X, Y, Z, L, M, N = Rayos.pick(-1)
 
-#______________________________________#
+# ______________________________________#
 
 plt.plot(X, Y, 'x')
 plt.xlabel('x')

@@ -7,7 +7,7 @@ Created on Sun Apr 18 13:30:17 2021
 """
 
 import numpy as np
-from .MathShapesClass import zernike__surf, zernike_expand, zernike_polynomials, zernike_math_notation
+from .MathShapesClass import *
 
 
 def RMS(SA, X, Y, Z, Zern_pol, z_pow):
@@ -55,7 +55,7 @@ def Zernike_Fitting(x1, y1, Z1, A, minimum=0.0001):
     NC = len(A)
     Zern_pol, z_pow = zernike_expand(NC)
 
-    for i in range(0,2):
+    for i in range(0, 2):
         Zi = System_Matrix_Zernikes(x1, y1, A, Zern_pol, z_pow, 0)
         ZT = Zi.T
         ZTZ = np.matmul(ZT, Zi)
@@ -71,20 +71,19 @@ def Zernike_Fitting(x1, y1, Z1, A, minimum=0.0001):
         cont = 0
 
         ZZ = []
-        for i in range(0, A.shape[0]):
-            ZZ.append(zernike_math_notation(i, Zern_pol, z_pow))
+        for i1 in range(0, A.shape[0]):
+            ZZ.append(zernike_math_notation(i1, Zern_pol, z_pow))
         ZZ = np.asarray(ZZ)
 
-        for i in range(0, NA):
-            if A[i] != 0:
-                SA[i] = MA[cont][0]
+        for i2 in range(0, NA):
+            if A[i2] != 0:
+                SA[i2] = MA[cont][0]
 
                 cont = cont + 1
             else:
-                SA[i] = 0.0
+                SA[i2] = 0.0
 
             # print(SA[i]," :   ",ZZ[[i][0]][:])
-
 
         A = np.abs(SA)
         Zeros = np.argwhere(A > minimum)
@@ -92,16 +91,9 @@ def Zernike_Fitting(x1, y1, Z1, A, minimum=0.0001):
         AA[Zeros] = 1
         A = AA
 
-
-
     WRMS, FITTINGERROR = RMS(SA, x1, y1, Z1, Zern_pol, z_pow)
 
-
     return SA, ZZ, WRMS
-
-
-
-
 
 
 def Wavefront_Zernike_Phase(x, y, COEF):
@@ -126,8 +118,6 @@ def Wavefront_Zernike_Phase(x, y, COEF):
     return ZFP
 
 
-
-
 def Wavefront_Phase(x, y, COEF, Zern_pol, z_pow):
     """Wavefront_Phase.
 
@@ -149,7 +139,7 @@ def Wavefront_Phase(x, y, COEF, Zern_pol, z_pow):
     return ZFP
 
 
-def Wf_XY_Components(x, y, N, Zern_pol, z_pow, fz):
+def Wf_XY_Components(x, y, N, Zern_pol, z_pow):
     """Wf_XY_Components.
 
     :param x:
@@ -157,7 +147,7 @@ def Wf_XY_Components(x, y, N, Zern_pol, z_pow, fz):
     :param N:
     :param Zern_pol:
     :param z_pow:
-    :param fz:
+
     """
     A = np.zeros(Zern_pol.shape[0])
     A[N] = 1.0
@@ -185,7 +175,7 @@ def System_Matrix_Zernikes(x, y, A, Zern_pol, z_pow, fz):
     cont = 0
     for h in range(0, Tp):
         for n in range(0, n_NA):
-            F = Wf_XY_Components(x[h], y[h], NA[n], Zern_pol, z_pow, fz)
+            F = Wf_XY_Components(x[h], y[h], NA[n], Zern_pol, z_pow)
 
             ZU[cont, n] = F
         cont = cont + 1

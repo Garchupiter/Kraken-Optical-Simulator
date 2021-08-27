@@ -5,14 +5,14 @@
 import numpy as np
 import Kraken as kn
 
-#______________________________________#
+# ______________________________________#
 
 P_Obj = kn.surf()
 P_Obj.Thickness = 1000.0
 P_Obj.Diameter = 300
 P_Obj.Drawing = 0
 
-#______________________________________#
+# ______________________________________#
 
 M1 = kn.surf()
 M1.Rc = -2000.0
@@ -22,7 +22,7 @@ M1.Glass = "MIRROR"
 M1.Diameter = 300
 M1.ShiftY = 200
 
-#______________________________________#
+# ______________________________________#
 
 P_Ima = kn.surf()
 P_Ima.Glass = "AIR"
@@ -30,17 +30,17 @@ P_Ima.Diameter = 1600.0
 P_Ima.Drawing = 0
 P_Ima.Name = "Plano imagen"
 
-#______________________________________#
+# ______________________________________#
 
 A = [P_Obj, M1, P_Ima]
 configuracion_1 = kn.Kraken_setup()
 
-#______________________________________#
+# ______________________________________#
 
 Espejo = kn.system(A, configuracion_1)
 Rayos = kn.raykeeper(Espejo)
 
-#______________________________________#
+# ______________________________________#
 
 tam = 5
 rad = 150.0
@@ -58,6 +58,6 @@ for i in range(-tam, tam + 1):
             Espejo.Trace(pSource_0, dCos, W)
             Rayos.push()
 
-#______________________________________#
+# ______________________________________#
 
 kn.display2d(Espejo, Rayos, 0)

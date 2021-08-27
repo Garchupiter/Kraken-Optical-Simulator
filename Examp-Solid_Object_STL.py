@@ -6,7 +6,7 @@ import os
 import numpy as np
 import Kraken as kn
 
-#______________________________________#
+# ______________________________________#
 
 P_Obj = kn.surf()
 P_Obj.Thickness = 2.000000000000000E+003
@@ -14,7 +14,7 @@ P_Obj.Glass = "AIR"
 P_Obj.Diameter = 6.796727741707513E+002 * 2.0
 P_Obj.Drawing = 0
 
-#______________________________________#
+# ______________________________________#
 
 M1 = kn.surf()
 M1.Rc = -6.06044E+003
@@ -27,7 +27,7 @@ M1.DespY = 0.0
 M1.TiltX = 0.0000
 M1.AxisMove = 1
 
-#______________________________________#
+# ______________________________________#
 
 M2 = kn.surf()
 M2.Rc = -6.06044E+003
@@ -39,7 +39,7 @@ ED0 = np.zeros(20)
 ED0[2] = 4.458178314555000E-018
 M2.AspherData = ED0
 
-#______________________________________#
+# ______________________________________#
 
 Vertex = kn.surf()
 Vertex.Thickness = 130.0
@@ -47,12 +47,12 @@ Vertex.Glass = "AIR"
 Vertex.Diameter = 600.0
 Vertex.Drawing = 0
 
-#______________________________________#
+# ______________________________________#
 
 currentDirectory = os.getcwd()
 direc = r"Prisma.stl"
 
-#______________________________________#
+# ______________________________________#
 
 objeto = kn.surf()
 objeto.Diameter = 118.0 * 2.0
@@ -66,7 +66,7 @@ objeto.DespX = 0
 objeto.DespY = 0
 objeto.AxisMove = 0
 
-#______________________________________#
+# ______________________________________#
 
 P_Ima = kn.surf()
 P_Ima.Rc = 0
@@ -75,17 +75,17 @@ P_Ima.Glass = "BK7"
 P_Ima.Diameter = 500.0
 P_Ima.Drawing = 1
 
-#______________________________________#
+# ______________________________________#
 
 A = [P_Obj, M1, M2, Vertex, objeto, P_Ima]
 configuracion_1 = kn.Kraken_setup()
 
-#______________________________________#
+# ______________________________________#
 
 Telescope = kn.system(A, configuracion_1)
 Rays = kn.raykeeper(Telescope)
 
-#______________________________________#
+# ______________________________________#
 
 W = 0.633
 tam = 5
@@ -107,7 +107,7 @@ for gg in range(0, 10):
                 Telescope.NsTrace(pSource_0, dCos, W)
                 Rays.push()
 
-#______________________________________#
+# ______________________________________#
 
 kn.display3d(Telescope, Rays, 0)
 print(Telescope.EFFL)

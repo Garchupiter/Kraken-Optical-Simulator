@@ -1,7 +1,71 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="13bceb31-346a-47dd-8386-88e36dffa6c5" name="Default Changelist" comment="" />
+    <list default="true" id="13bceb31-346a-47dd-8386-88e36dffa6c5" name="Default Changelist" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-Axicon.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Axicon.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-Axicon_And_Cylinder.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Axicon_And_Cylinder.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-Diffraction_Grating_Reflection.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Diffraction_Grating_Reflection.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-Diffraction_Grating_Transmission.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Diffraction_Grating_Transmission.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-Doublet_Lens-ParaxMatrix.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Doublet_Lens-ParaxMatrix.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-Doublet_Lens.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Doublet_Lens.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-Doublet_Lens_3Dcolor.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Doublet_Lens_3Dcolor.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-Doublet_Lens_CommandsSystem.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Doublet_Lens_CommandsSystem.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-Doublet_Lens_Cylinder.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Doublet_Lens_Cylinder.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-Doublet_Lens_NonSec.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Doublet_Lens_NonSec.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-Doublet_Lens_Pupil.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Doublet_Lens_Pupil.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-Doublet_Lens_Pupil_Seidel.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Doublet_Lens_Pupil_Seidel.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-Doublet_Lens_Tilt-Nulls.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Doublet_Lens_Tilt-Nulls.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-Doublet_Lens_Tilt.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Doublet_Lens_Tilt.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-Doublet_Lens_Tilt_non_sec.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Doublet_Lens_Tilt_non_sec.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-Doublet_Lens_Zernike.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Doublet_Lens_Zernike.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-ExtraShape_Micro_Lens_Array.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-ExtraShape_Micro_Lens_Array.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-ExtraShape_Radial_Sine.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-ExtraShape_Radial_Sine.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-ExtraShape_XY_Cosines.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-ExtraShape_XY_Cosines.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-Flat_Mirror_45Deg.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Flat_Mirror_45Deg.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-MultiCore.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-MultiCore.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-ParaboleMirror_Shift.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-ParaboleMirror_Shift.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-Perfect_lens.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Perfect_lens.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-Ray.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Ray.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-Solid_Object_STL.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Solid_Object_STL.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-Solid_Object_STL_ARRAY.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Solid_Object_STL_ARRAY.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-Sourse_Distribution_Function.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Sourse_Distribution_Function.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-Tel-TAOS-Morgan-ZCP.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Tel-TAOS-Morgan-ZCP.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-Tel_2M-STL_ImageSlicer.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Tel_2M-STL_ImageSlicer.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-Tel_2M.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Tel_2M.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-Tel_2M_Atmospheric_Refraction.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Tel_2M_Atmospheric_Refraction.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-Tel_2M_Atmospheric_Refraction_Corrector.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Tel_2M_Atmospheric_Refraction_Corrector.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-Tel_2M_Atmospheric_Refraction_Corrector_Modified.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Tel_2M_Atmospheric_Refraction_Corrector_Modified.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-Tel_2M_Error_Map.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Tel_2M_Error_Map.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-Tel_2M_Pupila.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Tel_2M_Pupila.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-Tel_2M_Spyder_Spot_Diagram.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Tel_2M_Spyder_Spot_Diagram.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-Tel_2M_Spyder_Spot_RMS.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Tel_2M_Spyder_Spot_RMS.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-Tel_2M_Spyder_Spot_Tilt_M2.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Tel_2M_Spyder_Spot_Tilt_M2.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-Tel_2M_Wavefront_Fitting.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Tel_2M_Wavefront_Fitting.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Examp-Tel_2M_Wavefront_Fitting_optimization.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Tel_2M_Wavefront_Fitting_optimization.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Kraken/AstroAtmosphere/AtmosP.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Kraken/AstroAtmosphere/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/AstroAtmosphere/__init__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Kraken/Cat/Cat_00.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/Cat/Cat_00.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Kraken/Display.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/Display.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Kraken/KrakenSys.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/KrakenSys.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Kraken/LibRMS.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/LibRMS.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Kraken/MathShapesClass.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/MathShapesClass.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Kraken/PhaseCalc.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/PhaseCalc.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Kraken/Physics.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/Physics.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Kraken/PhysicsClass.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/PhysicsClass.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Kraken/Prerequisites3D.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/Prerequisites3D.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Kraken/PupilTool.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/PupilTool.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Kraken/RandProb.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/RandProb.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Kraken/RayKeeper.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/RayKeeper.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Kraken/SeidelTool.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/SeidelTool.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Kraken/SourceRand.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/SourceRand.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Kraken/SurfClass.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/SurfClass.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Kraken/SurfTools.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/SurfTools.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Kraken/SystemTools.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/SystemTools.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Kraken/TraceLoopTool.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/TraceLoopTool.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Kraken/WavePlot.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/WavePlot.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Kraken/WavefrontFit.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/WavefrontFit.py" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -25,8 +89,8 @@
     <property name="run.code.analysis.last.selected.profile" value="aDefault" />
     <property name="settings.editor.selected.configurable" value="editor.preferences.smartKeys" />
   </component>
-  <component name="RunManager">
-    <configuration name="Examp-Axicon" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+  <component name="RunManager" selected="Python.Examp-Tel_2M_Atmospheric_Refraction_Corrector">
+    <configuration name="Examp-Doublet_Lens_CommandsSystem" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="Kraken-Optical-Simulator" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
@@ -38,7 +102,91 @@
       <option name="IS_MODULE_SDK" value="true" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Examp-Axicon.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Examp-Doublet_Lens_CommandsSystem.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="Examp-Doublet_Lens_Tilt" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="Kraken-Optical-Simulator" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Examp-Doublet_Lens_Tilt.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="Examp-MultiCore" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="Kraken-Optical-Simulator" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Examp-MultiCore.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="Examp-Tel_2M_Atmospheric_Refraction_Corrector" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="Kraken-Optical-Simulator" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Examp-Tel_2M_Atmospheric_Refraction_Corrector.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="Examp-Tel_2M_Atmospheric_Refraction_Corrector_Modified" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="Kraken-Optical-Simulator" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Examp-Tel_2M_Atmospheric_Refraction_Corrector_Modified.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
@@ -49,7 +197,11 @@
     </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="Python.Examp-Axicon" />
+        <item itemvalue="Python.Examp-Tel_2M_Atmospheric_Refraction_Corrector" />
+        <item itemvalue="Python.Examp-Tel_2M_Atmospheric_Refraction_Corrector_Modified" />
+        <item itemvalue="Python.Examp-Doublet_Lens_Tilt" />
+        <item itemvalue="Python.Examp-MultiCore" />
+        <item itemvalue="Python.Examp-Doublet_Lens_CommandsSystem" />
       </list>
     </recent_temporary>
   </component>

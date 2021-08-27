@@ -3,7 +3,6 @@
 Created on Sun Feb 14 21:41:31 2021
 
 @author: JOELHERRERAVAZQUEZ
-Archivo no quiere subir a github
 """
 import numpy as np
 import pyvista as pv

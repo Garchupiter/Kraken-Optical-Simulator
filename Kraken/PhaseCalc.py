@@ -9,6 +9,7 @@ import numpy as np
 import Kraken as kn
 import scipy
 
+
 def R_RMS(delta_Z, L, M, N, X, Y):
     """R_RMS.
 
@@ -49,8 +50,6 @@ def Phase(PUPIL):
     FieldY = PUPIL.FieldY
     FieldX = PUPIL.FieldX
     FieldType = PUPIL.FieldType
-
-
 
     pSource_0 = [0., 0., 0.]
     dCos = [0., 0., 1.]

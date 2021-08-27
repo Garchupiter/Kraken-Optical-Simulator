@@ -53,7 +53,6 @@ __________________________
 """
 
 
-
 class extra__surf:
     def __init__(self, C):
         """extra__surf."""
@@ -63,7 +62,8 @@ class extra__surf:
         :param C:
         """
         self.COEF = C[1]
-        self.user_surface=C[0]
+        self.user_surface = C[0]
+
     def calculate(self, x, y):
         """calculate.
 
@@ -72,6 +72,7 @@ class extra__surf:
         """
         Z = self.user_surface(x, y, self.COEF)
         return Z
+
 
 ##############################################################################
 def even_asphere(x, y, E):

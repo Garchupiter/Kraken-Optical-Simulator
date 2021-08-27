@@ -62,7 +62,6 @@ class Prerequisites:
             if np.abs(np.cos(np.deg2rad(sty))) < Tol_Err:
                 ty = ty + Tol_Err
 
-
             if self.SDT[n].Order == 0:
                 L_te_h.rotate_x(tx)
                 L_te_h.rotate_y(ty)
@@ -107,7 +106,7 @@ class Prerequisites:
         """
 
         if self.SDT[j].Solid_3d_stl == "None":  # Revisa si es objeto 3D
-            RES = 46*self.SDT[j].Res
+            RES = 46 * self.SDT[j].Res
             con = (self.SDT[j].Diameter - self.SDT[j].InDiameter * self.Disable_Inner) / self.SDT[j].Diameter
 
             if con == 0:
@@ -317,7 +316,7 @@ class Prerequisites:
 
                 TH = self.SDT[n - 1].Thickness
                 dx, dy, dz = (self.SDT[n].DespX * PA * LL), (self.SDT[n].DespY * PA * LL), (
-                            self.SDT[n].DespZ * PA * LL )
+                        self.SDT[n].DespZ * PA * LL)
 
                 DTH_Z = np.matrix(
                     [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, -TH], [0.0, 0.0, 0.0, 1.0]])

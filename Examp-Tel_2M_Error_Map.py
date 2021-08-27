@@ -7,7 +7,8 @@ import numpy as np
 import Kraken as kn
 import time
 
-#______________________________________#
+
+# ______________________________________#
 
 def ErrorGen():
     L = 1000.
@@ -31,7 +32,8 @@ def ErrorGen():
     Z = hight * (np.random.randint(-spa, spa, Npoints)) / (spa * 2.0)
     return [X, Y, Z, SPACE]
 
-#______________________________________#
+
+# ______________________________________#
 
 P_Obj = kn.surf()
 P_Obj.Rc = 0
@@ -39,7 +41,7 @@ P_Obj.Thickness = 3500
 P_Obj.Glass = "AIR"
 P_Obj.Diameter = 1.059E+003 * 2.0
 
-#______________________________________#
+# ______________________________________#
 
 Thickness = 3.452200000000000E+003
 M1 = kn.surf()
@@ -51,7 +53,7 @@ M1.Diameter = 1.059E+003 * 2.0
 M1.InDiameter = 250 * 2.0
 M1.Error_map = ErrorGen()
 
-#______________________________________#
+# ______________________________________#
 
 M2 = kn.surf()
 M2.Rc = -3.93E+003
@@ -61,34 +63,34 @@ M2.Glass = "MIRROR"
 M2.Diameter = 3.365E+002 * 2.0
 M2.AxisMove = 0
 
-#______________________________________#
+# ______________________________________#
 
 P_Ima = kn.surf()
 P_Ima.Diameter = 1000.0
 P_Ima.Glass = "AIR"
 P_Ima.Name = "Plano imagen"
 
-#______________________________________#
+# ______________________________________#
 
 A = [P_Obj, M1, M2, P_Ima]
 configuracion_1 = kn.Kraken_setup()
 
-#______________________________________#
+# ______________________________________#
 
 Telescopio = kn.system(A, configuracion_1)
 Rayos = kn.raykeeper(Telescopio)
 
-#______________________________________#
+# ______________________________________#
 
 tam = 9
 rad = 2100 / 2
 tsis = len(A) - 1
 
-#______________________________________#
+# ______________________________________#
 
 start_time = time.time()
 
-#______________________________________#
+# ______________________________________#
 
 for i in range(-tam, tam + 1):
     for j in range(-tam, tam + 1):
@@ -104,14 +106,14 @@ for i in range(-tam, tam + 1):
             Telescopio.Trace(pSource_0, dCos, W)
             Rayos.push()
 
-#______________________________________#
+# ______________________________________#
 
 print("--- %s seconds ---" % (time.time() - start_time))
 kn.display3d(Telescopio, Rayos, 2)
 print(Telescopio.EFFL)
 X, Y, Z, L, M, N = Rayos.pick(-1)
 
-#______________________________________#
+# ______________________________________#
 
 plt.plot(X, Y, 'x')
 plt.xlabel('X')

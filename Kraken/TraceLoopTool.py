@@ -7,7 +7,7 @@ Created on Sat Aug 21 14:05:41 2021
 """
 
 
-def TraceLoop(x,y,z,L,M,N,W,Container):
+def TraceLoop(x, y, z, L, M, N, W, Container):
     """TraceLoop.
 
     :param x:
@@ -19,15 +19,16 @@ def TraceLoop(x,y,z,L,M,N,W,Container):
     :param W:
     :param Container:
     """
-    System=Container.SYSTEM
-    for i in range(0,len(x)):
+    System = Container.SYSTEM
+    for i in range(0, len(x)):
         pSource_0 = [x[i], y[i], z[i]]
-        dCos=[L[i], M[i], N[i]]
+        dCos = [L[i], M[i], N[i]]
         System.Trace(pSource_0, dCos, W)
         Container.push()
     return 0
 
-def NsTraceLoop(x,y,z,L,M,N,W,Container):
+
+def NsTraceLoop(x, y, z, L, M, N, W, Container):
     """NsTraceLoop.
 
     :param x:
@@ -39,10 +40,10 @@ def NsTraceLoop(x,y,z,L,M,N,W,Container):
     :param W:
     :param Container:
     """
-    System=Container.SYSTEM
-    for i in range(0,len(x)):
+    System = Container.SYSTEM
+    for i in range(0, len(x)):
         pSource_0 = [x[i], y[i], z[i]]
-        dCos=[L[i], M[i], N[i]]
+        dCos = [L[i], M[i], N[i]]
         System.Trace(pSource_0, dCos, W)
         Container.push()
     return 0

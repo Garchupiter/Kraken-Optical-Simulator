@@ -65,7 +65,6 @@ class snell_refraction_vector_physics:
             # if Secuen == 0:
             #     print(" - Total internal reflection -")
 
-
             n2 = -n1
             NN = n1 / n2
             R = (NN * NN) * np.dot(Nsurf_Cros_s1, Nsurf_Cros_s1)

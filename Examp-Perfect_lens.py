@@ -7,11 +7,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import Kraken as kn
 
-#______________________________________#
+# ______________________________________#
 
 start_time = time.time()
 
-#______________________________________#
+# ______________________________________#
 
 P_Obj = kn.surf()
 P_Obj.Rc = 0.0
@@ -19,7 +19,7 @@ P_Obj.Thickness = 50
 P_Obj.Glass = "AIR"
 P_Obj.Diameter = 30.0
 
-#______________________________________#
+# ______________________________________#
 
 L1a = kn.surf()
 L1a.Thin_Lens = 100.
@@ -28,7 +28,7 @@ L1a.Rc = 0.0
 L1a.Glass = "AIR"
 L1a.Diameter = 30.0
 
-#______________________________________#
+# ______________________________________#
 
 L1b = kn.surf()
 L1b.Thin_Lens = 50.
@@ -37,7 +37,7 @@ L1b.Rc = 0.0
 L1b.Glass = "AIR"
 L1b.Diameter = 30.0
 
-#______________________________________#
+# ______________________________________#
 
 P_Ima = kn.surf()
 P_Ima.Rc = 0.0
@@ -46,12 +46,12 @@ P_Ima.Glass = "AIR"
 P_Ima.Diameter = 100.0
 P_Ima.Name = "Plano imagen"
 
-#______________________________________#
+# ______________________________________#
 
 A = [P_Obj, L1a, L1b, P_Ima]
 config_1 = kn.Kraken_setup()
 
-#______________________________________#
+# ______________________________________#
 
 Doblete = kn.system(A, config_1)
 Rayos1 = kn.raykeeper(Doblete)
@@ -59,7 +59,7 @@ Rayos2 = kn.raykeeper(Doblete)
 Rayos3 = kn.raykeeper(Doblete)
 RayosT = kn.raykeeper(Doblete)
 
-#______________________________________#
+# ______________________________________#
 
 tam = 10
 rad = 10.0
@@ -78,12 +78,12 @@ for j in range(-tam, tam + 1):
             Rayos1.push()
             RayosT.push()
 
-#______________________________________#
+# ______________________________________#
 
 kn.display3d(Doblete, RayosT, 0)
 X, Y, Z, L, M, N = Rayos1.pick(-1)
 
-#______________________________________#
+# ______________________________________#
 
 plt.plot(X, Y, 'x')
 plt.xlabel('X')
@@ -92,6 +92,6 @@ plt.title('Stop Diagram')
 plt.axis('square')
 plt.show()
 
-#______________________________________#
+# ______________________________________#
 
 print("--- %s seconds ---" % (time.time() - start_time))

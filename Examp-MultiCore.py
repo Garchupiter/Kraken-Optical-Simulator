@@ -7,11 +7,11 @@ import time
 import numpy as np
 import Kraken as kn
 
-#______________________________________#
+# ______________________________________#
 
 start_time = time.time()
 
-#______________________________________#
+# ______________________________________#
 
 P_Obj = kn.surf()
 P_Obj.Rc = 0.0
@@ -19,7 +19,7 @@ P_Obj.Thickness = 10
 P_Obj.Glass = "AIR"
 P_Obj.Diameter = 30.0
 
-#______________________________________#
+# ______________________________________#
 
 L1a = kn.surf()
 L1a.Rc = 9.284706570002484E+001
@@ -28,7 +28,7 @@ L1a.Glass = "BK7"
 L1a.Diameter = 30.0
 L1a.Axicon = 0
 
-#______________________________________#
+# ______________________________________#
 
 L1b = kn.surf()
 L1b.Rc = -3.071608670000159E+001
@@ -36,7 +36,7 @@ L1b.Thickness = 3.0
 L1b.Glass = "F2"
 L1b.Diameter = 30
 
-#______________________________________#
+# ______________________________________#
 
 L1c = kn.surf()
 L1c.Rc = -7.819730726078505E+001
@@ -44,7 +44,7 @@ L1c.Thickness = 9.737604742910693E+001
 L1c.Glass = "AIR"
 L1c.Diameter = 30
 
-#______________________________________#
+# ______________________________________#
 
 P_Ima = kn.surf()
 P_Ima.Rc = 0.0
@@ -53,17 +53,17 @@ P_Ima.Glass = "AIR"
 P_Ima.Diameter = 3.0
 P_Ima.Name = "Plano imagen"
 
-#______________________________________#
+# ______________________________________#
 
 A = [P_Obj, L1a, L1b, L1c, P_Ima]
 config_1 = kn.Kraken_setup()
 
-#______________________________________#
+# ______________________________________#
 
 Doblete1 = kn.system(A, config_1)
 
 
-#______________________________________#
+# ______________________________________#
 
 def trax1(xyz, lmn, w, q):
     Rayos = kn.raykeeper(Doblete1)
@@ -76,7 +76,8 @@ def trax1(xyz, lmn, w, q):
     q.put(A[0])
     print("--- %s seconds ---" % (time.time() - start_time))
 
-#______________________________________#
+
+# ______________________________________#
 
 if __name__ == '__main__':
     start_time = time.time()
@@ -121,9 +122,6 @@ if __name__ == '__main__':
     print("Total time :")
     print("--- %s seconds ---" % (time.time() - start_time))
 
-    print("Restart python kernel by hand because at this moment it is hang, it is inevitable until i know")
-
-    # while q:
-    for i in range(0,10):
+    for i in range(0, 10):
         A = q.get()
         print(len(A))

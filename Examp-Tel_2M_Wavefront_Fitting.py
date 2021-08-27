@@ -8,15 +8,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import Kraken as kn
 
-
-
-
-#______________________________________#
+# ______________________________________#
 
 currentDirectory = os.getcwd()
 sys.path.insert(1, currentDirectory + '/library')
 
-#______________________________________#
+# ______________________________________#
 
 P_Obj = kn.surf()
 P_Obj.Rc = 0
@@ -24,7 +21,7 @@ P_Obj.Thickness = 1000 + 3.452200000000000E+003
 P_Obj.Glass = "AIR"
 P_Obj.Diameter = 1.059E+003 * 2.0
 
-#______________________________________#
+# ______________________________________#
 
 Thickness = 3.452200000000000E+003
 M1 = kn.surf()
@@ -37,7 +34,7 @@ M1.InDiameter = 250 * 2.0
 M1.TiltY = 0.0
 M1.TiltX = 0.0
 
-#______________________________________#
+# ______________________________________#
 
 M1.AxisMove = 0
 M2 = kn.surf()
@@ -52,20 +49,20 @@ M2.DespY = 0.0
 M2.DespX = 0.4
 M2.AxisMove = 0
 
-#______________________________________#
+# ______________________________________#
 
 P_Ima = kn.surf()
 P_Ima.Diameter = 300.0
 P_Ima.Glass = "AIR"
 P_Ima.Name = "Plano imagen"
 
-#______________________________________#
+# ______________________________________#
 
 A = [P_Obj, M1, M2, P_Ima]
 configuracion_1 = kn.Kraken_setup()
 Telescopio = kn.system(A, configuracion_1)
 
-#______________________________________#
+# ______________________________________#
 
 Surf = 1
 W = 0.5016
@@ -86,8 +83,8 @@ A = np.ones(38)
 Zcoef, Mat, w_rms = kn.Zernike_Fitting(X, Y, Z, A)
 
 for i in range(0, NC):
-    print("z", i + 1, "  ", "{0:.6f}".format(float(Zcoef[i])),":",Mat[i])
-#______________________________________#
+    print("z", i + 1, "  ", "{0:.6f}".format(float(Zcoef[i])), ":", Mat[i])
+# ______________________________________#
 
 # print("RMS: ", "{:.4f}".format(float(w_rms)), " Error del ajuste: ", fitt_error)
 # z_coeff[0] = 0
@@ -101,7 +98,7 @@ for i in range(0, NC):
 RR = kn.raykeeper(Telescopio)
 x, y, z, L, M, N = Pupil.Pattern2Field()
 
-#______________________________________#
+# ______________________________________#
 
 for i in range(0, len(x)):
     pSource_0 = [x[i], y[i], z[i]]
@@ -109,12 +106,12 @@ for i in range(0, len(x)):
     Telescopio.Trace(pSource_0, dCos, W)
     RR.push()
 
-#______________________________________#
+# ______________________________________#
 
 # kn.display3d(Telescopio, RR, 2)
 X, Y, Z, L, M, N = RR.pick(-1)
 
-#______________________________________#
+# ______________________________________#
 
 plt.plot(X, Y, 'x')
 plt.xlabel('numbers')
@@ -123,18 +120,10 @@ plt.title('spot Diagram')
 plt.axis('square')
 plt.show()
 
+ima = kn.WavefrontData2Image(Zcoef, 400)
 
-
-
-
-
-ima=kn.WavefrontData2Image(Zcoef,400)
-
-Type="interferogram"
+Type = "interferogram"
 kn.ZernikeDataImage2Plot(ima, Type)
-
-
-
 
 AB = kn.Seidel(Pupil)
 

@@ -18,9 +18,9 @@ import numpy as np
 import Kraken as kn
 from .PupilTool import PupilCalc, SolveVectCross
 
+
 class Seidel:
     """Seidel."""
-
 
     def __init__(self, PUPIL):
         """__init__.
@@ -37,11 +37,10 @@ class Seidel:
         W = self.PUPIL.W
         ApType = self.PUPIL.ApertureType
         ApVal = self.PUPIL.ApertureValue
-        fx=self.PUPIL.FieldX
-        fy=self.PUPIL.FieldY
-        field = np.sqrt((fx**2) + (fy**2))
+        fx = self.PUPIL.FieldX
+        fy = self.PUPIL.FieldY
+        field = np.sqrt((fx ** 2) + (fy ** 2))
         fieldType = self.PUPIL.FieldType
-
 
         Pup = PupilCalc(self.SYSTEM, sup, W, ApType, ApVal)
         Prx = self.SYSTEM.Parax(W)
@@ -57,7 +56,6 @@ class Seidel:
         n_1 = np.copy(n_abs)
         n_2 = np.copy(n_abs)
         n_1 = np.insert(n_1, 0, n_1[0])
-
 
         n_elements = self.SYSTEM.n
         c = []
@@ -100,7 +98,6 @@ class Seidel:
         asp2 = np.asarray(asp2)
         asp4 = np.asarray(asp4)
         asp6 = np.asarray(asp6)
-
 
         """ ---------------- Standard and conic --------------------------------
             Seidel sums for standard surfaces with conicity and Asp2o
@@ -284,10 +281,9 @@ class Seidel:
         self.siv = sIV - sIV_k - sIV_a
         self.sv = sV - sV_k - sV_a
 
-        self.SAC=[self.si, self.sii, self.siii, self.siv, self.sv]
-        self.SAC_TOTAL=[np.sum(self.si),np.sum(self.sii), np.sum(self.siii), np.sum(self.siv), np.sum(self.sv)]
-        self.SAC_NM=["si", "sii", "siii", "siv", "sv"]
-
+        self.SAC = [self.si, self.sii, self.siii, self.siv, self.sv]
+        self.SAC_TOTAL = [np.sum(self.si), np.sum(self.sii), np.sum(self.siii), np.sum(self.siv), np.sum(self.sv)]
+        self.SAC_NM = ["si", "sii", "siii", "siv", "sv"]
 
         ### Seidel coefficients in waves
         Units = 1000.0
@@ -297,9 +293,9 @@ class Seidel:
         self.W220 = Units * (1 / 4.0) * self.siv / W
         self.W311 = Units * (1 / 2.0) * self.sv / W
 
-        self.SCW=[self.W040, self.W131, self.W222, self.W220, self.W311]
-        self.SCW_TOTAL=[np.sum(self.W040), np.sum(self.W131), np.sum(self.W222), np.sum(self.W220), np.sum(self.W311)]
-        self.SCW_NM=["W040", "W131", "W222", "W220", "W311"]
+        self.SCW = [self.W040, self.W131, self.W222, self.W220, self.W311]
+        self.SCW_TOTAL = [np.sum(self.W040), np.sum(self.W131), np.sum(self.W222), np.sum(self.W220), np.sum(self.W311)]
+        self.SCW_NM = ["W040", "W131", "W222", "W220", "W311"]
 
         ### Transverse Aberration Coefficents
         ## Spherical
@@ -316,10 +312,10 @@ class Seidel:
         ## Distortion
         self.TDIS = -self.sv / (2.0 * u[-1] * n_1[-1])
 
-        self.TAC=[self.TSPH, self.TSCO, self.TTCO, self.TAST, self.TPFC, self.TSFC, self.TTFC, self.TDIS]
-        self.TAC_TOTAL=[np.sum(self.TSPH), np.sum(self.TSCO), np.sum(self.TTCO), np.sum(self.TAST), np.sum(self.TPFC), np.sum(self.TSFC), np.sum(self.TTFC), np.sum(self.TDIS)]
-        self.TAC_NM=["TSPH", "TSCO", "TTCO", "TAST", "TPFC", "TSFC", "TTFC", "TDIS"]
-
+        self.TAC = [self.TSPH, self.TSCO, self.TTCO, self.TAST, self.TPFC, self.TSFC, self.TTFC, self.TDIS]
+        self.TAC_TOTAL = [np.sum(self.TSPH), np.sum(self.TSCO), np.sum(self.TTCO), np.sum(self.TAST), np.sum(self.TPFC),
+                          np.sum(self.TSFC), np.sum(self.TTFC), np.sum(self.TDIS)]
+        self.TAC_NM = ["TSPH", "TSCO", "TTCO", "TAST", "TPFC", "TSFC", "TTFC", "TDIS"]
 
         ### Longitudinal Aberration Coefficents
         ## Spherical
@@ -335,16 +331,15 @@ class Seidel:
         self.LTFC = ((3.0 * self.siii) + self.siv) / (2.0 * u[-1] * u[-1] * n_1[-1])
         ## Distortion
         self.LDIS = -self.sv / (2.0 * u[-1] * u[-1] * n_1[-1])
-        self.LAC=[self.LSPH, self.LSCO, self.LTCO, self.LAST, self.LPFC, self.LSFC, self.LTFC, self.LDIS]
-        self.LAC_TOTAL=[np.sum(self.LSPH), np.sum(self.LSCO), np.sum(self.LTCO), np.sum(self.LAST), np.sum(self.LPFC), np.sum(self.LSFC), np.sum(self.LTFC), np.sum(self.LDIS)]
-        self.LAC_NM=["LSPH", "LSCO", "LTCO", "LAST", "LPFC", "LSFC", "LTFC", "LDIS"]
+        self.LAC = [self.LSPH, self.LSCO, self.LTCO, self.LAST, self.LPFC, self.LSFC, self.LTFC, self.LDIS]
+        self.LAC_TOTAL = [np.sum(self.LSPH), np.sum(self.LSCO), np.sum(self.LTCO), np.sum(self.LAST), np.sum(self.LPFC),
+                          np.sum(self.LSFC), np.sum(self.LTFC), np.sum(self.LDIS)]
+        self.LAC_NM = ["LSPH", "LSCO", "LTCO", "LAST", "LPFC", "LSFC", "LTFC", "LDIS"]
 
-        self.SAC_AN="Seidel Aberration Coefficents"
-        self.SCW_AN="Seidel coefficients in waves"
-        self.TAC_AN="Transverse Aberration Coefficents"
-        self.LAC_AN="Longitudinal Aberration Coefficents"
+        self.SAC_AN = "Seidel Aberration Coefficents"
+        self.SCW_AN = "Seidel coefficients in waves"
+        self.TAC_AN = "Transverse Aberration Coefficents"
+        self.LAC_AN = "Longitudinal Aberration Coefficents"
 
-        self.AberNames=[self.SAC_AN, self.SCW_AN, self.TAC_AN, self.LAC_AN]
+        self.AberNames = [self.SAC_AN, self.SCW_AN, self.TAC_AN, self.LAC_AN]
         # return AberNames, SAC, SCW, TAC, LAC
-
-

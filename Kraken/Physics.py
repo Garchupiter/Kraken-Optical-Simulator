@@ -90,20 +90,18 @@ def fresnel_metal(NP, n_metal, k_complex, LMN_Inc, LMN_nor_surf):
     n2 = np.complex(n_metal, k_complex)
 
     CosTheta0 = np.abs(np.dot(LMN_Inc, LMN_nor_surf))
-    Thetai=np.arccos(CosTheta0)
-    Thetat = np.arcsin(n1/n2*np.sin(Thetai))
+    Thetai = np.arccos(CosTheta0)
+    Thetat = np.arcsin(n1 / n2 * np.sin(Thetai))
 
-    rs = (n1*np.cos(Thetai)-n2*np.cos(Thetat)) / (n1*np.cos(Thetai)+n2*np.cos(Thetat))
-    rp = (n2*np.cos(Thetai)-n1*np.cos(Thetat)) / (n1*np.cos(Thetat)+n2*np.cos(Thetai))
+    rs = (n1 * np.cos(Thetai) - n2 * np.cos(Thetat)) / (n1 * np.cos(Thetai) + n2 * np.cos(Thetat))
+    rp = (n2 * np.cos(Thetai) - n1 * np.cos(Thetat)) / (n1 * np.cos(Thetat) + n2 * np.cos(Thetai))
 
-    Rs = np.abs(rs)**2
-    Rp = np.abs(rp)**2
+    Rs = np.abs(rs) ** 2
+    Rp = np.abs(rp) ** 2
 
     Tp = 1 - Rp
     Ts = 1 - Rs
     return Rp, Rs, Tp, Ts
-
-
 
 
 ######################################################################

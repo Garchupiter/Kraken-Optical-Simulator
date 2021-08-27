@@ -7,7 +7,7 @@ import numpy as np
 import pyvista as pv
 import Kraken as kn
 
-#______________________________________#
+# ______________________________________#
 
 P_Obj = kn.surf()
 P_Obj.Thickness = 5000.0
@@ -15,7 +15,7 @@ P_Obj.Glass = "AIR"
 P_Obj.Diameter = 6.796727741707513E+002 * 2.0
 P_Obj.Drawing = 0
 
-#______________________________________#
+# ______________________________________#
 
 FOV = 0.5
 Ref_esp = 0.8
@@ -27,19 +27,19 @@ fpl = int(np.round(np.sqrt(Conc) / 2.0))
 print("Numero de facetas por lado (Calculo 1)", (fpl * 2.0) + 1.0)
 print("Tamanio por lado(mm) ", Tf * ((fpl * 2.0) + 1.0))
 
-#______________________________________#
+# ______________________________________#
 
 n = fpl
 FN = 1
 focal = Tf * (fpl * 2.0 + 1.0) * FN
 print("Distancia focal(mm) ", focal)
 
-#______________________________________#
+# ______________________________________#
 
 sobredim = 2.0 * focal * np.tan(np.deg2rad(FOV / 2.0))
 print("Sobredim (mm): ", sobredim)
 
-#______________________________________#
+# ______________________________________#
 
 Tf = Tf - sobredim
 A2 = Tf * Tf
@@ -47,13 +47,13 @@ RA = A1 / A2
 Conc = Conc * RA
 print("Nuevo tamaño de las facetas: ", Tf)
 
-#______________________________________#
+# ______________________________________#
 
 fpl = int(np.round(np.sqrt(Conc) / 2.0))
 print("Nuevo numero de facetas por lado (Calculo 2)", (fpl * 2.0) + 1.0)
 print("Tamanio por lado 2a (mm) ", Tf * ((fpl * 2.0) + 1.0))
 
-#______________________________________#
+# ______________________________________#
 
 n = fpl
 Cx = Tf
@@ -63,7 +63,7 @@ Lx = Tf
 Ly = Tf
 Lz = 1.0
 
-#______________________________________#
+# ______________________________________#
 
 element0 = pv.Cube(center=(0.0, 0.0, 0.0), x_length=0.1, y_length=0.1, z_length=0.1, bounds=None)
 for A in range(-n, n + 1):
@@ -81,7 +81,7 @@ for A in range(-n, n + 1):
 element0.save("salida.stl")
 direc = r"salida.stl"
 
-#______________________________________#
+# ______________________________________#
 
 objeto = kn.surf()
 objeto.Diameter = 118.0 * 2.0
@@ -94,7 +94,7 @@ objeto.DespX = 0
 objeto.DespY = 0
 objeto.AxisMove = 0
 
-#______________________________________#
+# ______________________________________#
 
 P_Ima = kn.surf()
 P_Ima.Rc = 0
@@ -104,17 +104,17 @@ P_Ima.Diameter = 2000.0
 P_Ima.Drawing = 1
 P_Ima.Name = "Plano imagen"
 
-#______________________________________#
+# ______________________________________#
 
 A = [P_Obj, objeto, P_Ima]
 configur = kn.Kraken_setup()
 
-#______________________________________#
+# ______________________________________#
 
 Telescope = kn.system(A, configur)
 Rays = kn.raykeeper(Telescope)
 
-#______________________________________#
+# ______________________________________#
 
 W = 0.633
 tam = 25
@@ -135,7 +135,7 @@ for j in range(-tam, tam + 1):
                     plt.plot(Telescope.Hit_x[-1], Telescope.Hit_y[-1], '.', c="g")
                     Rays.push()
 
-#______________________________________#
+# ______________________________________#
 
 plt.axis('square')
 plt.show()

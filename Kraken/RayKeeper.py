@@ -18,7 +18,7 @@ class raykeeper:
 
         :param System:
         """
-        self.SYSTEM=System
+        self.SYSTEM = System
         self.clean()
 
     def valid(self):
@@ -228,10 +228,6 @@ class raykeeper:
         self.invalid_TTBE = []  # Total transmision by element
         self.invalid_TT = []  # total transmission acumulative
 
-
-
-
-
     def pick(self, N_ELEMENT=-1):
         """pick.
 
@@ -243,7 +239,7 @@ class raykeeper:
         self.s = self.valid_SURFACE
 
         if N_ELEMENT < 0 or N_ELEMENT > self.numsup:
-            #print("Numero de elemento incorrecto, tomada ultima superficie por defecto")
+            # print("Numero de elemento incorrecto, tomada ultima superficie por defecto")
             N_ELEMENT = self.numsup
         else:
             N_ELEMENT = N_ELEMENT
@@ -295,6 +291,5 @@ class raykeeper:
                 N.append(n1)
 
         return np.asarray(X), np.asarray(Y), np.asarray(Z), np.asarray(L), np.asarray(M), np.asarray(N)
-
 
 ##########################################################################
