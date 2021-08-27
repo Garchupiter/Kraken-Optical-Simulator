@@ -6,7 +6,6 @@ Created on Mon Mar 15 17:17:14 2021
 """
 import numpy as np
 
-
 class surface_tools:
 
     def __init__(self, SurfData):

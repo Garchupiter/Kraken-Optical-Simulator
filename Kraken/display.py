@@ -64,16 +64,8 @@ def display3d(SYSTEM, RAYS, view=0):
     :param RAYS:
     :param view:
     """
-    # System_stat_at_this_time=SYSTEM.prerequisites_status()
-    # SEST=SYSTEM.System_stat-System_stat_at_this_time
-
-    # if np.any(SEST!=0)==True:
-    #     SYSTEM.System_stat=System_stat_at_this_time
-    #     SYSTEM.non_secuential_status_change()
 
     p = pv.Plotter(shape=(1, 1), notebook=False)  # Con notebook=False se abre la ventana de ploter 3D
-    # self.p.enable_eye_dome_lighting()
-    # self.p.enable_depth_peeling(number_of_peels=0, occlusion_ratio=0.5)
 
     Absorb_color = np.array([10 / 256, 23 / 256, 24 / 256])
     Mirror_color = np.array([189 / 256, 189 / 256, 189 / 256])

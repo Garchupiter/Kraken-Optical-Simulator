@@ -101,6 +101,7 @@ class Seidel:
         asp4 = np.asarray(asp4)
         asp6 = np.asarray(asp6)
 
+
         """ ---------------- Standard and conic --------------------------------
             Seidel sums for standard surfaces with conicity and Asp2o
         ------------------------------------------------------------------------"""

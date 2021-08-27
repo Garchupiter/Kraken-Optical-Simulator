@@ -97,7 +97,7 @@ def Zernike_Fitting(x1, y1, Z1, A, minimum=0.0001):
     WRMS, FITTINGERROR = RMS(SA, x1, y1, Z1, Zern_pol, z_pow)
 
 
-    return SA, ZZ, WRMS#, FITTINGERROR
+    return SA, ZZ, WRMS
 
 
 

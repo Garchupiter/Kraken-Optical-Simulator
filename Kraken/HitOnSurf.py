@@ -123,7 +123,6 @@ class Hit_Solver:
             if np.abs(PP_z2 - P_z2) < 0.00001:  # si la distancia entre raiz y funcion es de 0.001micras
                 break
             else:
-                # print(cnt)
                 P_z2 = PP_z2
 
             if cnt == 30:

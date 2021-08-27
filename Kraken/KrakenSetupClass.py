@@ -11,7 +11,6 @@ from .SystemTools import *
 
 class Kraken_setup:
     """Kraken_setup."""
-
     rute = path.abspath(path.join(""))
     cat1 = rute + "/Kraken/Cat/SCHOTT.AGF"
     cat2 = rute + "/Kraken/Cat/TSPM.AGF"

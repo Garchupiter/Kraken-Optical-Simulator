@@ -12,35 +12,6 @@ from .Physics import *
 
 ##############################################################################
 
-# if self.val == 1:
-#             Rp, Rs, Tp, Ts = FresnelEnergy(Glass, PrevN, CurrN, ImpVec, SurfNorm, ResVec, self.SETUP, self.Wave)
-#         else:
-#             Rp, Rs, Tp, Ts = 0, 0, 0, 0
-
-#         self.RP.append(Rp)
-#         self.RS.append(Rs)
-#         self.TP.append(Tp)
-#         self.TS.append(Ts)
-
-#         if Glass == "MIRROR":
-#             tt = 1.0 * (Rp + Rs) / 2.0
-#         if Glass != "MIRROR":
-#             tt = IT * (Tp + Ts) / 2.0
-
-
-# if vidrio != "MIRROR":
-#     Rp, Rs, Tp, Ts = fresnell_dielectric(NP, NC, ImpVec, SurfNorm, ResVec)
-
-# if vidrio == "MIRROR":
-#     n_metal = np.interp(Wave, SETUP.W_alum, SETUP.N_alum)
-#     k_complex = np.interp(Wave, SETUP.W_alum, SETUP.K_alum)
-
-#     Rp, Rs, Tp, Ts = fresnell_metal(NP, n_metal, k_complex, ImpVec, SurfNorm)
-
-# return Rp, Rs, Tp, Ts
-
-
-##############################################################################
 class snell_refraction_vector_physics:
     def __init__(self):
         """snell_refraction_vector_physics."""

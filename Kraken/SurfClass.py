@@ -45,7 +45,6 @@ class surf:
         self.ShiftX = 0.0
         self.ShiftY = 0.0
         self.Mask_Type = 0  # 0 non masked, 1 apperture, 2 Obstruction
-        # noinspection PyTypeChecker
         Objeto_3D = pv.Disc(center=[0.0, 0.0, 0.0], inner=0, outer=0.001, normal=(0, 0, 1), r_res=3, c_res=3)
         Mask = pv.MultiBlock()
         Mask.append(Objeto_3D)

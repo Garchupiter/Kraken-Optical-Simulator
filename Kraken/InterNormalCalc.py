@@ -40,10 +40,6 @@ class InterNormalCalc:
         self.TRANS_1A = self.Pr3D.TRANS_1A
         self.TRANS_2A = self.Pr3D.TRANS_2A
 
-        # self.vj=0
-        # self.vevaX = 0
-        # self.vevaY = 0
-
     def __SigmaHitTransfSpace(self, PP_start, PP_stop, j):
         """__SigmaHitTransfSpace.
 

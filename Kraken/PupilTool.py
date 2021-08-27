@@ -5,8 +5,6 @@ Created on Sat Mar 13 17:16:17 2021
 @author: JOELHERRERAVAZQUEZ
 """
 
-##############################################################################
-
 import numpy as np
 from .RayKeeper import *
 from .Display import *
@@ -19,7 +17,7 @@ from scipy.optimize import fsolve
 from .AstroAtmosphere import *
 
 
-##############################################################################
+
 
 def RMS_Pupil(r, SYSTEM, Surf, W):
     """RMS_Pupil.

@@ -35,8 +35,6 @@ def FresnelEnergy(vidrio, NP, NC, ImpVec, SurfNorm, ResVec, SETUP, Wave):
     return Rp, Rs, Tp, Ts
 
 
-##############################################################################
-
 def fresnel_dielectric(NP, NC, LMN_Inc, LMN_nor_surf, LMN_result):
     """fresnel_dielectric.
 

@@ -61,7 +61,7 @@ class Prerequisites:
                 tx = tx + Tol_Err
             if np.abs(np.cos(np.deg2rad(sty))) < Tol_Err:
                 ty = ty + Tol_Err
-            # .-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+
 
             if self.SDT[n].Order == 0:
                 L_te_h.rotate_x(tx)

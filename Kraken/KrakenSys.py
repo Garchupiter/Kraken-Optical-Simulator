@@ -20,8 +20,6 @@ from .Physics import *
 from .HitOnSurf import *
 from .InterNormalCalc import *
 
-##############################################################################
-
 
 def prob(pro):
     """prob.
@@ -33,9 +31,6 @@ def prob(pro):
     distribution = [prob, 1.0 - prob]
     random_number = random.choices(a_list, distribution)
     return random_number
-
-
-###########################################################################
 
 class system:
 

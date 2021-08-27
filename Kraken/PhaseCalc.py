@@ -55,8 +55,6 @@ def Phase(PUPIL):
     pSource_0 = [0., 0., 0.]
     dCos = [0., 0., 1.]
     W = W
-    # SYSTEM.Trace(pSource_0, dCos,W)
-    # print(SYSTEM.EFFL)
 
     RR = kn.raykeeper(SYSTEM)
     RR2 = kn.raykeeper(SYSTEM)

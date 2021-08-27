@@ -6,10 +6,6 @@ Created on Tue Mar 16 16:14:04 2021
 """
 
 
-# from matplotlib import pyplot as plt
-# from mpl_toolkits.mplot3d import axes3d
-# import matplotlib.pyplot as plt
-
 from scipy.stats import uniform
 import random
 import numpy as np
