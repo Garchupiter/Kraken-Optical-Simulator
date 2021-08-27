@@ -1,10 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="13bceb31-346a-47dd-8386-88e36dffa6c5" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/Examp-MultiCore.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-MultiCore.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Kraken/KrakenSys.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/KrakenSys.py" afterDir="false" />
-    </list>
+    <list default="true" id="13bceb31-346a-47dd-8386-88e36dffa6c5" name="Default Changelist" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />

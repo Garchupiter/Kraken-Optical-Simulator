@@ -3,6 +3,7 @@
 Created on Sun Feb 14 21:41:31 2021
 
 @author: JOELHERRERAVAZQUEZ
+Archivo no quiere subir a github
 """
 import numpy as np
 import pyvista as pv
@@ -55,7 +56,6 @@ def wavelength_to_rgb(wavelength, gamma=1.0):
     G *= 255
     B *= 255
     return [int(R) / 255.0, int(G) / 255.0, int(B) / 255.0]
-
 
 def display3d(SYSTEM, RAYS, view=0):
     """display3d.
