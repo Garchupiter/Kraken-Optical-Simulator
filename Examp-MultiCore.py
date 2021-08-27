@@ -62,6 +62,7 @@ config_1 = kn.Kraken_setup()
 
 Doblete1 = kn.system(A, config_1)
 
+
 #______________________________________#
 
 def trax1(xyz, lmn, w, q):
@@ -123,6 +124,6 @@ if __name__ == '__main__':
     print("Restart python kernel by hand because at this moment it is hang, it is inevitable until i know")
 
     # while q:
-    for i in range(0,11):
+    for i in range(0,10):
         A = q.get()
         print(len(A))

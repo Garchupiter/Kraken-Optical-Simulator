@@ -13,6 +13,11 @@ import Kraken as kn
 
 
 def ZernikeDataImage2Plot(datos, Type="interferogram"):
+    """ZernikeDataImage2Plot.
+
+    :param datos:
+    :param Type:
+    """
 
     if Type=="interferogram":
         datos=np.sin(2*np.pi*datos)
@@ -30,6 +35,11 @@ def ZernikeDataImage2Plot(datos, Type="interferogram"):
 
 
 def WavefrontData2Image(z_coeff,res=323):
+    """WavefrontData2Image.
+
+    :param z_coeff:
+    :param res:
+    """
     TamImag=int(res)
     r=TamImag/2.0
     ARRAY_ZERNIKE=np.zeros((TamImag, TamImag))

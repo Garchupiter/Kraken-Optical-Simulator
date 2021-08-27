@@ -10,6 +10,10 @@ import random
 
 
 def prov(pro):
+    """prov.
+
+    :param pro:
+    """
     a_list = [0, 1]
     prob = pro
     distribution = [prob, 1.0 - prob]

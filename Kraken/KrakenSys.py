@@ -7,42 +7,27 @@ import numpy as np
 import os
 import sys
 import random
+
 currentDirectory = os.getcwd()
 sys.path.insert(1, currentDirectory)
 rute = currentDirectory
-from .Surf_tools import surface_tools as SUT
-from .prerequisites3D import *
-
-
-
-
-
+from .SurfTools import surface_tools as SUT
+from .Prerequisites3D import *
 
 currentDirectory = os.getcwd()
 
-from .physics import FresnelEnergy, fresnel_dielectric, fresnel_metal, n_wave_dispersion, ParaxCalc
-# from display import display3d, display2d
-# from physics_class import snell_refraction_vector_physics, paraxial_exact_physics, diffraction_grating_physics
-# from Surf_class import surf
-# from pupil_tool import PupilCalc, SolveVectCross
-# from raykeeper import raykeeper
-# from System_tools import load_alluminum_complex, load_Catalog
-# from Kraken_setup_class import *
-# from Surf_tools import surface_tools as SUT
+from .Physics import *
 from .HitOnSurf import *
 from .InterNormalCalc import *
-# from WavefrontFit import Zernike_Fitting, Wavefront_Zernike_Phase
-# from SeidelTool import Seidel
-# from SourceRand import SourceRnd
-# from RMSlib import R_RMS_delta, RMS, BestFocus
-# from TraceLoopTool import TraceLoop, NsTraceLoop
-# from PhaseCalc import Phase
-# from WavePlot import WavefrontData2Image, ZernikeDataImage2Plot
 
 ##############################################################################
 
 
 def prob(pro):
+    """prob.
+
+    :param pro:
+    """
     a_list = [0, 1]
     prob = pro
     distribution = [prob, 1.0 - prob]
@@ -55,11 +40,15 @@ def prob(pro):
 class system:
 
     def __init__(self, SurfData, KN_Setup):
+        """system."""
+
+        """__init__.
+
+        :param SurfData:
+        :param KN_Setup:
+        """
 
         self.SDT = SurfData
-
-
-
 
         self.update = False
         self.S_Matrix = []
@@ -71,7 +60,7 @@ class system:
 
         self.n = len(self.SDT)
 
-        for ii in range(0,self.n):
+        for ii in range(0, self.n):
             self.SDT[ii].SaveSetup()
 
         self.SuTo = SUT(self.SDT)
@@ -117,11 +106,13 @@ class system:
         self.c_p, self.n_p, self.d_p = 0, 0, 0
 
     def __SurFuncSuscrip(self):
+        """__SurFuncSuscrip."""
         for i in range(0, self.n):
             self.SDT[i].build_surface_function()
             # print(i, " in __SurFuncSuscrip")
 
     def __PrerequisitesGlass(self):
+        """__PrerequisitesGlass."""
         self.Glass = []
         self.GlobGlass = []
 
@@ -138,6 +129,12 @@ class system:
     ###########################################################################
 
     def __NonSequentialChooserToot(self, A_RayOrig, A_Proto_pTarget, k):
+        """__NonSequentialChooserToot.
+
+        :param A_RayOrig:
+        :param A_Proto_pTarget:
+        :param k:
+        """
         ng = self.GlassOnSide[k]
         A_Glass = self.SDT[ng].Glass
         if A_Glass == "NULL":
@@ -163,6 +160,13 @@ class system:
 
     ###########################################################################
     def __NonSequentialChooser(self, SIGN, A_RayOrig, ResVec, j):
+        """__NonSequentialChooser.
+
+        :param SIGN:
+        :param A_RayOrig:
+        :param ResVec:
+        :param j:
+        """
 
         chooser = []
         [SLL, SMM, SNN] = ResVec
@@ -194,6 +198,7 @@ class system:
     ########################################################################
 
     def __CollectDataInit(self):
+        """__CollectDataInit."""
         self.val = 1
         self.SURFACE = []
         self.NAME = []
@@ -238,8 +243,15 @@ class system:
     #############################################################################
 
     def __EmptyCollect(self, pS, dC, WaveLength, j):
+        """__EmptyCollect.
+
+        :param pS:
+        :param dC:
+        :param WaveLength:
+        :param j:
+        """
         Empty = np.asarray([])
-        RayTraceType=0
+        RayTraceType = 0
         ValToSav = [Empty,
                     Empty,
                     pS,
@@ -255,10 +267,11 @@ class system:
                     Empty,
                     Empty,
                     Empty,
-                    j,RayTraceType]
+                    j, RayTraceType]
         self.__CollectData(ValToSav)
 
     def __WavePrecalc(self):
+        """__WavePrecalc."""
         if self.Wave != self.PreWave:  # Si la longitud de onda es diferente a la previa calcula indices
             self.N_Prec = []  # Indice de refracción precalculado
             self.AlphaPrecal = []  # Alpha o absorción precalculada
@@ -269,8 +282,11 @@ class system:
                 self.N_Prec.append(NP)
                 self.AlphaPrecal.append(AP)
 
-
     def __CollectData(self, ValToSav):
+        """__CollectData.
+
+        :param ValToSav:
+        """
         [Glass,
          alpha,
          RayOrig,
@@ -308,8 +324,6 @@ class system:
         self.TOP_S.append(self.TOP)
         self.ALPHA.append(alpha)
 
-
-
         self.S_LMN.append(SurfNorm)
         self.LMN.append(ImpVec)
         self.R_LMN.append(ResVec)
@@ -332,7 +346,7 @@ class system:
         self.RS.append(Rs)
         self.TP.append(Tp)
         self.TS.append(Ts)
-        if RayTraceType==0 or RayTraceType==1:
+        if RayTraceType == 0 or RayTraceType == 1:
             if Glass == "MIRROR":
                 tt = 1.0 * (Rp + Rs) / 2.0
                 self.BULK_TRANS.append(tt)
@@ -341,25 +355,26 @@ class system:
                 self.BULK_TRANS.append(IT)
                 tt = IT * (Tp + Ts) / 2.0
         else:
-            tt=1.0
+            tt = 1.0
 
         self.TTBE.append(tt)
         self.TT = self.TT * tt
         return None
 
-
-
     def RestoreData(self):
-        for ii in range(0,self.n):
+        """RestoreData."""
+        for ii in range(0, self.n):
             self.SDT[ii].RestoreSetup()
         self.SetData()
 
     def StoreData(self):
-        for ii in range(0,self.n):
+        """StoreData."""
+        for ii in range(0, self.n):
             self.SDT[ii].SaveSetup()
         self.SetData()
 
     def SetData(self):
+        """SetData."""
         self.SuTo = SUT(self.SDT)
         self.Object_Num = np.arange(0, self.n, 1)
         self.__SurFuncSuscrip()
@@ -370,6 +385,7 @@ class system:
         self.INORM = InterNormalCalc(self.SDT, self.TypeTotal, self.Pr3D, self.HS)
 
     def SetSolid(self):
+        """SetSolid."""
         self.__SurFuncSuscrip()
         self.Pr3D.Prerequisites3SMath()
         self.Pr3D.Prerequisites3DSolids()
@@ -382,6 +398,10 @@ class system:
         self.TRANS_2A = self.Pr3D.TRANS_2A
 
     def Parax(self, W):
+        """Parax.
+
+        :param W:
+        """
 
         ##  "sest" mean system estatus
         # sest, sest_validation = self.ModificationDetector()
@@ -404,6 +424,10 @@ class system:
         return Prx
 
     def TargSurf(self, tgsfP1):
+        """TargSurf.
+
+        :param tgsfP1:
+        """
 
         tgsf = tgsfP1 + 1
         if self.n >= tgsf > 0:
@@ -414,6 +438,11 @@ class system:
             self.Targ_Surf = self.n
 
     def SurfFlat(self, fltsf, Prep=0):
+        """SurfFlat.
+
+        :param fltsf:
+        :param Prep:
+        """
 
         if self.n >= fltsf > 0:
             self.SuTo.Surface_Flattener = fltsf
@@ -427,6 +456,10 @@ class system:
             self.Pr3D.Prerequisites3DSolids()
 
     def IgnoreVignetting(self, Prep=0):
+        """IgnoreVignetting.
+
+        :param Prep:
+        """
         self.INORM.Disable_Inner = 0
         self.Pr3D.Disable_Inner = 0
 
@@ -437,6 +470,10 @@ class system:
             self.Pr3D.Prerequisites3DSolids()
 
     def Vignetting(self, Prep=0):
+        """Vignetting.
+
+        :param Prep:
+        """
         self.INORM.Disable_Inner = 1
         self.Pr3D.Disable_Inner = 1
 
@@ -447,6 +484,12 @@ class system:
             self.Pr3D.Prerequisites3DSolids()
 
     def Trace(self, pS, dC, WaveLength):
+        """Trace.
+
+        :param pS:
+        :param dC:
+        :param WaveLength:
+        """
 
         self.__CollectDataInit()
         ResVec = np.asarray(dC)
@@ -496,7 +539,7 @@ class system:
 
                 SIGN = SIGN * sign
                 Name = self.SDT[j].Name
-                RayTraceType=0
+                RayTraceType = 0
                 ValToSav = [Glass,
                             alpha,
                             RayOrig,
@@ -534,6 +577,12 @@ class system:
     ##############################################################################
 
     def NsTrace(self, pS, dC, WaveLength):
+        """NsTrace.
+
+        :param pS:
+        :param dC:
+        :param WaveLength:
+        """
         global j_gg
 
         pS = np.asarray(pS)
@@ -636,7 +685,7 @@ class system:
 
                 SIGN = SIGN * sign
                 Name = self.SDT[j].Name
-                RayTraceType=1
+                RayTraceType = 1
                 ValToSav = [Glass,
                             alpha,
                             RayOrig,

@@ -16,16 +16,23 @@ https://neurophysics.ucsd.edu/Manuals/Zemax/ZemaxManual.pdf
 
 import numpy as np
 import Kraken as kn
-from .pupil_tool import PupilCalc, SolveVectCross
+from .PupilTool import PupilCalc, SolveVectCross
 
 class Seidel:
+    """Seidel."""
+
 
     def __init__(self, PUPIL):
+        """__init__.
+
+        :param PUPIL:
+        """
         self.PUPIL = PUPIL
         self.SYSTEM = self.PUPIL.SYSTEM
         self.calculate()
 
     def calculate(self):
+        """calculate."""
         sup = self.PUPIL.Surf
         W = self.PUPIL.W
         ApType = self.PUPIL.ApertureType

@@ -5,11 +5,17 @@ Editor de Spyder
 Este es un archivo temporal.
 """
 import numpy as np
-from .Surf_tools import surface_tools as SUT
+from .SurfTools import surface_tools as SUT
 
 
 class Hit_Solver:
     def __init__(self, SurfData):
+        """Hit_Solver."""
+
+        """__init__.
+
+        :param SurfData:
+        """
         self.SDT = SurfData
         self.n = len(self.SDT)
         self.SuTo = SUT(SurfData)
@@ -26,10 +32,22 @@ class Hit_Solver:
         self.SuTo.ErrSurfCase = 0
 
     def __Fxyz(self, x, y, z):
+        """__Fxyz.
+
+        :param x:
+        :param y:
+        :param z:
+        """
         VF = self.SuTo.SurfaceShape(x, y, self.vj) - z
         return VF
 
     def SurfDer(self, x, y, z):
+        """SurfDer.
+
+        :param x:
+        :param y:
+        :param z:
+        """
         delta = 0.0001  # Never chage from 0.00001
 
         vx = np.asarray([x + delta, x, x, x - delta, x, x])
@@ -46,6 +64,10 @@ class Hit_Solver:
         return Dx / Dr, Dy / Dr, Dz / Dr
 
     def __lineCurve(self, vz):
+        """__lineCurve.
+
+        :param vz:
+        """
         PX = ((vz - self.NP_z1) * self.LN) + self.NP_x1
         PY = ((vz - self.NP_z1) * self.MN) + self.NP_y1
         self.vevaX = PX
@@ -54,12 +76,26 @@ class Hit_Solver:
         return Vzf
 
     def __DerLineCurve(self, gf):
+        """__DerLineCurve.
+
+        :param gf:
+        """
         delta = 0.0000000000001  # Never chage from 0.0001 or 0.00001 or 0.0000000000001, jeje
         Dz = (self.__lineCurve(gf + delta) - self.__lineCurve(gf - delta)) / (2.0 * delta)
 
         return Dz
 
     def SolveHit(self, Px1, Py1, Pz1, L, M, N, j):
+        """SolveHit.
+
+        :param Px1:
+        :param Py1:
+        :param Pz1:
+        :param L:
+        :param M:
+        :param N:
+        :param j:
+        """
 
         if len(self.SDT[j].Error_map) != 0:
             self.SuTo.ErrSurfCase = 1

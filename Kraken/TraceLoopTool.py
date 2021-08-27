@@ -7,6 +7,17 @@ Created on Sat Aug 21 14:05:41 2021
 """
 
 def TraceLoop(x,y,z,L,M,N,W,Container):
+    """TraceLoop.
+
+    :param x:
+    :param y:
+    :param z:
+    :param L:
+    :param M:
+    :param N:
+    :param W:
+    :param Container:
+    """
     System=Container.SYSTEM
     for i in range(0,len(x)):
         pSource_0 = [x[i], y[i], z[i]]
@@ -16,6 +27,17 @@ def TraceLoop(x,y,z,L,M,N,W,Container):
     return 0
 
 def NsTraceLoop(x,y,z,L,M,N,W,Container):
+    """NsTraceLoop.
+
+    :param x:
+    :param y:
+    :param z:
+    :param L:
+    :param M:
+    :param N:
+    :param W:
+    :param Container:
+    """
     System=Container.SYSTEM
     for i in range(0,len(x)):
         pSource_0 = [x[i], y[i], z[i]]

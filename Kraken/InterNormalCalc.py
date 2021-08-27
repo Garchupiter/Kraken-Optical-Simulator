@@ -6,11 +6,20 @@ Created on Tue Mar 16 16:14:04 2021
 """
 import numpy as np
 import math
-from .Surf_tools import surface_tools as SUT
+from .SurfTools import surface_tools as SUT
 
 
 class InterNormalCalc:
     def __init__(self, SurfData, TypTot, PR3D, HS):
+        """InterNormalCalc."""
+
+        """__init__.
+
+        :param SurfData:
+        :param TypTot:
+        :param PR3D:
+        :param HS:
+        """
         self.HS = HS
 
         self.SDT = SurfData
@@ -36,6 +45,12 @@ class InterNormalCalc:
         # self.vevaY = 0
 
     def __SigmaHitTransfSpace(self, PP_start, PP_stop, j):
+        """__SigmaHitTransfSpace.
+
+        :param PP_start:
+        :param PP_stop:
+        :param j:
+        """
         # Verify if it is a ray array
         if len(np.shape(PP_start)) != 1:
             PP_stop_zyx = np.rot90(PP_stop)
@@ -156,6 +171,16 @@ class InterNormalCalc:
     ############################################################################
 
     def __ParaxCalcObjOut2OrigSpace(self, Px2, Py2, Pz2, Px1, Py1, Pz1, j):
+        """__ParaxCalcObjOut2OrigSpace.
+
+        :param Px2:
+        :param Py2:
+        :param Pz2:
+        :param Px1:
+        :param Py1:
+        :param Pz1:
+        :param j:
+        """
 
         P1 = [Px1, Py1, Pz1, 1]
         P2 = [Px2, Py2, Pz2, 1]
@@ -173,6 +198,13 @@ class InterNormalCalc:
 
     ###########################################################################
     def __SigmaOutOrigSpace(self, P_x2, P_y2, P_z2, j):
+        """__SigmaOutOrigSpace.
+
+        :param P_x2:
+        :param P_y2:
+        :param P_z2:
+        :param j:
+        """
 
         New_L, New_M, New_N = self.HS.SurfDer(P_x2, P_y2, P_z2)
 
@@ -201,6 +233,12 @@ class InterNormalCalc:
     ###########################################################################
 
     def __HitOnMask(self, PP_start, PP_stop, j):
+        """__HitOnMask.
+
+        :param PP_start:
+        :param PP_stop:
+        :param j:
+        """
         SurfHit = 1
         HITS_CONT = []
 
@@ -232,6 +270,10 @@ class InterNormalCalc:
 
     ##########################################################################
     def __GrooveDirectionVector(self, j):
+        """__GrooveDirectionVector.
+
+        :param j:
+        """
 
         # para difraccion
         Pg_o = [0, 0, 0, 1]
@@ -246,6 +288,13 @@ class InterNormalCalc:
     ###############################################################################
 
     def InterNormal(self, PP_start, PP_stop, j, jj):
+        """InterNormal.
+
+        :param PP_start:
+        :param PP_stop:
+        :param j:
+        :param jj:
+        """
         PTO_exit = [0, 0, 0]
         PTO_exit_Object_Space = [0, 0, 0]
         norm = [0, 0, 1]
@@ -280,6 +329,12 @@ class InterNormalCalc:
     ####################################################################################################33
 
     def __InterNormalSolidObject(self, jj, PP_start, PP_stop):
+        """__InterNormalSolidObject.
+
+        :param jj:
+        :param PP_start:
+        :param PP_stop:
+        """
         Pgn = np.asarray([0, 1, 0])
         PTO_exit = [0, 0, 0]
         norm = [0, 0, 1]

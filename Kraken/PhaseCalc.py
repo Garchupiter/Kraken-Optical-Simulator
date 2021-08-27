@@ -10,6 +10,15 @@ import Kraken as kn
 import scipy
 
 def R_RMS(delta_Z, L, M, N, X, Y):
+    """R_RMS.
+
+    :param delta_Z:
+    :param L:
+    :param M:
+    :param N:
+    :param X:
+    :param Y:
+    """
     X = ((L / N) * delta_Z) + X
     Y = ((M / N) * delta_Z) + Y
 
@@ -25,6 +34,10 @@ def R_RMS(delta_Z, L, M, N, X, Y):
 
 
 def Phase(PUPIL):
+    """Phase.
+
+    :param PUPIL:
+    """
     SYSTEM = PUPIL.SYSTEM
     sup = PUPIL.Surf
     W = PUPIL.W
@@ -135,7 +148,6 @@ def Phase(PUPIL):
     LMN0 = [Lc, Mc, Nc]
     # print("Orientacion de la pupila de salida: ",L,M,N)
 
-    # [Pxf,Pyf,Pzf] = Pup.PosPupOutFoc
     AP = S  # np.linalg.norm([Px-X,Py-Y,Pz-Z])
 
     ################################################################
@@ -181,27 +193,10 @@ def Phase(PUPIL):
         RR.push()
 
     VT = np.squeeze(RR.valid_TOP)  # todos los rayos de plano imagen a pupila
-    # VT=VT+top # todos los rayos de plano objeto a plano imagen
-
-    # OST=np.squeeze(RR.valid_OST_XYZ)
-    # OSTX, OSTY, OSTZ=np.hsplit(OST, 3)
-    # XPUP=OSTX
-    # YPUP=OSTY
-
     VTOPSR = OPSR  # rayo principal de plano imagen a pupila
-    # VTOPSR=VTOPSR+SHI_TOP #rayo principal desde el objeto al plano imagen
-
-    # VT=(2.0*op) # todos los rayos de ultima superficie a plano imagen
-    # VTOPSR=(2.0*SHI_LS_OP) #rayo principal de ultima superficie a plano imagen
-
-    # print(VT, VTOPSR, "   lkllklklklklklklklkklklklklklklklk")
-
     RRR = ((VT - VTOPSR) * 1000. / W) * Pup.RadPupOut / Pup.RadPupInp
     RRRR = 1000.0  # Pup.RadPupInp
-    # RRRR=Pup.RadPupOut
 
     P2V = np.min(RRR) - np.max(RRR)
-    # print("Peak to valley: ",P2V)
-    # display2d(PS,RR,1)
 
     return YPUP / 1000., XPUP / 1000., RRR, P2V

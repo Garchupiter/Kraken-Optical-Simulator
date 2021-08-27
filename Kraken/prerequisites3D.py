@@ -11,6 +11,13 @@ import pyvista as pv
 
 class Prerequisites:
     def __init__(self, SurfData, SUTO):
+        """Prerequisites."""
+
+        """__init__.
+
+        :param SurfData:
+        :param SUTO:
+        """
 
         self.SDT = SurfData
         self.n = len(self.SDT)
@@ -22,6 +29,11 @@ class Prerequisites:
         self.TRANS_2A = []
 
     def GeometricRotatAndTran(self, L_te_h, j):
+        """GeometricRotatAndTran.
+
+        :param L_te_h:
+        :param j:
+        """
         stx = 0
         sty = 0
 
@@ -71,6 +83,11 @@ class Prerequisites:
     #############################################################################
 
     def Flat2SigmaSurface(self, plane_object, j):
+        """Flat2SigmaSurface.
+
+        :param plane_object:
+        :param j:
+        """
         plane_objectAx = plane_object.points[:, 0]
         plane_objectAy = plane_object.points[:, 1]
         plane_objectAz = plane_object.points[:, 2]
@@ -84,6 +101,10 @@ class Prerequisites:
 
     #################################################################################
     def Face3D(self, j):
+        """Face3D.
+
+        :param j:
+        """
 
         if self.SDT[j].Solid_3d_stl == "None":  # Revisa si es objeto 3D
             RES = 46*self.SDT[j].Res
@@ -127,6 +148,10 @@ class Prerequisites:
     #########################################################################
 
     def SidePerim(self, j):
+        """SidePerim.
+
+        :param j:
+        """
 
         rad2 = self.SDT[j].Diameter / 2.0
         x2 = []
@@ -158,6 +183,11 @@ class Prerequisites:
         return L_te.points
 
     def Side3D(self, j, j2):
+        """Side3D.
+
+        :param j:
+        :param j2:
+        """
 
         PTS1 = self.SidePerim(j)
 
@@ -204,6 +234,7 @@ class Prerequisites:
         return cant
 
     def Prerequisites3DSolids(self):
+        """Prerequisites3DSolids."""
         self.GlassOnSide = []
         self.PreTypeTotal = []
         self.TypeTotal = []
@@ -264,6 +295,7 @@ class Prerequisites:
             self.TypeTotal.append(i)
 
     def Prerequisites3SMath(self):
+        """Prerequisites3SMath."""
         self.TRANS_1A = []
         self.TRANS_2A = []
 

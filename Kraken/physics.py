@@ -11,6 +11,17 @@ import numpy as np
 ############################################################################
 
 def FresnelEnergy(vidrio, NP, NC, ImpVec, SurfNorm, ResVec, SETUP, Wave):
+    """FresnelEnergy.
+
+    :param vidrio:
+    :param NP:
+    :param NC:
+    :param ImpVec:
+    :param SurfNorm:
+    :param ResVec:
+    :param SETUP:
+    :param Wave:
+    """
     global Ts, Tp, Rs, Rp
     if vidrio != "MIRROR":
         Rp, Rs, Tp, Ts = fresnel_dielectric(NP, NC, ImpVec, SurfNorm, ResVec)
@@ -27,6 +38,14 @@ def FresnelEnergy(vidrio, NP, NC, ImpVec, SurfNorm, ResVec, SETUP, Wave):
 ##############################################################################
 
 def fresnel_dielectric(NP, NC, LMN_Inc, LMN_nor_surf, LMN_result):
+    """fresnel_dielectric.
+
+    :param NP:
+    :param NC:
+    :param LMN_Inc:
+    :param LMN_nor_surf:
+    :param LMN_result:
+    """
     CosTheta0 = np.abs(np.dot(LMN_Inc, LMN_nor_surf))
     CosTheta1 = np.abs(np.dot(LMN_result, LMN_nor_surf))
     n0 = NP
@@ -36,7 +55,7 @@ def fresnel_dielectric(NP, NC, LMN_Inc, LMN_nor_surf, LMN_result):
     # Chapter 5 - Handbook of Optics
     # Optical Society of America
     # Polarization
-    # Section 5.6 pg. 
+    # Section 5.6 pg.
 
     # rs, rp, ts,tp are the amplitudes reflection and refractions
 
@@ -60,17 +79,25 @@ def fresnel_dielectric(NP, NC, LMN_Inc, LMN_nor_surf, LMN_result):
 
 ##############################################################################
 def fresnel_metal(NP, n_metal, k_complex, LMN_Inc, LMN_nor_surf):
-    
+    """fresnel_metal.
+
+    :param NP:
+    :param n_metal:
+    :param k_complex:
+    :param LMN_Inc:
+    :param LMN_nor_surf:
+    """
+
     n1 = NP
     n2 = np.complex(n_metal, k_complex)
-    
+
     CosTheta0 = np.abs(np.dot(LMN_Inc, LMN_nor_surf))
     Thetai=np.arccos(CosTheta0)
-    Thetat = np.arcsin(n1/n2*np.sin(Thetai)) 
-    
+    Thetat = np.arcsin(n1/n2*np.sin(Thetai))
+
     rs = (n1*np.cos(Thetai)-n2*np.cos(Thetat)) / (n1*np.cos(Thetai)+n2*np.cos(Thetat))
     rp = (n2*np.cos(Thetai)-n1*np.cos(Thetat)) / (n1*np.cos(Thetat)+n2*np.cos(Thetai))
-    
+
     Rs = np.abs(rs)**2
     Rp = np.abs(rp)**2
 
@@ -84,6 +111,12 @@ def fresnel_metal(NP, n_metal, k_complex, LMN_Inc, LMN_nor_surf):
 ######################################################################
 
 def n_wave_dispersion(krakenSetup, GLSS, Wave):
+    """n_wave_dispersion.
+
+    :param krakenSetup:
+    :param GLSS:
+    :param Wave:
+    """
     # allow direct refraction index asignment
     if GLSS[0:4] == "AIR_":
         n = float(GLSS[4::])
@@ -180,11 +213,19 @@ def n_wave_dispersion(krakenSetup, GLSS, Wave):
             [Wa, Tr, Th] = IT[r]
             TR = np.interp(Wave, np.asarray(Wa), np.asarray(Tr))  # glass transmitance in specific wavelenght
             Alpha = -np.log(TR) / Th[0]  # Transmitance in the thickness
-    # print("- - - - - - - - - - - - - - ")        
+    # print("- - - - - - - - - - - - - - ")
     return n, Alpha
 
 
 def ParaxCalc(N_Prec, SDT, SuTo, n, Gl):
+    """ParaxCalc.
+
+    :param N_Prec:
+    :param SDT:
+    :param SuTo:
+    :param n:
+    :param Gl:
+    """
     # global RR, CurrN
     # Wave = WaveLength
     j = 0
@@ -274,7 +315,7 @@ def ParaxCalc(N_Prec, SDT, SuTo, n, Gl):
     EFFL = -1 / b
     PPA = (1 - d) / b
     PPP = (a - 1) / b
-    # print( "- - - - - - - - ")    
+    # print( "- - - - - - - - ")
     CC = np.asarray(CC)
     # print(CC)
 

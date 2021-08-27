@@ -12,15 +12,23 @@ import pyvista as pv
 class raykeeper:
 
     def __init__(self, System):
+        """raykeeper."""
+
+        """__init__.
+
+        :param System:
+        """
         self.SYSTEM=System
         self.clean()
 
     def valid(self):
+        """valid."""
         z = np.argwhere(self.vld == 1)
 
         return z
 
     def push(self):
+        """push."""
 
         self.nelements = self.SYSTEM.n
 
@@ -123,6 +131,7 @@ class raykeeper:
         self.TT.append(np.asarray(self.SYSTEM.TT))
 
     def clean(self):
+        """clean."""
         self.vld = np.asarray([])
         self.nrays = 0
 
@@ -218,12 +227,16 @@ class raykeeper:
         self.invalid_TS = []
         self.invalid_TTBE = []  # Total transmision by element
         self.invalid_TT = []  # total transmission acumulative
-        
-        
 
-        
+
+
+
 
     def pick(self, N_ELEMENT=-1):
+        """pick.
+
+        :param N_ELEMENT:
+        """
         self.numsup = self.nelements - 1
         self.xyz = self.valid_XYZ
         self.lmn = self.valid_LMN

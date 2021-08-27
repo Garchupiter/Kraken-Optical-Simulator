@@ -7,10 +7,19 @@ Created on Sun Apr 18 13:30:17 2021
 """
 
 import numpy as np
-from .math_shapes_class import zernike__surf, zernike_expand, zernike_polynomials, zernike_math_notation
+from .MathShapesClass import zernike__surf, zernike_expand, zernike_polynomials, zernike_math_notation
 
 
 def RMS(SA, X, Y, Z, Zern_pol, z_pow):
+    """RMS.
+
+    :param SA:
+    :param X:
+    :param Y:
+    :param Z:
+    :param Zern_pol:
+    :param z_pow:
+    """
     NZ = []
     SE = np.copy(SA)
     SE[0] = 0
@@ -34,6 +43,14 @@ def RMS(SA, X, Y, Z, Zern_pol, z_pow):
 
 
 def Zernike_Fitting(x1, y1, Z1, A, minimum=0.0001):
+    """Zernike_Fitting.
+
+    :param x1:
+    :param y1:
+    :param Z1:
+    :param A:
+    :param minimum:
+    """
 
     NC = len(A)
     Zern_pol, z_pow = zernike_expand(NC)
@@ -88,6 +105,12 @@ def Zernike_Fitting(x1, y1, Z1, A, minimum=0.0001):
 
 
 def Wavefront_Zernike_Phase(x, y, COEF):
+    """Wavefront_Zernike_Phase.
+
+    :param x:
+    :param y:
+    :param COEF:
+    """
     NC = len(COEF)
     Zern_pol, z_pow = zernike_expand(NC)
 
@@ -106,6 +129,14 @@ def Wavefront_Zernike_Phase(x, y, COEF):
 
 
 def Wavefront_Phase(x, y, COEF, Zern_pol, z_pow):
+    """Wavefront_Phase.
+
+    :param x:
+    :param y:
+    :param COEF:
+    :param Zern_pol:
+    :param z_pow:
+    """
     tcoef = COEF.shape[0]
     p = np.sqrt((x * x) + (y * y))
     f = np.arctan2(x, y)  # angulo en direccion de las agujas del relog desde el eje x positivo
@@ -119,6 +150,15 @@ def Wavefront_Phase(x, y, COEF, Zern_pol, z_pow):
 
 
 def Wf_XY_Components(x, y, N, Zern_pol, z_pow, fz):
+    """Wf_XY_Components.
+
+    :param x:
+    :param y:
+    :param N:
+    :param Zern_pol:
+    :param z_pow:
+    :param fz:
+    """
     A = np.zeros(Zern_pol.shape[0])
     A[N] = 1.0
     z = Wavefront_Phase(x, y, A, Zern_pol, z_pow)
@@ -127,6 +167,15 @@ def Wf_XY_Components(x, y, N, Zern_pol, z_pow, fz):
 
 
 def System_Matrix_Zernikes(x, y, A, Zern_pol, z_pow, fz):
+    """System_Matrix_Zernikes.
+
+    :param x:
+    :param y:
+    :param A:
+    :param Zern_pol:
+    :param z_pow:
+    :param fz:
+    """
     NA = np.argwhere(A == 1)
     n_NA = NA.shape[0]
 

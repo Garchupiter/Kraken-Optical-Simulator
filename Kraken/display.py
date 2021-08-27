@@ -58,6 +58,12 @@ def wavelength_to_rgb(wavelength, gamma=1.0):
 
 
 def display3d(SYSTEM, RAYS, view=0):
+    """display3d.
+
+    :param SYSTEM:
+    :param RAYS:
+    :param view:
+    """
     # System_stat_at_this_time=SYSTEM.prerequisites_status()
     # SEST=SYSTEM.System_stat-System_stat_at_this_time
 
@@ -188,6 +194,12 @@ def display3d(SYSTEM, RAYS, view=0):
 
 
 def display2d(SYSTEM, RAYS, view=0):
+    """display2d.
+
+    :param SYSTEM:
+    :param RAYS:
+    :param view:
+    """
     # System_stat_at_this_time=SYSTEM.prerequisites_status()
     # SEST=SYSTEM.System_stat-System_stat_at_this_time
 
@@ -312,6 +324,13 @@ def display2d(SYSTEM, RAYS, view=0):
 
 
 def edge_3d(MeshObject, cx, cy, xz):
+    """edge_3d.
+
+    :param MeshObject:
+    :param cx:
+    :param cy:
+    :param xz:
+    """
     c = MeshObject.clip((cx, cy, xz), invert=False)
     edges = c.extract_feature_edges(boundary_edges=True, feature_edges=False, manifold_edges=False)
 
@@ -371,6 +390,11 @@ def edge_3d(MeshObject, cx, cy, xz):
 
 
 def filter_face_2dplot(v1, v2):
+    """filter_face_2dplot.
+
+    :param v1:
+    :param v2:
+    """
     av1 = np.copy(v1)
     av2 = np.copy(v2)
     av1 = np.roll(av1, -1)

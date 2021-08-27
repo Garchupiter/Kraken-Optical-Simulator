@@ -1,22 +1,22 @@
 #!/usr/bin/env Python3
 import os
 
-from .physics import *
-from .display import *
-from .physics_class import *
-from .Surf_class import *
-from .pupil_tool import *
-from .raykeeper import *
-from .System_tools import *
-from .Kraken_setup_class import *
-from .Surf_tools import surface_tools as SUT
-from .prerequisites3D import *
+from .Physics import *
+from .Display import *
+from .PhysicsClass import *
+from .SurfClass import *
+from .PupilTool import *
+from .RayKeeper import *
+from .SystemTools import *
+from .KrakenSetupClass import *
+from .SurfTools import surface_tools as SUT
+from .Prerequisites3D import *
 from .HitOnSurf import *
 from .InterNormalCalc import *
 from .WavefrontFit import *
 from .SeidelTool import *
 from .SourceRand import *
-from .RMSlib import *
+from .LibRMS import *
 from .TraceLoopTool import *
 from .PhaseCalc import *
 from .WavePlot import *
