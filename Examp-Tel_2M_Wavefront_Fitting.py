@@ -6,7 +6,7 @@ import os
 import sys
 import matplotlib.pyplot as plt
 import numpy as np
-import Kraken as kn
+import Kraken as Kn
 
 # ______________________________________#
 
@@ -15,7 +15,7 @@ sys.path.insert(1, currentDirectory + '/library')
 
 # ______________________________________#
 
-P_Obj = kn.surf()
+P_Obj = Kn.surf()
 P_Obj.Rc = 0
 P_Obj.Thickness = 1000 + 3.452200000000000E+003
 P_Obj.Glass = "AIR"
@@ -24,7 +24,7 @@ P_Obj.Diameter = 1.059E+003 * 2.0
 # ______________________________________#
 
 Thickness = 3.452200000000000E+003
-M1 = kn.surf()
+M1 = Kn.surf()
 M1.Rc = -9.638000000004009E+003
 M1.Thickness = -Thickness
 M1.k = -1.077310000000000E+000
@@ -37,7 +37,7 @@ M1.TiltX = 0.0
 # ______________________________________#
 
 M1.AxisMove = 0
-M2 = kn.surf()
+M2 = Kn.surf()
 M2.Rc = -3.93E+003
 M2.Thickness = Thickness + 1037.525880
 M2.k = -4.328100000000000E+000
@@ -51,7 +51,7 @@ M2.AxisMove = 0
 
 # ______________________________________#
 
-P_Ima = kn.surf()
+P_Ima = Kn.surf()
 P_Ima.Diameter = 300.0
 P_Ima.Glass = "AIR"
 P_Ima.Name = "Plano imagen"
@@ -59,8 +59,8 @@ P_Ima.Name = "Plano imagen"
 # ______________________________________#
 
 A = [P_Obj, M1, M2, P_Ima]
-configuracion_1 = kn.Kraken_setup()
-Telescopio = kn.system(A, configuracion_1)
+configuracion_1 = Kn.Kraken_setup()
+Telescopio = Kn.system(A, configuracion_1)
 
 # ______________________________________#
 
@@ -68,19 +68,19 @@ Surf = 1
 W = 0.5016
 AperVal = 2000.
 AperType = "STOP"
-Pupil = kn.PupilCalc(Telescopio, Surf, W, AperType, AperVal)
+Pupil = Kn.PupilCalc(Telescopio, Surf, W, AperType, AperVal)
 Pupil.Samp = 10
 Pupil.Ptype = "hexapolar"
 Pupil.FieldY = 0.1
 Pupil.FieldX = 0.0
 Pupil.FieldType = "angle"
 
-X, Y, Z, P2V = kn.Phase(Pupil)
+X, Y, Z, P2V = Kn.Phase(Pupil)
 print("Peak to valley: ", P2V)
 NC = 18
 A = np.ones(38)
 
-Zcoef, Mat, w_rms = kn.Zernike_Fitting(X, Y, Z, A)
+Zcoef, Mat, w_rms = Kn.Zernike_Fitting(X, Y, Z, A)
 
 for i in range(0, NC):
     print("z", i + 1, "  ", "{0:.6f}".format(float(Zcoef[i])), ":", Mat[i])
@@ -95,7 +95,7 @@ for i in range(0, NC):
 
 # #______________________________________#
 
-RR = kn.raykeeper(Telescopio)
+RR = Kn.raykeeper(Telescopio)
 x, y, z, L, M, N = Pupil.Pattern2Field()
 
 # ______________________________________#
@@ -108,7 +108,7 @@ for i in range(0, len(x)):
 
 # ______________________________________#
 
-# kn.display3d(Telescopio, RR, 2)
+# Kn.display3d(Telescopio, RR, 2)
 X, Y, Z, L, M, N = RR.pick(-1)
 
 # ______________________________________#
@@ -120,12 +120,12 @@ plt.title('spot Diagram')
 plt.axis('square')
 plt.show()
 
-ima = kn.WavefrontData2Image(Zcoef, 400)
+ima = Kn.WavefrontData2Image(Zcoef, 400)
 
 Type = "interferogram"
-kn.ZernikeDataImage2Plot(ima, Type)
+Kn.ZernikeDataImage2Plot(ima, Type)
 
-AB = kn.Seidel(Pupil)
+AB = Kn.Seidel(Pupil)
 
 print("--------------------------------------")
 print(AB.SCW_AN)

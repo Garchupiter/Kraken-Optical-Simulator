@@ -8,7 +8,7 @@ Created on Sat Aug 21 20:13:17 2021
 
 import numpy as np
 import matplotlib.pyplot as plt
-import Kraken as kn
+import Kraken as Kn
 
 
 def ZernikeDataImage2Plot(datos, Type="interferogram"):
@@ -65,7 +65,7 @@ def WavefrontData2Image(z_coeff, res=323):
     X = np.asarray(X)
     Y = np.asarray(Y)
 
-    Z = kn.Wavefront_Zernike_Phase(X, Y, z_coeff)
+    Z = Kn.Wavefront_Zernike_Phase(X, Y, z_coeff)
     ARRAY_ZERNIKE[H, K] = Z
 
     return ARRAY_ZERNIKE

@@ -6,7 +6,7 @@ Created on Tue Apr  6 22:06:43 2021
 """
 
 import numpy as np
-import Kraken as kn
+import Kraken as Kn
 import scipy
 
 
@@ -55,12 +55,12 @@ def Phase(PUPIL):
     dCos = [0., 0., 1.]
     W = W
 
-    RR = kn.raykeeper(SYSTEM)
-    RR2 = kn.raykeeper(SYSTEM)
+    RR = Kn.raykeeper(SYSTEM)
+    RR2 = Kn.raykeeper(SYSTEM)
 
-    Pup = kn.PupilCalc(SYSTEM, sup, W, ApType, ApVal)
+    Pup = Kn.PupilCalc(SYSTEM, sup, W, ApType, ApVal)
 
-    Pup = kn.PupilCalc(SYSTEM, sup, W, ApType, ApVal)
+    Pup = Kn.PupilCalc(SYSTEM, sup, W, ApType, ApVal)
 
     Pup.Samp = Samp
     Pup.Ptype = Ptype
@@ -149,13 +149,13 @@ def Phase(PUPIL):
 
     ################################################################
 
-    P_O = kn.surf()
+    P_O = Kn.surf()
     P_O.Rc = 0
     P_O.Thickness = Pz
     P_O.Glass = "AIR"
     P_O.Diameter = 1.
 
-    P_P = kn.surf()
+    P_P = Kn.surf()
     SYSTEM.Parax(W)
     # P_P.Rc=(SYSTEM.EFFL*Pup.RadPupOut/Pup.RadPupInp)#*1.00013425    #np.abs(AP)
     P_P.Rc = np.abs(AP)
@@ -171,12 +171,12 @@ def Phase(PUPIL):
     # Mucho ojo con el orden de las transformaciones
     P_P.Order = 1
 
-    P_I = kn.surf()
+    P_I = Kn.surf()
     P_I.Diameter = P_P.Rc * .99 * 2. * 10.
 
     B = [P_O, P_P]
-    PS = kn.system(B, configuracion_1)
-    RR = kn.raykeeper(PS)
+    PS = Kn.system(B, configuracion_1)
+    RR = Kn.raykeeper(PS)
 
     PS.Trace(XYZ0, LMN0, W)
     OPSR = PS.TOP

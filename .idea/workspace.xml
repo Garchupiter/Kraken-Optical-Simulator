@@ -43,28 +43,10 @@
       <change beforePath="$PROJECT_DIR$/Examp-Tel_2M_Spyder_Spot_Tilt_M2.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Tel_2M_Spyder_Spot_Tilt_M2.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Examp-Tel_2M_Wavefront_Fitting.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Tel_2M_Wavefront_Fitting.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Examp-Tel_2M_Wavefront_Fitting_optimization.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Tel_2M_Wavefront_Fitting_optimization.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Kraken/AstroAtmosphere/AtmosP.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Kraken/AstroAtmosphere/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/AstroAtmosphere/__init__.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Kraken/Cat/Cat_00.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/Cat/Cat_00.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Kraken/Display.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/Display.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Kraken/KrakenSys.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/KrakenSys.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Kraken/LibRMS.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/LibRMS.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Kraken/MathShapesClass.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/MathShapesClass.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Kraken/PhaseCalc.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/PhaseCalc.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Kraken/Physics.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/Physics.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Kraken/PhysicsClass.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/PhysicsClass.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Kraken/Prerequisites3D.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/Prerequisites3D.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Kraken/PupilTool.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/PupilTool.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Kraken/RandProb.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/RandProb.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Kraken/RayKeeper.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/RayKeeper.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Kraken/SeidelTool.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/SeidelTool.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Kraken/SourceRand.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/SourceRand.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Kraken/SurfClass.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/SurfClass.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Kraken/SurfTools.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/SurfTools.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Kraken/SystemTools.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/SystemTools.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Kraken/TraceLoopTool.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/TraceLoopTool.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Kraken/WavePlot.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/WavePlot.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Kraken/WavefrontFit.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/WavefrontFit.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -75,7 +57,7 @@
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
   <component name="ProblemsViewState">
-    <option name="selectedIndex" value="2" />
+    <option name="selectedIndex" value="4" />
   </component>
   <component name="ProjectId" id="1xHY8M8aXQKgGDIj5PLGcPBgbq6" />
   <component name="ProjectLevelVcsManager" settingsEditedManually="true" />

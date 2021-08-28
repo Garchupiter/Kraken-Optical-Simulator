@@ -510,8 +510,8 @@ class PupilCalc:
         PosPupOutFoc = np.asarray([px[0], py[0], pz[0]])
         # print("Exit pupil coordinates from image plane: ", px, py, pz)
 
-        # kn.display2d(self.SYSTEM,RP,0)
-        # kn.display2d(self.SYSTEM,RP,1)
+        # Kn.display2d(self.SYSTEM,RP,0)
+        # Kn.display2d(self.SYSTEM,RP,1)
 
         self.SYSTEM.Vignetting(0)
         RP.clean()

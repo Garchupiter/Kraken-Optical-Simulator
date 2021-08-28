@@ -2,14 +2,14 @@
 # -*- coding: utf-8 -*-
 """Doublet Lens Zernike"""
 
-import Kraken as kn
+import Kraken as Kn
 import numpy as np
 import matplotlib.pyplot as plt
 import time
 
 # ______________________________________#
 
-P_Obj = kn.surf()
+P_Obj = Kn.surf()
 P_Obj.Rc = 0.0
 P_Obj.Thickness = 1
 P_Obj.Glass = "AIR"
@@ -17,7 +17,7 @@ P_Obj.Diameter = 30.0
 
 # ______________________________________#
 
-L1a = kn.surf()
+L1a = Kn.surf()
 L1a.Rc = 5.513435044607768E+001
 L1a.Thickness = 6.0
 L1a.Glass = "BK7"
@@ -25,7 +25,7 @@ L1a.Diameter = 30.0
 
 # ______________________________________#
 
-L1b = kn.surf()
+L1b = Kn.surf()
 L1b.Rc = -4.408716526030626E+001
 L1b.Thickness = 3.0
 L1b.Glass = "F2"
@@ -33,7 +33,7 @@ L1b.Diameter = 30
 
 # ______________________________________#
 
-L1c = kn.surf()
+L1c = Kn.surf()
 L1c.Rc = -2.246906271406796E+002
 L1c.Thickness = 9.737871661422000E+001
 L1c.Glass = "AIR"
@@ -54,7 +54,7 @@ L1c.ZNK = Z
 
 # ______________________________________#
 
-P_Ima = kn.surf()
+P_Ima = Kn.surf()
 P_Ima.Rc = 0.0
 P_Ima.Thickness = 0.0
 P_Ima.Glass = "AIR"
@@ -63,12 +63,12 @@ P_Ima.Diameter = 100.0
 # ______________________________________#
 
 A = [P_Obj, L1a, L1b, L1c, P_Ima]
-configuracion_1 = kn.Kraken_setup()
+configuracion_1 = Kn.Kraken_setup()
 
 # ______________________________________#
 
-Doblete = kn.system(A, configuracion_1)
-Rayos = kn.raykeeper(Doblete)
+Doblete = Kn.system(A, configuracion_1)
+Rayos = Kn.raykeeper(Doblete)
 
 # ______________________________________#
 
@@ -90,5 +90,5 @@ for i in range(-tam, tam + 1):
 
 # ______________________________________#
 
-kn.display3d(Doblete, Rayos, 2)
-kn.display2d(Doblete, Rayos, 1)
+Kn.display3d(Doblete, Rayos, 2)
+Kn.display2d(Doblete, Rayos, 1)

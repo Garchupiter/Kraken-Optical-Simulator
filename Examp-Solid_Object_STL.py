@@ -4,11 +4,11 @@
 
 import os
 import numpy as np
-import Kraken as kn
+import Kraken as Kn
 
 # ______________________________________#
 
-P_Obj = kn.surf()
+P_Obj = Kn.surf()
 P_Obj.Thickness = 2.000000000000000E+003
 P_Obj.Glass = "AIR"
 P_Obj.Diameter = 6.796727741707513E+002 * 2.0
@@ -16,7 +16,7 @@ P_Obj.Drawing = 0
 
 # ______________________________________#
 
-M1 = kn.surf()
+M1 = Kn.surf()
 M1.Rc = -6.06044E+003
 M1.Thickness = -1.774190000000000E+003 + 1.853722901194000E+000
 M1.k = -1.637E+000
@@ -29,7 +29,7 @@ M1.AxisMove = 1
 
 # ______________________________________#
 
-M2 = kn.surf()
+M2 = Kn.surf()
 M2.Rc = -6.06044E+003
 M2.Thickness = -M1.Thickness
 M2.k = -3.5782E+001
@@ -41,7 +41,7 @@ M2.AspherData = ED0
 
 # ______________________________________#
 
-Vertex = kn.surf()
+Vertex = Kn.surf()
 Vertex.Thickness = 130.0
 Vertex.Glass = "AIR"
 Vertex.Diameter = 600.0
@@ -54,7 +54,7 @@ direc = r"Prisma.stl"
 
 # ______________________________________#
 
-objeto = kn.surf()
+objeto = Kn.surf()
 objeto.Diameter = 118.0 * 2.0
 objeto.Solid_3d_stl = direc
 objeto.Thickness = 600
@@ -68,7 +68,7 @@ objeto.AxisMove = 0
 
 # ______________________________________#
 
-P_Ima = kn.surf()
+P_Ima = Kn.surf()
 P_Ima.Rc = 0
 P_Ima.Thickness = 100.0
 P_Ima.Glass = "BK7"
@@ -78,12 +78,12 @@ P_Ima.Drawing = 1
 # ______________________________________#
 
 A = [P_Obj, M1, M2, Vertex, objeto, P_Ima]
-configuracion_1 = kn.Kraken_setup()
+configuracion_1 = Kn.Kraken_setup()
 
 # ______________________________________#
 
-Telescope = kn.system(A, configuracion_1)
-Rays = kn.raykeeper(Telescope)
+Telescope = Kn.system(A, configuracion_1)
+Rays = Kn.raykeeper(Telescope)
 
 # ______________________________________#
 
@@ -109,5 +109,5 @@ for gg in range(0, 10):
 
 # ______________________________________#
 
-kn.display3d(Telescope, Rays, 0)
+Kn.display3d(Telescope, Rays, 0)
 print(Telescope.EFFL)

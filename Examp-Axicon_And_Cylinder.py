@@ -3,15 +3,15 @@
 """Examp Axicon and Cylinder"""
 
 import numpy as np
-import Kraken as kn
+import Kraken as Kn
 
 # ______________________________________#
 
-configuracion_1 = kn.Kraken_setup()
+configuracion_1 = Kn.Kraken_setup()
 
 # ______________________________________#
 
-P_Obj = kn.surf()
+P_Obj = Kn.surf()
 P_Obj.Rc = 0.0
 P_Obj.Thickness = 10
 P_Obj.Glass = "AIR"
@@ -19,7 +19,7 @@ P_Obj.Diameter = 30.0
 
 # ______________________________________#
 
-L1a = kn.surf()
+L1a = Kn.surf()
 L1a.Rc = 0
 L1a.Thickness = 26.0
 L1a.Glass = "BK7"
@@ -27,7 +27,7 @@ L1a.Diameter = 30.0
 
 # ______________________________________#
 
-L1c = kn.surf()
+L1c = Kn.surf()
 L1c.Rc = 0.
 L1c.K = -1
 L1c.Thickness = 9.737604742910693E+001
@@ -39,7 +39,7 @@ L1c.Diameter = 30
 
 # ______________________________________#
 
-P_Ima = kn.surf()
+P_Ima = Kn.surf()
 P_Ima.Rc = 0.0
 P_Ima.Thickness = 0.0
 P_Ima.Glass = "AIR"
@@ -52,8 +52,8 @@ A = [P_Obj, L1a, L1c, P_Ima]
 
 # ______________________________________#
 
-Doblete = kn.system(A, configuracion_1)
-Rayos = kn.raykeeper(Doblete)
+Doblete = Kn.system(A, configuracion_1)
+Rayos = Kn.raykeeper(Doblete)
 
 # ______________________________________#
 
@@ -81,4 +81,4 @@ for i in range(-tam, tam + 1):
 
 # ______________________________________#
 
-kn.display3d(Doblete, Rayos, 0)
+Kn.display3d(Doblete, Rayos, 0)

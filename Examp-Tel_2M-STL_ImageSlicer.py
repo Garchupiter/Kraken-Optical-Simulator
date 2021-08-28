@@ -4,7 +4,7 @@
 Examp-2M-STL_ImageSlicer.py
 """
 
-import Kraken as kn
+import Kraken as Kn
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy
@@ -14,14 +14,14 @@ A1 = 1
 
 if A1 == 0:
     # _________________________________________________________________#
-    P_Obj = kn.surf()
+    P_Obj = Kn.surf()
     P_Obj.Rc = 0
     P_Obj.Thickness = 1000 + 3.452200000000000E+003
     P_Obj.Glass = "AIR"
     P_Obj.Diameter = 1.059E+003 * 2.0
     # _________________________________________________________________#
     Thickness = 3.452200000000000E+003
-    M1 = kn.surf()
+    M1 = Kn.surf()
     M1.Rc = -9.638000000004009E+003
     M1.Thickness = -Thickness
     M1.k = -1.077310000000000E+000
@@ -29,7 +29,7 @@ if A1 == 0:
     M1.Diameter = 1.059E+003 * 2.0
     M1.InDiameter = 250 * 2.0
     # _________________________________________________________________#
-    M2 = kn.surf()
+    M2 = Kn.surf()
     M2.Rc = -3.93E+003
     M2.Thickness = Thickness + 1.037525880125084E+003
     M2.k = -4.328100000000000E+000
@@ -37,7 +37,7 @@ if A1 == 0:
     M2.Diameter = 3.365E+002 * 2.0
     M2.AxisMove = 0
     # _________________________________________________________________#
-    P_Image_A = kn.surf()
+    P_Image_A = Kn.surf()
     P_Image_A.Diameter = 10.0
     P_Image_A.Glass = "AIR"
     P_Image_A.Thickness = 10
@@ -47,9 +47,9 @@ if A1 == 0:
     A = [P_Obj, M1, M2, P_Image_A]
 
     # _________________________________________________________________#
-    configuracion_1 = kn.Kraken_setup()
-    Telescopio = kn.system(A, configuracion_1)
-    Rayos = kn.raykeeper(Telescopio)
+    configuracion_1 = Kn.Kraken_setup()
+    Telescopio = Kn.system(A, configuracion_1)
+    Rayos = Kn.raykeeper(Telescopio)
 
 
     # _________________________________________________________________#
@@ -66,7 +66,7 @@ if A1 == 0:
         return res
 
 
-    Sun = kn.SourceRnd()
+    Sun = Kn.SourceRnd()
     Sun.field = 4 * 1.2 / (2.0 * 3600.0)
     Sun.fun = f
     Sun.dim = 2100
@@ -140,7 +140,7 @@ if A1 == 0:
 ################################################################
 
 else:
-    P_Obj = kn.surf()
+    P_Obj = Kn.surf()
     P_Obj.Rc = 0
     P_Obj.Thickness = 100. + 0.5
     P_Obj.Glass = "AIR"
@@ -148,7 +148,7 @@ else:
 
     currentDirectory = os.getcwd()
     direc = r"Jherrera-ImageSlicerBW-00.stl"
-    P_ImageSlicer = kn.surf()
+    P_ImageSlicer = Kn.surf()
     P_ImageSlicer.Diameter = 10.0
     P_ImageSlicer.Glass = "BK7"
     P_ImageSlicer.Name = "Image slicer"
@@ -159,7 +159,7 @@ else:
     P_ImageSlicer.DespY = -0.03
     P_ImageSlicer.AxisMove = 0
 
-    P_Ima = kn.surf()
+    P_Ima = Kn.surf()
     P_Ima.Diameter = 10.0
     P_Ima.Glass = "AIR"
     P_Ima.Name = "Plano imagen"
@@ -167,9 +167,9 @@ else:
     # _________________________________________________________________#
 
     A = [P_Obj, P_ImageSlicer, P_Ima]
-    configuracion_1 = kn.Kraken_setup()
-    ImageSlicer = kn.system(A, configuracion_1)
-    Rayos = kn.raykeeper(ImageSlicer)
+    configuracion_1 = Kn.Kraken_setup()
+    ImageSlicer = Kn.system(A, configuracion_1)
+    Rayos = Kn.raykeeper(ImageSlicer)
 
     outfile = "savedRays.npy"
     R = np.load(outfile)
@@ -245,4 +245,4 @@ else:
     plt.show()
 
     #             Rays.push()
-    kn.display3d(ImageSlicer, Rayos, 0)
+    Kn.display3d(ImageSlicer, Rayos, 0)

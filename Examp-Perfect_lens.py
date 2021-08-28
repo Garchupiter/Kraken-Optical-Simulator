@@ -5,7 +5,7 @@
 import time
 import matplotlib.pyplot as plt
 import numpy as np
-import Kraken as kn
+import Kraken as Kn
 
 # ______________________________________#
 
@@ -13,7 +13,7 @@ start_time = time.time()
 
 # ______________________________________#
 
-P_Obj = kn.surf()
+P_Obj = Kn.surf()
 P_Obj.Rc = 0.0
 P_Obj.Thickness = 50
 P_Obj.Glass = "AIR"
@@ -21,7 +21,7 @@ P_Obj.Diameter = 30.0
 
 # ______________________________________#
 
-L1a = kn.surf()
+L1a = Kn.surf()
 L1a.Thin_Lens = 100.
 L1a.Thickness = (100 + 50)
 L1a.Rc = 0.0
@@ -30,7 +30,7 @@ L1a.Diameter = 30.0
 
 # ______________________________________#
 
-L1b = kn.surf()
+L1b = Kn.surf()
 L1b.Thin_Lens = 50.
 L1b.Thickness = 100.
 L1b.Rc = 0.0
@@ -39,7 +39,7 @@ L1b.Diameter = 30.0
 
 # ______________________________________#
 
-P_Ima = kn.surf()
+P_Ima = Kn.surf()
 P_Ima.Rc = 0.0
 P_Ima.Thickness = 0.0
 P_Ima.Glass = "AIR"
@@ -49,15 +49,15 @@ P_Ima.Name = "Plano imagen"
 # ______________________________________#
 
 A = [P_Obj, L1a, L1b, P_Ima]
-config_1 = kn.Kraken_setup()
+config_1 = Kn.Kraken_setup()
 
 # ______________________________________#
 
-Doblete = kn.system(A, config_1)
-Rayos1 = kn.raykeeper(Doblete)
-Rayos2 = kn.raykeeper(Doblete)
-Rayos3 = kn.raykeeper(Doblete)
-RayosT = kn.raykeeper(Doblete)
+Doblete = Kn.system(A, config_1)
+Rayos1 = Kn.raykeeper(Doblete)
+Rayos2 = Kn.raykeeper(Doblete)
+Rayos3 = Kn.raykeeper(Doblete)
+RayosT = Kn.raykeeper(Doblete)
 
 # ______________________________________#
 
@@ -80,7 +80,7 @@ for j in range(-tam, tam + 1):
 
 # ______________________________________#
 
-kn.display3d(Doblete, RayosT, 0)
+Kn.display3d(Doblete, RayosT, 0)
 X, Y, Z, L, M, N = Rayos1.pick(-1)
 
 # ______________________________________#

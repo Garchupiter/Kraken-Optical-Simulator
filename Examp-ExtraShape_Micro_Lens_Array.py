@@ -2,13 +2,13 @@
 # -*- coding: utf-8 -*-
 """Examp Extra Shape Micro Lens Array"""
 
-import Kraken as kn
+import Kraken as Kn
 import numpy as np
 import matplotlib.pyplot as plt
 
 # ______________________________________#
 
-P_Obj = kn.surf()
+P_Obj = Kn.surf()
 P_Obj.Rc = 0.0
 P_Obj.Thickness = 10
 P_Obj.Glass = "AIR"
@@ -16,7 +16,7 @@ P_Obj.Diameter = 30.0
 
 # ______________________________________#
 
-L1a = kn.surf()
+L1a = Kn.surf()
 L1a.Rc = 55.134 * 0
 L1a.Thickness = 2.0
 L1a.Glass = "BK7"
@@ -24,7 +24,7 @@ L1a.Diameter = 30.0
 
 # ______________________________________#
 
-L1c = kn.surf()
+L1c = Kn.surf()
 L1c.Thickness = 40
 L1c.Glass = "AIR"
 L1c.Diameter = 30
@@ -52,7 +52,7 @@ L1c.Res = 2
 
 # ______________________________________#
 
-P_Ima = kn.surf()
+P_Ima = Kn.surf()
 P_Ima.Rc = 0.0
 P_Ima.Thickness = 0.0
 P_Ima.Glass = "AIR"
@@ -62,12 +62,12 @@ P_Ima.Name = "Image plane"
 # ______________________________________#
 
 A = [P_Obj, L1a, L1c, P_Ima]
-Config_1 = kn.Kraken_setup()
+Config_1 = Kn.Kraken_setup()
 
 # ______________________________________#
 
-Lens = kn.system(A, Config_1)
-Rays = kn.raykeeper(Lens)
+Lens = Kn.system(A, Config_1)
+Rays = Kn.raykeeper(Lens)
 
 # ______________________________________#
 
@@ -80,5 +80,5 @@ for i in range(-100, 100 + 1):
 
 # ______________________________________#
 
-kn.display3d(Lens, Rays, 1)
-kn.display2d(Lens, Rays, 0)
+Kn.display3d(Lens, Rays, 1)
+Kn.display2d(Lens, Rays, 0)

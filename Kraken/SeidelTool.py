@@ -15,7 +15,7 @@ https://neurophysics.ucsd.edu/Manuals/Zemax/ZemaxManual.pdf
 """
 
 import numpy as np
-import Kraken as kn
+import Kraken as Kn
 from .PupilTool import PupilCalc, SolveVectCross
 
 
