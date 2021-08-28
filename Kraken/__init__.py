@@ -1,6 +1,5 @@
-#!/usr/bin/env Python3
-import os
 
+import os
 from .Physics import *
 from .Display import *
 from .PhysicsClass import *
@@ -21,3 +20,4 @@ from .TraceLoopTool import *
 from .PhaseCalc import *
 from .WavePlot import *
 from .KrakenSys import *
+

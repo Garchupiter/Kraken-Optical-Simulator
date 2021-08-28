@@ -1,53 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="13bceb31-346a-47dd-8386-88e36dffa6c5" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-Axicon.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Axicon.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-Axicon_And_Cylinder.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Axicon_And_Cylinder.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-Diffraction_Grating_Reflection.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Diffraction_Grating_Reflection.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-Diffraction_Grating_Transmission.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Diffraction_Grating_Transmission.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-Doublet_Lens-ParaxMatrix.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Doublet_Lens-ParaxMatrix.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-Doublet_Lens.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Doublet_Lens.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-Doublet_Lens_3Dcolor.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Doublet_Lens_3Dcolor.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-Doublet_Lens_CommandsSystem.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Doublet_Lens_CommandsSystem.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-Doublet_Lens_Cylinder.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Doublet_Lens_Cylinder.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-Doublet_Lens_NonSec.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Doublet_Lens_NonSec.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-Doublet_Lens_Pupil.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Doublet_Lens_Pupil.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-Doublet_Lens_Pupil_Seidel.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Doublet_Lens_Pupil_Seidel.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-Doublet_Lens_Tilt-Nulls.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Doublet_Lens_Tilt-Nulls.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-Doublet_Lens_Tilt.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Doublet_Lens_Tilt.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-Doublet_Lens_Tilt_non_sec.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Doublet_Lens_Tilt_non_sec.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-Doublet_Lens_Zernike.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Doublet_Lens_Zernike.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-ExtraShape_Micro_Lens_Array.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-ExtraShape_Micro_Lens_Array.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-ExtraShape_Radial_Sine.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-ExtraShape_Radial_Sine.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-ExtraShape_XY_Cosines.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-ExtraShape_XY_Cosines.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-Flat_Mirror_45Deg.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Flat_Mirror_45Deg.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-MultiCore.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-MultiCore.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-ParaboleMirror_Shift.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-ParaboleMirror_Shift.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-Perfect_lens.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Perfect_lens.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-Ray.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Ray.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-Solid_Object_STL.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Solid_Object_STL.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-Solid_Object_STL_ARRAY.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Solid_Object_STL_ARRAY.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-Sourse_Distribution_Function.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Sourse_Distribution_Function.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-Tel-TAOS-Morgan-ZCP.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Tel-TAOS-Morgan-ZCP.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-Tel_2M-STL_ImageSlicer.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Tel_2M-STL_ImageSlicer.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-Tel_2M.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Tel_2M.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-Tel_2M_Atmospheric_Refraction.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Tel_2M_Atmospheric_Refraction.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-Tel_2M_Atmospheric_Refraction_Corrector.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Tel_2M_Atmospheric_Refraction_Corrector.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-Tel_2M_Atmospheric_Refraction_Corrector_Modified.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Tel_2M_Atmospheric_Refraction_Corrector_Modified.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-Tel_2M_Error_Map.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Tel_2M_Error_Map.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-Tel_2M_Pupila.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Tel_2M_Pupila.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-Tel_2M_Spyder_Spot_Diagram.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Tel_2M_Spyder_Spot_Diagram.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-Tel_2M_Spyder_Spot_RMS.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Tel_2M_Spyder_Spot_RMS.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-Tel_2M_Spyder_Spot_Tilt_M2.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Tel_2M_Spyder_Spot_Tilt_M2.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-Tel_2M_Wavefront_Fitting.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Tel_2M_Wavefront_Fitting.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Examp-Tel_2M_Wavefront_Fitting_optimization.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp-Tel_2M_Wavefront_Fitting_optimization.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Kraken/PhaseCalc.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/PhaseCalc.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Kraken/PupilTool.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/PupilTool.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Kraken/SeidelTool.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/SeidelTool.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Kraken/WavePlot.py" beforeDir="false" afterPath="$PROJECT_DIR$/Kraken/WavePlot.py" afterDir="false" />
-    </list>
+    <list default="true" id="13bceb31-346a-47dd-8386-88e36dffa6c5" name="Default Changelist" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -69,7 +23,7 @@
     <property name="RunOnceActivity.OpenProjectViewOnStart" value="true" />
     <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
     <property name="run.code.analysis.last.selected.profile" value="aDefault" />
-    <property name="settings.editor.selected.configurable" value="editor.preferences.smartKeys" />
+    <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyIntegratedToolsModulesConfigurable" />
   </component>
   <component name="RunManager" selected="Python.Examp-Tel_2M_Atmospheric_Refraction_Corrector">
     <configuration name="Examp-Doublet_Lens_CommandsSystem" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">

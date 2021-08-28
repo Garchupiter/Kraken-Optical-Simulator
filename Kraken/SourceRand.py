@@ -1,21 +1,16 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Mar 16 16:14:04 2021
-
-@author: JOELHERRERAVAZQUEZ
-"""
 
 from scipy.stats import uniform
 import random
 import numpy as np
 
+class SourceRnd():
+    """SourceRnd.
+    """
 
-class SourceRnd:
+
     def __init__(self):
-        """SourceRnd."""
-
-        """__init__."""
-
+        """__init__.
+        """
         self.fun = 0
         self.field = 89.9
         self.type = 0
@@ -23,58 +18,49 @@ class SourceRnd:
         self.num = 100
 
     def rays(self):
-        """rays."""
+        """rays.
+        """
 
         def ff(x):
             """ff.
 
-            :param x:
+            Parameters
+            ----------
+            x :
+                x
             """
-            return x / x
-
+            return (x / x)
         f = self.fun
-        if f == 0:
+        if (f == 0):
             f = ff
-
         r_source = self.dim
         lim = np.deg2rad(self.field)
-
-        A = np.linspace(lim / self.num, lim - (lim / self.num), self.num)
-        prob = f(A) * (2 * np.pi * np.sin(A))
-        prob = prob - np.min(prob)
-        prob = prob / np.max(prob)
-
+        A = np.linspace((lim / self.num), (lim - (lim / self.num)), self.num)
+        prob = (f(A) * ((2 * np.pi) * np.sin(A)))
+        prob = (prob - np.min(prob))
+        prob = (prob / np.max(prob))
         Rand_num = random.choices(A, prob, k=self.num)
-        Delta = (lim / self.num) * (uniform.rvs(size=self.num, loc=0, scale=2) - 1)
-
-        Theta = Rand_num + Delta
-        Phi = uniform.rvs(size=self.num, loc=0, scale=2.0 * np.pi)
-
-        L = np.sin(Theta) * np.cos(Phi)
-        M = np.sin(Theta) * np.sin(Phi)
+        Delta = ((lim / self.num) * (uniform.rvs(size=self.num, loc=0, scale=2) - 1))
+        Theta = (Rand_num + Delta)
+        Phi = uniform.rvs(size=self.num, loc=0, scale=(2.0 * np.pi))
+        L = (np.sin(Theta) * np.cos(Phi))
+        M = (np.sin(Theta) * np.sin(Phi))
         N = np.cos(Theta)
-
-        if self.type == 0:  # Circle
-            AR = np.linspace(r_source / self.num, r_source - (r_source / self.num), self.num)
-            prob_R = 2 * np.pi * AR
-            lt0 = np.argwhere(prob_R < 0)
-
-            prob_R = prob_R - np.min(prob_R)
-
-            prob_R = prob_R / np.max(prob_R)
-
+        if (self.type == 0):
+            AR = np.linspace((r_source / self.num), (r_source - (r_source / self.num)), self.num)
+            prob_R = ((2 * np.pi) * AR)
+            lt0 = np.argwhere((prob_R < 0))
+            prob_R = (prob_R - np.min(prob_R))
+            prob_R = (prob_R / np.max(prob_R))
             Rand_num_R = random.choices(AR, prob_R, k=self.num)
-            Delta_R = (lim / self.num) * (uniform.rvs(size=self.num, loc=0, scale=2) - 1)
-            R = Rand_num_R + Delta_R
-
-            Phi_R = uniform.rvs(size=self.num, loc=0, scale=2.0 * np.pi)
-            X = R * np.cos(Phi_R)
-            Y = R * np.sin(Phi_R)
-
-        if self.type == 1:  # Square
-            X = r_source * (uniform.rvs(size=self.num, loc=0, scale=2) - 1)
-            Y = r_source * (uniform.rvs(size=self.num, loc=0, scale=2) - 1)
-
+            Delta_R = ((lim / self.num) * (uniform.rvs(size=self.num, loc=0, scale=2) - 1))
+            R = (Rand_num_R + Delta_R)
+            Phi_R = uniform.rvs(size=self.num, loc=0, scale=(2.0 * np.pi))
+            X = (R * np.cos(Phi_R))
+            Y = (R * np.sin(Phi_R))
+        if (self.type == 1):
+            X = (r_source * (uniform.rvs(size=self.num, loc=0, scale=2) - 1))
+            Y = (r_source * (uniform.rvs(size=self.num, loc=0, scale=2) - 1))
         Z = np.zeros_like(X)
+        return (L, M, N, X, Y, Z)
 
-        return L, M, N, X, Y, Z
