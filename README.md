@@ -24,7 +24,7 @@ The library has been simplified to the point of having only two classes of objec
 The surf object contains all the relevant information of every optical interface, in this way, every optical interface is an object of the surf class, all interfaces, from the object plane to the image plane, contain attributes of size, shape, material or orien##tation.
 
 ## User manual and examples
-Very important, read the user manual (Kraken_User_Manual.pdf) included and the set of useful examples included with the library.
+Very important, read the included user manual (Kraken_User_Manual.pdf) and the set of useful examples:
 
 • Examp-Axicon.py          
 • Examp-Axicon_And_Cylinder.py          
