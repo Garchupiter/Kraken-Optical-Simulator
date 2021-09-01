@@ -1,5 +1,7 @@
 
+#!/usr/bin/env Python3
 import os
+
 from .Physics import *
 from .Display import *
 from .PhysicsClass import *

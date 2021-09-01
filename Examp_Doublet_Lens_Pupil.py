@@ -11,7 +11,7 @@ P_Obj.Rc = 0.0
 P_Obj.Thickness = 100
 P_Obj.Glass = "AIR"
 P_Obj.Diameter = 30.0
-P_Obj.Name = "P Obj"
+P_Obj.Name = "P_Obj"
 
 # _________________________________________#
 
@@ -45,8 +45,9 @@ pupila.Rc = 30
 pupila.Thickness = 40.
 pupila.Glass = "AIR"
 pupila.Diameter = 5
-pupila.Name = "Ap Stop"
+pupila.Name = "Pupila"
 pupila.DespY = 0.
+pupila.Nm_Poss=[-10,10]
 
 # _________________________________________#
 
@@ -55,6 +56,8 @@ P_Ima.Rc = 0.0
 P_Ima.Thickness = 0.0
 P_Ima.Glass = "AIR"
 P_Ima.Diameter = 20.0
+P_Ima.Name = "P_Ima"
+P_Ima.Nm_Poss=[-10,10]
 
 # _________________________________________#
 
@@ -96,7 +99,7 @@ print(L, M, N)
 
 # _________________________________________#
 
-Pup.Samp = 5
+Pup.Samp = 3
 Pup.Ptype = "fan"
 Pup.FieldType = "angle"
 Pup.FieldY = 2.0
@@ -119,4 +122,4 @@ for i in range(0, len(x)):
 
 # _________________________________________#
 
-Kn.display2d(Doblete, Rayos, 0)
+Kn.display2d(Doblete, Rayos,0, 1)

@@ -99,7 +99,7 @@ for i in range(0, len(x)):
 
 # ______________________________________#
 
-Kn.display3d(Telescopio, Rayos, 2)
+Kn.display2d(Telescopio, Rayos, 1, 1)
 
 # ______________________________________#
 

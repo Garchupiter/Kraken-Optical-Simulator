@@ -3,48 +3,6 @@ import numpy as np
 import pyvista as pv
 import matplotlib.pyplot as plt
 
-
-def add_arrow(line, position=None, direction='right', size=15, color=None):
-    """
-    add an arrow to a line.
-
-    line:       Line2D object
-    position:   x-position of the arrow. If None, mean of xdata is taken
-    direction:  'left' or 'right'
-    size:       size of the arrow in fontsize points
-    color:      if None, line color is taken.
-    """
-    if color is None:
-        color = line.get_color()
-
-    xdata = line.get_xdata()
-    ydata = line.get_ydata()
-
-    if position is None:
-        position = xdata.mean()
-    # find closest index
-    start_ind = 0 #np.argmin(np.absolute(xdata - position))
-    if direction == 'right':
-        end_ind = start_ind + 1
-    else:
-        end_ind = start_ind - 1
-
-    Px = xdata[end_ind] - (xdata[end_ind] - xdata[start_ind]) / 2.0
-    Py = ydata[end_ind] - (ydata[end_ind] - ydata[start_ind]) / 2.0
-
-    PPx = xdata[start_ind] + (xdata[end_ind] - xdata[start_ind]) / 2.01
-    PPy = ydata[start_ind] + (ydata[end_ind] - ydata[start_ind]) / 2.01
-
-
-    line.axes.annotate('',
-        xytext=(PPx,PPy),
-
-        xy=(Px, Py),
-        arrowprops=dict(arrowstyle="->", color=color),
-        size=size
-    )
-
-
 def wavelength_to_rgb(wavelength, gamma=1.0):
     """wavelength_to_rgb.
 
@@ -197,7 +155,7 @@ def display3d(SYSTEM, RAYS, view=0):
     p.show_grid(font_size=4)
     p.show(auto_close=False, interactive=True, interactive_update=False)
 
-def display2d(SYSTEM, RAYS, view=0, arrow=0):
+def display2d(SYSTEM, RAYS, view=0):
     """display2d.
 
     Parameters
@@ -220,10 +178,7 @@ def display2d(SYSTEM, RAYS, view=0, arrow=0):
         c = pv.PolyData(points2)
     if (SYSTEM.SDT[0].Drawing == 1):
         c = SYSTEM.AAA[0]
-    sign=-1.0
-    sn=1.0
     for n in range(0, NN):
-        sn = sn * sign
         if (SYSTEM.SDT[n].Drawing == 1):
             AAAA = SYSTEM.AAA[n]
             if (SYSTEM.SDT[n].Glass != 'NULL'):
@@ -241,12 +196,10 @@ def display2d(SYSTEM, RAYS, view=0, arrow=0):
 
                     plt.text(((np.max(az) + PosX) + 1), ((np.max(ay) + PosY) - 1), s, fontsize=fs)
                     delta = ((np.max(ay) - np.min(ay)) / 10)
-                    plt.text(az[np.argmin((ay * ay))], sn*1.5*(np.min(ay) - (1.5 * delta)), (('[' + str(ss)) + ']'), fontsize=fs)
-
-                    plt.plot([az[np.argmin((ay * ay))], az[np.argmin((ay * ay))]], [0, sn*1.5*(np.min(ay) - delta)], '-.', c='red', linewidth=0.5)
+                    plt.text(az[np.argmin((ay * ay))], (np.min(ay) - (1.5 * delta)), (('[' + str(ss)) + ']'), fontsize=fs)
+                    plt.plot([az[np.argmin((ay * ay))], az[np.argmin((ay * ay))]], [0, (np.min(ay) - delta)], '-.', c='red', linewidth=0.5)
                     if ((PosX != 0) or (PosY != 0)):
-                        plt.arrow((np.max(az) + PosX), (np.max(ay) + PosY/2), (- PosX), (- PosY/2.0), head_width=0.5, head_length=1.0, fc='k', ec='k', length_includes_head=True)
-                        plt.arrow((np.max(az) + PosX), (np.max(ay) + PosY), (- PosX)*0, (- PosY)/2.0, head_width=0.1, head_length=0.0, fc='k', ec='k', length_includes_head=True)
+                        plt.arrow((np.max(az) + PosX), (np.max(ay) + PosY), (- PosX), (- PosY), head_width=0.5, head_length=1.0, fc='k', ec='k', length_includes_head=True)
                 if (view == 1):
                     LT = ''
                     (ax, ay, az) = edge_3d(AAAA, 0, 1, 0)
@@ -258,15 +211,10 @@ def display2d(SYSTEM, RAYS, view=0, arrow=0):
                     delta = ((np.max(ax) - np.min(ax)) / 10)
 
                     plt.text(((np.max(az) + PosX) + 1), ((np.max(ax) + PosY) - 1), s, fontsize=fs)
-                    plt.text(az[np.argmin((ax * ax))], sn*1.5*(np.min(ax) - (1.5 * delta)), (('[' + str(ss)) + ']'), fontsize=fs)
-
-
-                    plt.plot([az[np.argmin((ax * ax))], az[np.argmin((ax * ax))]], [0, sn*1.5*(np.min(ax) - delta)], '-.', c='red', linewidth=0.5)
+                    plt.text(az[np.argmin((ax * ax))], (np.min(ax) - (1.5 * delta)), (('[' + str(ss)) + ']'), fontsize=fs)
+                    plt.plot([az[np.argmin((ax * ax))], az[np.argmin((ax * ax))]], [0, (np.min(ax) - delta)], '-.', c='red', linewidth=0.5)
                     if ((PosX != 0) or (PosY != 0)):
-                        plt.arrow((np.max(az) + PosX), (np.max(ax) + PosY/2), (- PosX), (- PosY/2.0), head_width=0.5, head_length=1.0, fc='k', ec='k', length_includes_head=True)
-                        plt.arrow((np.max(az) + PosX), (np.max(ax) + PosY), (- PosX)*0, (- PosY)/2.0, head_width=0.1, head_length=0.0, fc='k', ec='k', length_includes_head=True)
-
-
+                        plt.arrow((np.max(az) + PosX), (np.max(ax) + PosY), (- PosX), (- PosY), head_width=0.5, head_length=1.0, fc='k', ec='k', length_includes_head=True)
     NN = SYSTEM.BBB.n_blocks
     for n in range(0, NN):
         TT = SYSTEM.BBB[n]
@@ -281,10 +229,6 @@ def display2d(SYSTEM, RAYS, view=0, arrow=0):
             plt.plot(az, ax, sim, c='black', linewidth=0.5)
             (ax, ay, az) = edge_3d(AAAA, 0, (- 1), 0)
             plt.plot(az, ax, sim, c='black', linewidth=0.5)
-
-
-
-
     if (len(RAYS.RayWave) != 0):
         RW = np.asarray(RAYS.RayWave)
         for i in range(0, np.shape(RW)[0]):
@@ -293,16 +237,10 @@ def display2d(SYSTEM, RAYS, view=0, arrow=0):
             Ax = RRR.points[:, 0]
             Ay = RRR.points[:, 1]
             Az = RRR.points[:, 2]
-            for f in range(1,len(Ax)):
-                if (view == 0):
-                    line = plt.plot([Az[f-1],Az[f]], [Ay[f-1],Ay[f]], color=RGB, linewidth=0.5)[0]
-                if (view == 1):
-                    line = plt.plot([Az[f-1],Az[f]], [Ax[f-1],Ax[f]], color=RGB, linewidth=0.5)[0]
-                if arrow != 0:
-                    add_arrow(line, size=5*arrow)
-
-
-
+            if (view == 0):
+                plt.plot(Az, Ay, color=RGB, linewidth=0.5)
+            if (view == 1):
+                plt.plot(Az, Ax, color=RGB, linewidth=0.5)
     plt.title('System Plot')
     plt.xlabel('Z')
     if (view == 0):
