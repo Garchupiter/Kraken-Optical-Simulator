@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """Examp Extra Shape Radial Sine"""
 
-import Kraken as Kn
+import KrakenOS as Kn
 import numpy as np
 import matplotlib.pyplot as plt
 

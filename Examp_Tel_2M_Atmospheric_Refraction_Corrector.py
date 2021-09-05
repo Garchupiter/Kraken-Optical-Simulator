@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """Examp-Tel_2M_Atmospheric_Refraction_Corrector"""
 
-import Kraken as Kn
+import KrakenOS as Kn
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy

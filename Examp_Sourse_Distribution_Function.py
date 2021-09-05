@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pyvista as pv
 import scipy
-import Kraken as Kn
+import KrakenOS as Kn
 
 P_Obj = Kn.surf()
 

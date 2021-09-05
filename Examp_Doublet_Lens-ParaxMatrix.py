@@ -3,7 +3,7 @@
 """Examp Doublet Lens Para xMatrix"""
 
 import time
-import Kraken as Kn
+import KrakenOS as Kn
 
 # ______________________________________#
 

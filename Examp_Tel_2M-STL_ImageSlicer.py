@@ -4,7 +4,7 @@
 Examp-2M-STL_ImageSlicer.py
 """
 
-import Kraken as Kn
+import KrakenOS as Kn
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy
@@ -54,7 +54,7 @@ if A1 == 0:
 
     # _________________________________________________________________#
 
-    # Gaussian 
+    # Gaussian
     def f(x):
         x = np.rad2deg(x)
         seing = 1.2 / 3600.0

@@ -12,5 +12,5 @@ for i in myFiles:
     else:
         print("-------------------")
         # print(i)
-        # exec(open(i).read())
+        exec(open(i).read())
 

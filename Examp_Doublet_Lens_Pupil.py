@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """Examp Doublet Lens Pupil"""
 
-import Kraken as Kn
+import KrakenOS as Kn
 
 # _________________________________________#
 

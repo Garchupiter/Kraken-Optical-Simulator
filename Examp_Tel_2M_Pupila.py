@@ -4,7 +4,7 @@
 
 import matplotlib.pyplot as plt
 import numpy as np
-import Kraken as Kn
+import KrakenOS as Kn
 
 # ______________________________________#
 

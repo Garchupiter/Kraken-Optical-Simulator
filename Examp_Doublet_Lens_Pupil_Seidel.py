@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """Examp Doublet Lens Pupil Seidel"""
 
-import Kraken as Kn
+import KrakenOS as Kn
 import numpy as np
 
 # _________________________________________#

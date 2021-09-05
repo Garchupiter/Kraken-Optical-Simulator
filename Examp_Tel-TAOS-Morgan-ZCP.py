@@ -6,7 +6,7 @@ Created on Sun Aug  2 12:04:14 2020
 @author: joelherreravazquez
 """
 
-import Kraken as Kn
+import KrakenOS as Kn
 import numpy as np
 import matplotlib.pyplot as plt
 
