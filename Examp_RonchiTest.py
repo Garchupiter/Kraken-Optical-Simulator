@@ -2,9 +2,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pyvista as pv
 import scipy
-import KrakenOS as Kn
+import KrakenOS as Kos
 
-P_Obj = Kn.surf()
+P_Obj = Kos.surf()
 
 P_Obj.Thickness = 1.0
 P_Obj.Glass = "AIR"
@@ -13,7 +13,7 @@ P_Obj.Drawing = 0
 
 ######################################################################################
 
-Ronchi = Kn.surf()
+Ronchi = Kos.surf()
 Ronchi.Diameter = 100
 Ronchi.Thickness = 5000
 Ronchi.Glass = "AIR"
@@ -28,7 +28,7 @@ Ronchi.Mask_Shape = AAA
 Ronchi.Mask_Type = 2
 
 
-Mirror = Kn.surf()
+Mirror = Kos.surf()
 Mirror.Rc = -5000
 Mirror.k = -0.03
 Mirror.Diameter = 2500
@@ -37,7 +37,7 @@ Mirror.Glass = "MIRROR"
 
 
 
-Ronchi2 = Kn.surf()
+Ronchi2 = Kos.surf()
 Ronchi2.Diameter = 100
 Ronchi2.Thickness = -5000
 Ronchi2.Glass = "AIR"
@@ -46,7 +46,7 @@ Ronchi2.Mask_Type = 2
 
 
 
-P_Ima = Kn.surf()
+P_Ima = Kos.surf()
 P_Ima.Rc = 0
 P_Ima.Thickness = -.0001
 P_Ima.Glass = "AIR"
@@ -56,12 +56,12 @@ P_Ima.Name = "Plano imagen"
 
 A = [P_Obj, Ronchi, Mirror, Ronchi2, P_Ima]
 
-configur = Kn.Kraken_setup()
-Telescope = Kn.system(A, configur)
-Rays = Kn.raykeeper(Telescope)
+configur = Kos.Kraken_setup()
+Telescope = Kos.system(A, configur)
+Rays = Kos.raykeeper(Telescope)
 
 W = 0.633
-Sun = Kn.SourceRnd()
+Sun = Kos.SourceRnd()
 
 def f(x):
     res = 1
@@ -110,4 +110,4 @@ plt.axis('square')
 plt.show()
 
 #             Rays.push()
-# Kn.display3d(Telescope, Rays, 1)
+# Kos.display3d(Telescope, Rays, 1)

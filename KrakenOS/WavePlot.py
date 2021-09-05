@@ -1,7 +1,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-import KrakenOS as Kn
+import KrakenOS as Kos
 
 def ZernikeDataImage2Plot(datos, Type='interferogram'):
     """ZernikeDataImage2Plot.
@@ -57,7 +57,7 @@ def WavefrontData2Image(z_coeff, res=323):
     K = np.asarray(K)
     X = np.asarray(X)
     Y = np.asarray(Y)
-    Z = Kn.Wavefront_Zernike_Phase(X, Y, z_coeff)
+    Z = Kos.Wavefront_Zernike_Phase(X, Y, z_coeff)
     ARRAY_ZERNIKE[(H, K)] = Z
     return ARRAY_ZERNIKE
 

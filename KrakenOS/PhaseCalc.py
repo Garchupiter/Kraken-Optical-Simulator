@@ -1,6 +1,6 @@
 
 import numpy as np
-import KrakenOS as Kn
+import KrakenOS as Kos
 import scipy
 
 def R_RMS(delta_Z, L, M, N, X, Y):
@@ -53,10 +53,10 @@ def Phase(PUPIL):
     pSource_0 = [0.0, 0.0, 0.0]
     dCos = [0.0, 0.0, 1.0]
     W = W
-    RR = Kn.raykeeper(SYSTEM)
-    RR2 = Kn.raykeeper(SYSTEM)
-    Pup = Kn.PupilCalc(SYSTEM, sup, W, ApType, ApVal)
-    Pup = Kn.PupilCalc(SYSTEM, sup, W, ApType, ApVal)
+    RR = Kos.raykeeper(SYSTEM)
+    RR2 = Kos.raykeeper(SYSTEM)
+    Pup = Kos.PupilCalc(SYSTEM, sup, W, ApType, ApVal)
+    Pup = Kos.PupilCalc(SYSTEM, sup, W, ApType, ApVal)
     Pup.Samp = Samp
     Pup.Ptype = Ptype
     Pup.FieldY = FieldY
@@ -112,12 +112,12 @@ def Phase(PUPIL):
     XYZ0 = [Xc, Yc, Zc]
     LMN0 = [Lc, Mc, Nc]
     AP = S
-    P_O = Kn.surf()
+    P_O = Kos.surf()
     P_O.Rc = 0
     P_O.Thickness = Pz
     P_O.Glass = 'AIR'
     P_O.Diameter = 1.0
-    P_P = Kn.surf()
+    P_P = Kos.surf()
     SYSTEM.Parax(W)
     P_P.Rc = np.abs(AP)
     P_P.Thickness = 0
@@ -129,11 +129,11 @@ def Phase(PUPIL):
     P_P.TiltY = np.rad2deg(np.arcsin((Lc / np.cos(np.arcsin((- Mc))))))
     P_P.AxisMove = 0
     P_P.Order = 1
-    P_I = Kn.surf()
+    P_I = Kos.surf()
     P_I.Diameter = (((P_P.Rc * 0.99) * 2.0) * 10.0)
     B = [P_O, P_P]
-    PS = Kn.system(B, configuracion_1)
-    RR = Kn.raykeeper(PS)
+    PS = Kos.system(B, configuracion_1)
+    RR = Kos.raykeeper(PS)
     PS.Trace(XYZ0, LMN0, W)
     OPSR = PS.TOP
     for i in range(0, len(XS)):

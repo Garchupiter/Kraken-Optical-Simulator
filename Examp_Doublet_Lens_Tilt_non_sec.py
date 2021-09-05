@@ -3,11 +3,11 @@
 """Examp Doublet Lens Tilt nonSec"""
 
 import numpy as np
-import KrakenOS as Kn
+import KrakenOS as Kos
 
 # _________________________________________#
 
-P_Obj = Kn.surf()
+P_Obj = Kos.surf()
 P_Obj.Rc = 0.0
 P_Obj.Thickness = 10
 P_Obj.Glass = "AIR"
@@ -15,7 +15,7 @@ P_Obj.Diameter = 30.0
 
 # _________________________________________#
 
-L1a = Kn.surf()
+L1a = Kos.surf()
 L1a.Rc = 9.284706570002484E+001
 L1a.Thickness = 6.0
 L1a.Glass = "BK7"
@@ -26,7 +26,7 @@ L1a.DespZ = 5.0
 
 # _________________________________________#
 
-L1b = Kn.surf()
+L1b = Kos.surf()
 L1b.Rc = (-3.071608670000159E+001)
 L1b.Thickness = 3.0
 L1b.Glass = "F2"
@@ -34,7 +34,7 @@ L1b.Diameter = 30
 
 # _________________________________________#
 
-L1c = Kn.surf()
+L1c = Kos.surf()
 L1c.Rc = (-7.819730726078505E+001)
 L1c.Thickness = 9.737604742910693E+001
 L1c.Glass = "AIR"
@@ -42,7 +42,7 @@ L1c.Diameter = 30
 
 # _________________________________________#
 
-P_Ima = Kn.surf()
+P_Ima = Kos.surf()
 P_Ima.Rc = 0.0
 P_Ima.Thickness = 0.0
 P_Ima.Glass = "AIR"
@@ -52,12 +52,12 @@ P_Ima.Name = "Plano imagen"
 # _________________________________________#
 
 A = [P_Obj, L1a, L1b, L1c, P_Obj, L1a, L1b, L1c, P_Ima]
-configuracion_1 = Kn.Kraken_setup()
+configuracion_1 = Kos.Kraken_setup()
 
 # _________________________________________#
 
-Doblete = Kn.system(A, configuracion_1)
-Rayos = Kn.raykeeper(Doblete)
+Doblete = Kos.system(A, configuracion_1)
+Rayos = Kos.raykeeper(Doblete)
 
 # _________________________________________#
 
@@ -85,4 +85,4 @@ for j in range(-tam, tam + 1):
 
 # _________________________________________#
 
-Kn.display3d(Doblete, Rayos, 2)
+Kos.display3d(Doblete, Rayos, 2)

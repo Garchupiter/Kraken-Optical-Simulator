@@ -5,11 +5,11 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pyvista as pv
-import KrakenOS as Kn
+import KrakenOS as Kos
 
 # ______________________________________#
 
-P_Obj = Kn.surf()
+P_Obj = Kos.surf()
 P_Obj.Thickness = 5000.0
 P_Obj.Glass = "AIR"
 P_Obj.Diameter = 6.796727741707513E+002 * 2.0
@@ -83,7 +83,7 @@ direc = r"salida.stl"
 
 # ______________________________________#
 
-objeto = Kn.surf()
+objeto = Kos.surf()
 objeto.Diameter = 118.0 * 2.0
 objeto.Solid_3d_stl = direc
 objeto.Thickness = -6000
@@ -96,7 +96,7 @@ objeto.AxisMove = 0
 
 # ______________________________________#
 
-P_Ima = Kn.surf()
+P_Ima = Kos.surf()
 P_Ima.Rc = 0
 P_Ima.Thickness = -1.0
 P_Ima.Glass = "AIR"
@@ -107,12 +107,12 @@ P_Ima.Name = "Plano imagen"
 # ______________________________________#
 
 A = [P_Obj, objeto, P_Ima]
-configur = Kn.Kraken_setup()
+configur = Kos.Kraken_setup()
 
 # ______________________________________#
 
-Telescope = Kn.system(A, configur)
-Rays = Kn.raykeeper(Telescope)
+Telescope = Kos.system(A, configur)
+Rays = Kos.raykeeper(Telescope)
 
 # ______________________________________#
 
@@ -139,4 +139,4 @@ for j in range(-tam, tam + 1):
 
 plt.axis('square')
 plt.show()
-Kn.display3d(Telescope, Rays, 0)
+Kos.display3d(Telescope, Rays, 0)

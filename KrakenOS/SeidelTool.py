@@ -1,6 +1,6 @@
 
 import numpy as np
-import KrakenOS as Kn
+import KrakenOS as Kos
 from .PupilTool import PupilCalc, SolveVectCross
 
 class Seidel():

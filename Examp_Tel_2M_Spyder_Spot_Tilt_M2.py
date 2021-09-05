@@ -5,11 +5,11 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pyvista as pv
-import KrakenOS as Kn
+import KrakenOS as Kos
 
 # ______________________________________#
 
-P_Obj = Kn.surf()
+P_Obj = Kos.surf()
 P_Obj.Rc = 0
 P_Obj.Thickness = 1000
 P_Obj.Glass = "AIR"
@@ -17,7 +17,7 @@ P_Obj.Diameter = 1.059E+003 * 2.0
 
 # ______________________________________#
 
-Spider = Kn.surf()
+Spider = Kos.surf()
 Spider.Rc = 999999999999.0
 Spider.Thickness = 3.452229924716749E+003 + 100.0
 Spider.Glass = "AIR"
@@ -47,7 +47,7 @@ Spider.TiltZ = 0
 # ______________________________________#
 
 Thickness = 3.452200000000000E+003
-M1 = Kn.surf()
+M1 = Kos.surf()
 M1.Rc = -9.638000000004009E+003
 M1.Thickness = -Thickness
 M1.k = -1.077310000000000E+000
@@ -57,7 +57,7 @@ M1.InDiameter = 250 * 2.0
 
 # ______________________________________#
 
-M2 = Kn.surf()
+M2 = Kos.surf()
 M2.Rc = -3.93E+003
 M2.Thickness = Thickness + 1.037535322418897E+003
 M2.k = -4.328100000000000E+000
@@ -69,7 +69,7 @@ M2.AxisMove = 0
 
 # ______________________________________#
 
-P_Ima = Kn.surf()
+P_Ima = Kos.surf()
 P_Ima.Diameter = 100.0
 P_Ima.Glass = "AIR"
 P_Ima.Name = "Plano imagen"
@@ -77,12 +77,12 @@ P_Ima.Name = "Plano imagen"
 # ______________________________________#
 
 A = [P_Obj, Spider, M1, M2, P_Ima]
-configuracion_1 = Kn.Kraken_setup()
+configuracion_1 = Kos.Kraken_setup()
 
 # ______________________________________#
 
-Telescopio = Kn.system(A, configuracion_1)
-Rayos = Kn.raykeeper(Telescopio)
+Telescopio = Kos.system(A, configuracion_1)
+Rayos = Kos.raykeeper(Telescopio)
 
 # ______________________________________#
 
@@ -104,7 +104,7 @@ for i in range(-tam, tam + 1):
 
 # ______________________________________#
 
-Kn.display3d(Telescopio, Rayos, 2)
+Kos.display3d(Telescopio, Rayos, 2)
 X, Y, Z, L, M, N = Rayos.pick(-1)
 
 # ______________________________________#

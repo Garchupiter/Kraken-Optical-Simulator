@@ -2,9 +2,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pyvista as pv
 import scipy
-import KrakenOS as Kn
+import KrakenOS as Kos
 
-P_Obj = Kn.surf()
+P_Obj = Kos.surf()
 
 P_Obj.Thickness = 5000.0
 P_Obj.Glass = "AIR"
@@ -14,14 +14,14 @@ P_Obj.Drawing = 0
 ######################################################################################
 
 
-objeto = Kn.surf()
+objeto = Kos.surf()
 objeto.Rc = -12000
 objeto.k = -1
 objeto.Diameter = 2500
 objeto.Thickness = -6000
 objeto.Glass = "MIRROR"
 
-P_Ima = Kn.surf()
+P_Ima = Kos.surf()
 P_Ima.Rc = 0
 P_Ima.Thickness = -1.0
 P_Ima.Glass = "AIR"
@@ -31,12 +31,12 @@ P_Ima.Name = "Plano imagen"
 
 A = [P_Obj, objeto, P_Ima]
 
-configur = Kn.Kraken_setup()
-Telescope = Kn.system(A, configur)
-Rays = Kn.raykeeper(Telescope)
+configur = Kos.Kraken_setup()
+Telescope = Kos.system(A, configur)
+Rays = Kos.raykeeper(Telescope)
 
 W = 0.633
-Sun = Kn.SourceRnd()
+Sun = Kos.SourceRnd()
 
 examp = 4
 if examp == 0:
@@ -141,4 +141,4 @@ plt.axis('square')
 plt.show()
 
 #             Rays.push()
-# Kn.display3d(Telescope, Rays, 0)
+# Kos.display3d(Telescope, Rays, 0)

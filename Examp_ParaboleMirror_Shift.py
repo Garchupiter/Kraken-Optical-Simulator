@@ -3,18 +3,18 @@
 """Examp Parabole Mirror Shift"""
 
 import numpy as np
-import KrakenOS as Kn
+import KrakenOS as Kos
 
 # ______________________________________#
 
-P_Obj = Kn.surf()
+P_Obj = Kos.surf()
 P_Obj.Thickness = 1000.0
 P_Obj.Diameter = 300
 P_Obj.Drawing = 0
 
 # ______________________________________#
 
-M1 = Kn.surf()
+M1 = Kos.surf()
 M1.Rc = -2000.0
 M1.Thickness = M1.Rc / 2
 M1.k = -1.0
@@ -24,7 +24,7 @@ M1.ShiftY = 200
 
 # ______________________________________#
 
-P_Ima = Kn.surf()
+P_Ima = Kos.surf()
 P_Ima.Glass = "AIR"
 P_Ima.Diameter = 1600.0
 P_Ima.Drawing = 0
@@ -33,12 +33,12 @@ P_Ima.Name = "Plano imagen"
 # ______________________________________#
 
 A = [P_Obj, M1, P_Ima]
-configuracion_1 = Kn.Kraken_setup()
+configuracion_1 = Kos.Kraken_setup()
 
 # ______________________________________#
 
-Espejo = Kn.system(A, configuracion_1)
-Rayos = Kn.raykeeper(Espejo)
+Espejo = Kos.system(A, configuracion_1)
+Rayos = Kos.raykeeper(Espejo)
 
 # ______________________________________#
 
@@ -60,4 +60,4 @@ for i in range(-tam, tam + 1):
 
 # ______________________________________#
 
-Kn.display2d(Espejo, Rayos, 0)
+Kos.display2d(Espejo, Rayos, 0)
