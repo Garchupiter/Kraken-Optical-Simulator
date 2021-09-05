@@ -56,7 +56,7 @@ P_Ima.Name = "Plano imagen"
 
 A = [P_Obj, Ronchi, Mirror, Ronchi2, P_Ima]
 
-configur = Kos.Kraken_setup()
+configur = Kos.Setup()
 Telescope = Kos.system(A, configur)
 Rays = Kos.raykeeper(Telescope)
 

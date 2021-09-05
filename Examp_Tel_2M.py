@@ -46,7 +46,7 @@ A = [P_Obj, M1, M2, P_Ima]
 
 # ______________________________________#
 
-configuracion_1 = Kos.Kraken_setup()
+configuracion_1 = Kos.Setup()
 Telescopio = Kos.system(A, configuracion_1)
 Rayos = Kos.raykeeper(Telescopio)
 

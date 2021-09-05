@@ -6,7 +6,7 @@ import os
 import sys
 import matplotlib.pyplot as plt
 import numpy as np
-import Kraken as Kos
+import KrakenOS as Kos
 
 # ______________________________________#
 
@@ -59,7 +59,7 @@ P_Ima.Name = "Plano imagen"
 # ______________________________________#
 
 A = [P_Obj, M1, M2, P_Ima]
-configuracion_1 = Kos.Kraken_setup()
+configuracion_1 = Kos.Setup()
 Telescopio = Kos.system(A, configuracion_1)
 
 # ______________________________________#

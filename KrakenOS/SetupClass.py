@@ -2,7 +2,7 @@
 import os.path as path
 from .SystemTools import *
 
-class Kraken_setup():
+class Setup():
     """Kraken_setup.
     """
 

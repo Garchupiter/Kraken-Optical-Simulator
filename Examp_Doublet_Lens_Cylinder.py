@@ -53,7 +53,7 @@ P_Ima.Diameter = 10.0
 # _________________________________________#
 
 A = [P_Obj, L1a, L1b, L1c, P_Ima]
-configuracion_1 = Kos.Kraken_setup()
+configuracion_1 = Kos.Setup()
 
 # _________________________________________#
 

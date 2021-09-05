@@ -7,7 +7,7 @@ import KrakenOS as Kos
 
 # ______________________________________#
 
-configuracion_1 = Kos.Kraken_setup()
+configuracion_1 = Kos.Setup()
 
 # ______________________________________#
 

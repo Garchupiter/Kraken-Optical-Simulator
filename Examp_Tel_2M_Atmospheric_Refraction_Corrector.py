@@ -65,7 +65,7 @@ P_Ima.Glass = "AIR"
 P_Ima.Name = "Plano imagen"
 A = [P_Obj, M1, M2, C1, C2, C3, P_Ima]
 # _________________________________________________________________#
-configuracion_1 = Kos.Kraken_setup()
+configuracion_1 = Kos.Setup()
 Telescopio = Kos.system(A, configuracion_1)
 
 Rayos1 = Kos.raykeeper(Telescopio)

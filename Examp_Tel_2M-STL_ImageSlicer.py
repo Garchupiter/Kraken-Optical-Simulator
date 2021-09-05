@@ -47,7 +47,7 @@ if A1 == 0:
     A = [P_Obj, M1, M2, P_Image_A]
 
     # _________________________________________________________________#
-    configuracion_1 = Kos.Kraken_setup()
+    configuracion_1 = Kos.Setup()
     Telescopio = Kos.system(A, configuracion_1)
     Rayos = Kos.raykeeper(Telescopio)
 
@@ -167,7 +167,7 @@ else:
     # _________________________________________________________________#
 
     A = [P_Obj, P_ImageSlicer, P_Ima]
-    configuracion_1 = Kos.Kraken_setup()
+    configuracion_1 = Kos.Setup()
     ImageSlicer = Kos.system(A, configuracion_1)
     Rayos = Kos.raykeeper(ImageSlicer)
 

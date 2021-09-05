@@ -66,7 +66,7 @@ P_Ima.Name = "Image plane"
 # _________________________________________#
 
 A = [P_Obj, L1a, Null1_L1a, Null2_L1a, L1b, L1c, P_Ima]
-configuracion_1 = Kos.Kraken_setup()
+configuracion_1 = Kos.Setup()
 
 # _________________________________________#
 

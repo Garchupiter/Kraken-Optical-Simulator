@@ -73,7 +73,7 @@ P_Ima.Drawing = 0
 P_Ima.Name = "Plano imagen"
 
 A = [P_Obj, M1, M2, Vertex, Corrector_c1, Corrector_c2, P_Ima]
-configuracion_1 = Kos.Kraken_setup()
+configuracion_1 = Kos.Setup()
 
 Telescopio = Kos.system(A, configuracion_1)
 

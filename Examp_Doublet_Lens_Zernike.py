@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """Doublet Lens Zernike"""
 
-import Kraken as Kos
+import KrakenOS as Kos
 import numpy as np
 import matplotlib.pyplot as plt
 import time
@@ -63,7 +63,7 @@ P_Ima.Diameter = 100.0
 # ______________________________________#
 
 A = [P_Obj, L1a, L1b, L1c, P_Ima]
-configuracion_1 = Kos.Kraken_setup()
+configuracion_1 = Kos.Setup()
 
 # ______________________________________#
 

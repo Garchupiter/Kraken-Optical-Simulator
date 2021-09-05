@@ -43,9 +43,8 @@
       <change beforePath="$PROJECT_DIR$/Examp_Tel_2M_Spyder_Spot_Tilt_M2.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp_Tel_2M_Spyder_Spot_Tilt_M2.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Examp_Tel_2M_Wavefront_Fitting.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp_Tel_2M_Wavefront_Fitting.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Examp_Tel_2M_Wavefront_Fitting_optimization.py" beforeDir="false" afterPath="$PROJECT_DIR$/Examp_Tel_2M_Wavefront_Fitting_optimization.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/KrakenOS/PhaseCalc.py" beforeDir="false" afterPath="$PROJECT_DIR$/KrakenOS/PhaseCalc.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/KrakenOS/SeidelTool.py" beforeDir="false" afterPath="$PROJECT_DIR$/KrakenOS/SeidelTool.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/KrakenOS/WavePlot.py" beforeDir="false" afterPath="$PROJECT_DIR$/KrakenOS/WavePlot.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/KrakenOS/KrakenSetupClass.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/KrakenOS/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/KrakenOS/__init__.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -78,8 +77,8 @@
     <property name="run.code.analysis.last.selected.profile" value="aDefault" />
     <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyIntegratedToolsModulesConfigurable" />
   </component>
-  <component name="RunManager" selected="Python.TestAll">
-    <configuration name="Examp-Doublet_Lens_Tilt" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+  <component name="RunManager" selected="Python.Examp_Axicon">
+    <configuration name="Examp_Axicon" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="Kraken-Optical-Simulator" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
@@ -91,7 +90,7 @@
       <option name="IS_MODULE_SDK" value="true" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Examp-Doublet_Lens_Tilt.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Examp_Axicon.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
@@ -100,7 +99,7 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
-    <configuration name="Examp-MultiCore" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+    <configuration name="Examp_Doublet_Lens_Zernike" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="Kraken-Optical-Simulator" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
@@ -112,7 +111,7 @@
       <option name="IS_MODULE_SDK" value="true" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Examp-MultiCore.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Examp_Doublet_Lens_Zernike.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
@@ -121,7 +120,7 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
-    <configuration name="Examp-Tel_2M_Atmospheric_Refraction_Corrector" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+    <configuration name="Examp_Solid_Object_STL_ARRAY" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="Kraken-Optical-Simulator" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
@@ -133,7 +132,7 @@
       <option name="IS_MODULE_SDK" value="true" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Examp-Tel_2M_Atmospheric_Refraction_Corrector.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Examp_Solid_Object_STL_ARRAY.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
@@ -142,7 +141,7 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
-    <configuration name="Examp-Tel_2M_Atmospheric_Refraction_Corrector_Modified" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+    <configuration name="Examp_Tel_2M" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="Kraken-Optical-Simulator" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
@@ -154,7 +153,7 @@
       <option name="IS_MODULE_SDK" value="true" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Examp-Tel_2M_Atmospheric_Refraction_Corrector_Modified.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Examp_Tel_2M.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
@@ -186,11 +185,11 @@
     </configuration>
     <recent_temporary>
       <list>
+        <item itemvalue="Python.Examp_Axicon" />
+        <item itemvalue="Python.Examp_Solid_Object_STL_ARRAY" />
+        <item itemvalue="Python.Examp_Tel_2M" />
+        <item itemvalue="Python.Examp_Doublet_Lens_Zernike" />
         <item itemvalue="Python.TestAll" />
-        <item itemvalue="Python.Examp-Tel_2M_Atmospheric_Refraction_Corrector" />
-        <item itemvalue="Python.Examp-Tel_2M_Atmospheric_Refraction_Corrector_Modified" />
-        <item itemvalue="Python.Examp-Doublet_Lens_Tilt" />
-        <item itemvalue="Python.Examp-MultiCore" />
       </list>
     </recent_temporary>
   </component>

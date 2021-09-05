@@ -9,7 +9,7 @@ from .SurfClass import *
 from .PupilTool import *
 from .RayKeeper import *
 from .SystemTools import *
-from .KrakenSetupClass import *
+from .SetupClass import *
 from .SurfTools import surface_tools as SUT
 from .Prerequisites3D import *
 from .HitOnSurf import *

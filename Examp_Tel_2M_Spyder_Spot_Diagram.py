@@ -66,7 +66,7 @@ P_Ima.Name = "Plano imagen"
 # ______________________________________#
 
 A = [P_Obj, Spider, M1, M2, P_Ima]
-configuracion_1 = Kos.Kraken_setup()
+configuracion_1 = Kos.Setup()
 
 # ______________________________________#
 

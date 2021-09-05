@@ -78,7 +78,7 @@ P_Ima.Drawing = 1
 # ______________________________________#
 
 A = [P_Obj, M1, M2, Vertex, objeto, P_Ima]
-configuracion_1 = Kos.Kraken_setup()
+configuracion_1 = Kos.Setup()
 
 # ______________________________________#
 

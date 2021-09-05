@@ -42,7 +42,7 @@ P_Ima.Name = "Plano imagen"
 
 # ______________________________________#
 
-configuracion_1 = Kos.Kraken_setup()
+configuracion_1 = Kos.Setup()
 A = [P_Obj, L1a, L1c, P_Ima]
 
 # ______________________________________#
