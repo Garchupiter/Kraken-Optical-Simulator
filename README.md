@@ -94,7 +94,7 @@ The surf object contains all the relevant information of every optical interface
 | system.TTBE                                                                           | Total energy transmitted or reflected per element.                                                                                                  |
 | system.TT                                                                             | Total energy transmitted or reflected total.                                                                                                        |
 | system.targ\_surf (int)                                                               | Limits the ray tracing to the defined surface                                                                                                       |
-| system.flat\_surf (int)                                                               | Shange a surface to flat.                                                                                                                           |
+| system.flat\_surf (int)                                                               | Change a surface to flat.                                                                                                                           |
 
 
 
