@@ -30,7 +30,7 @@ The surf object contains all the relevant information of every optical interface
 | surf.Note = "None"                   | Useful for adding user notes to a surface.                                                                        |
 | surf.Rc = 0                          | Paraxial radius of curvature in millimeters.                                                                      |
 | surf.Cylinder\_Rxy\_Ratio = 1        | Ratio between the axial and sagittal radius of curvature.                                                         |
-| surf.Axicon = 0                      | values other than zero an axicon is generated with the angle defined                                              |
+| surf.Axicon = 0                      | Values other than zero an axicon is generated with the angle defined                                              |
 | surf.Thickness = 0.0                 | Distance between this surface and the next surface.                                                               |
 | surf.Diameter = 1.0                  | Outside diameter of the surface.                                                                                  |
 | surf.InDiameter = 0.0                | Internal diameter of the surface.                                                                                 |
@@ -78,7 +78,7 @@ The surf object contains all the relevant information of every optical interface
 | system.ALPHA                                                                          | List the materials absorption coefficients                                                                                                          |
 | system.BULK\_TRANS                                                                    | List the transmission through all the system. absorption coefficients are considered.                                                               |
 | system.S\_LMN                                                                         | Surface normal direction cosines \[L, M, N\].                                                                                                       |
-| system.LMN                                                                            | incident ray direction cosines \[L, M, N\].                                                                                                         |
+| system.LMN                                                                            | Incident ray direction cosines \[L, M, N\].                                                                                                         |
 | system.R\_LMN                                                                         | Resulting ray direction cosines \[L, M, N\].                                                                                                        |
 | system.N0                                                                             | Refractive indices before and after each interface                                                                                                  |
 | system.N1                                                                             | Refractive indices after each interface. This is useful to differentiate between index before and after an iteration. Example:                                                                                                            |
