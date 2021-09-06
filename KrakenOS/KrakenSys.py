@@ -29,6 +29,119 @@ def prob(pro):
 
 class system():
     """system.
+            SYSTEM CLASS ATRIBUTES AND IMPLEMENTATIONS:
+
+        • system.Trace (pS, dC, wV)
+             Sequential ray tracing.
+             pS = [1.0, 0.0, 0.0] – Ray origin coordinates
+             dC = [0.0,0.0,1.0] - The directing cosines
+             wV = 0.4 - Wavelength
+
+        • system.NsTrace (pS, dC, wV)
+             Non-Sequential ray tracing
+
+        • system.Parax (w)
+             Paraxial optics calculations
+
+        • system.disable_inner
+             Enables the central aperture.
+
+        • system.enable_inner
+        	Disables the central aperture.
+
+        • system.SURFACE
+        	Returns the surfaces the ray passed through.
+
+        • system.NAME
+        	Returns surface names that the ray passed through
+
+        • system.GLASS
+        	Returns materials that the ray passed through.
+
+        • system.XYZ
+        	[X, Y, Z] ray coordinates from its origin to the image plane.
+
+        • system.OST_XYZ
+        	[X, Y, Z] coordinates of ray intersections in reference to
+            a coordinate system at its vertex, even if this vertex has
+            a translation or rotation.
+
+        • system.DISTANCE
+             List of distances traveled by the ray.
+
+        • system.OP
+        	List of optical paths.
+
+        • system.TOP
+        	Total optical path.
+
+        • system.TOP_S     List of the ray's optical path by sections.
+
+        • system.ALPHA
+             List the materials absorption coefficients
+
+        • system.BULK_TRANS
+             List the transmission through all the system absorption
+             coefficients are considered.
+
+        • system.S_LMN
+             Surface normal direction cosines [L, M, N].
+
+        • system.LMN
+             incident ray direction cosines [L, M, N].
+
+        • system.R_LMN
+             Resulting ray direction cosines [L, M, N].
+
+        • system.N0
+             Refractive indices before and after each interface
+
+        • system.N1
+             Refractive indices after each interface.
+             This is useful to differentiate between index
+             before and after an iteration. Example:
+
+             N0 = [n1, n2, n3, n4, n5]
+             N1 = [n2, n3, n4, n5, n5]
+
+        • system.WAV
+        	Wavelength of the ray (µm)
+
+        • system.G_LMN
+         	[L, M, N] Direction cosines that define the lines
+             on the diffraction grating on the plane.
+
+        • system.ORDER
+        	      Ray diffraction order.
+
+        • system.GRATING_D
+        	 Distance between lines of the diffraction grating.
+             Units (Microns)
+
+        • system.RP
+        	Fresnel reflection coefficients for polarization P.
+
+        • system.RS
+        	Fresnel reflection coefficients for polarization S.
+
+        • system.TP
+        	Fresnel transmission coefficients for polarization P.
+
+        • system.TS
+        	Fresnel transmission coefficients for polarization S.
+
+        • system.TTBE
+        	Total energy transmitted or reflected per element.
+
+        • system.TT
+        	Total energy transmitted or reflected total.
+
+        • system.targ_surf (int)
+            Limits the ray tracing to the defined surface
+
+        • system.flat_surf (int)
+            Change a surface to flat.
+
     """
 
 

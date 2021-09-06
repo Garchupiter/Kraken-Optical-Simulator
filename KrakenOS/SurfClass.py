@@ -10,7 +10,103 @@ from .PhysicsClass import *
 
 class surf():
     """surf.
-    """
+        SURF CLASS ATRIBUTES:
+
+        • surf.Name = ""
+             Name of the element.
+
+        • surf.NamePos = (0,0)
+             “Name” position in the 2D diagram.
+
+        • surf.Note = "None"
+             Useful for adding user notes to a surface.
+
+        • surf.Rc = 0
+             Paraxial radius of curvature in millimeters.
+
+        • surf.Cylinder_Rxy_Ratio = 1
+             Ratio between the axial and sagittal
+             radius of curvature.
+
+        • surf.Axicon = 0
+             values other than zero an axicon is
+             generated with the angle defined
+
+        • surf.Thickness = 0.0
+             Distance between this surface and the next surface.
+
+        • surf.Diameter = 1.0
+             Outside diameter of the surface.
+
+        • surf.InDiameter = 0.0
+             Internal diameter of the surface.
+
+        • surf.k = 0.0
+             Conicity constant for classical conic surfaces
+             k = 0 for spherical
+             k = -1 for parabola, etc.
+             Default value: 0.0
+
+        • surf.DespX = 0.0
+          surf.DespY = 0.0
+          surf.DespZ = 0.0
+            Displacement of the surface in the X, Y and Z axis
+
+        • surf.TiltX = 0.0
+          surf.TiltY = 0.0
+          surf.TiltZ = 0.0
+             Rotation of the surface in the X, Y and Z axis
+
+        • surf.Order = 0
+             Define the order of the transformations.
+
+        • surf.AxisMove = 1
+             Defines what will happen to the optical axis
+             after a coordinate transformation.
+
+        • surf.Diff_Ord = 0.0
+             Diffraction order.
+
+        • surf.Grating_D = 0.0
+             Separation between the lines of the diffraction grating.
+
+        • surf.Grating_Angle = 0.0
+             Angle of the grating lines in the plane of the surface
+
+        • surf.ZNK = np.zeros ()
+             Zernike polynomials coefficients
+
+        • surf.ShiftX = 0
+          surf.ShiftY = 0
+             Offset the surface function on the X or Y axis.
+
+        • surf.Mask = 0
+             (0) Do not apply mask, (1) Use mask as aperture,
+             (2) Use mask as obstruction.
+             Default value: 0
+
+        • surf.Mask_Shape = Object_3D
+             Form of the mask to apply on surface
+
+        • surf.AspherData = np.zeros ()
+             Asphericity coefficients.
+
+        • surf.ExtraData = [f, coef]
+             User-defined function for optical surface
+
+        • surf.Error_map = [X, Y, Z, SPACE]
+             Error map array
+
+        • surf.Drawing = 1
+             1 for drawn in the 3D plot, 0 to omit.
+
+        • surf.Color = [0,0,0]
+             Element color for 3D Plot. [R,G,B]
+
+        • surf.Solid_3d_stl = "None"
+             Path to the 3D solid STL file.
+
+        """
 
 
     def __init__(self):

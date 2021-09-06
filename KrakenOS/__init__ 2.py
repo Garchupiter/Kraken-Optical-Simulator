@@ -66,6 +66,7 @@ SURF CLASS ATRIBUTES:
   surf.TiltZ = 0.0
      Rotation of the surface in the X, Y and Z axis
 
+
 • surf.Order = 0
      Define the order of the transformations.
 
@@ -87,6 +88,7 @@ SURF CLASS ATRIBUTES:
 • surf.ShiftX = 0
   surf.ShiftY = 0
      Offset the surface function on the X or Y axis.
+
 
 • surf.Mask = 0
      (0) Do not apply mask, (1) Use mask as aperture, (2) Use mask as obstruction. Default value: 0
@@ -111,6 +113,7 @@ SURF CLASS ATRIBUTES:
 
 • surf.Solid_3d_stl = "None"
      Path to the 3D solid STL file.
+
 
 
 SYSTEM CLASS ATRIBUTES:
@@ -211,15 +214,13 @@ SYSTEM CLASS ATRIBUTES:
 • system.TT
 	Total energy transmitted or reflected total.
 
-• system.targ_surf (int)
-    Limits the ray tracing to the defined surface
+• system.targ_surf (int)                  Limits the ray tracing to the defined surface
 
-• system.flat_surf (int)
-    Change a surface to flat.
+• system.flat_surf (int)                  Shange a surface to flat.
 
 
 
-USER MANUAL AND EXAMPLES
+User manual and examples
 Very important, read the included user manual (KrakenOS_User_Manual.pdf) and the set of useful examples:
 
 • Examp_Axicon.py
