@@ -20,7 +20,7 @@ The library has been tested with the following packages and versions.
 
 ## Surfaces and the optical system
 The library has been simplified to the point of having only two classes of objects for the definition of a system, these are surf and system.
-The surf object contains all the relevant information of every optical interface, in this way, every optical interface is an object of the surf class, all interfaces, from the object plane to the image plane, contain attributes of size, shape, material or orien##tation.
+The surf object contains all the relevant information of every optical interface, in this way, every optical interface is an object of the surf class, all interfaces, from the object plane to the image plane, contain attributes of size, shape, material or orientation.
 
 ## User manual and examples
 Very important, read the included user manual (KrakenOS_User_Manual.pdf) and the set of useful examples:
