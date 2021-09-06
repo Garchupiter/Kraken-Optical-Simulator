@@ -26,195 +26,195 @@ The surf object contains all the relevant information of every optical interface
 
 SURF CLASS ATRIBUTES:
 
-• surf.Name = ""
+  surf.Name = ""
      Name of the element.
 
-• surf.NamePos = (0,0)
+  surf.NamePos = (0,0)
      “Name” position in the 2D diagram.
 
-• surf.Note = "None"
+  surf.Note = "None"
      Useful for adding user notes to a surface.
 
-• surf.Rc = 0
+  surf.Rc = 0
      Paraxial radius of curvature in millimeters.
 
-• surf.Cylinder_Rxy_Ratio = 1
+  surf.Cylinder_Rxy_Ratio = 1
      Ratio between the axial and sagittal radius of curvature.
 
-• surf.Axicon = 0
+  surf.Axicon = 0
      values other than zero an axicon is generated with the angle defined
 
-• surf.Thickness = 0.0
+  surf.Thickness = 0.0
      Distance between this surface and the next surface.
 
-• surf.Diameter = 1.0
+  surf.Diameter = 1.0
      Outside diameter of the surface.
 
-• surf.InDiameter = 0.0
+  surf.InDiameter = 0.0
      Internal diameter of the surface.
 
-• surf.k = 0.0
+  surf.k = 0.0
      Conicity constant for classical conic surfaces, k = 0 for spherical, k = -1 for parabola, etc. Default value: 0.0
 
-• surf.DespX = 0.0
+  surf.DespX = 0.0
   surf.DespY = 0.0
   surf.DespZ = 0.0
     Displacement of the surface in the X, Y and Z axis
 
-• surf.TiltX = 0.0
+  surf.TiltX = 0.0
   surf.TiltY = 0.0
   surf.TiltZ = 0.0
      Rotation of the surface in the X, Y and Z axis
 
-• surf.Order = 0
+  surf.Order = 0
      Define the order of the transformations.
 
-• surf.AxisMove = 1
+  surf.AxisMove = 1
      Defines what will happen to the optical axis after a coordinate transformation.
 
-• surf.Diff_Ord = 0.0
+  surf.Diff_Ord = 0.0
      Diffraction order.
 
-• surf.Grating_D = 0.0
+  surf.Grating_D = 0.0
      Separation between the lines of the diffraction grating.
 
-• surf.Grating_Angle = 0.0
+  surf.Grating_Angle = 0.0
      Angle of the grating lines in the plane of the surface
 
-• surf.ZNK = np.zeros ()
+  surf.ZNK = np.zeros ()
      Zernike polynomials coefficients
 
-• surf.ShiftX = 0
+  surf.ShiftX = 0
   surf.ShiftY = 0
      Offset the surface function on the X or Y axis.
 
-• surf.Mask = 0
+  surf.Mask = 0
      (0) Do not apply mask, (1) Use mask as aperture, (2) Use mask as obstruction. Default value: 0
 
-• surf.Mask_Shape = Object_3D
+  surf.Mask_Shape = Object_3D
      Form of the mask to apply on surface
 
-• surf.AspherData = np.zeros ()
+  surf.AspherData = np.zeros ()
      Asphericity coefficients.
 
-• surf.ExtraData = [f, coef]
+  surf.ExtraData = [f, coef]
      User-defined function for optical surface
 
-• surf.Error_map = [X, Y, Z, SPACE]
+  surf.Error_map = [X, Y, Z, SPACE]
      Error map array
 
-• surf.Drawing = 1
+  surf.Drawing = 1
      1 for drawn in the 3D plot, 0 to omit.
 
-• surf.Color = [0,0,0]
+  surf.Color = [0,0,0]
      Element color for 3D Plot. [R,G,B]
 
-• surf.Solid_3d_stl = "None"
+  surf.Solid_3d_stl = "None"
      Path to the 3D solid STL file.
 
 
 SYSTEM CLASS ATRIBUTES:
 
-• system.Trace (pS, dC, wV)
+  system.Trace (pS, dC, wV)
      Sequential ray tracing.
      pS = [1.0, 0.0, 0.0] – Ray origin coordinates
      dC = [0.0,0.0,1.0] - The directing cosines
      wV = 0.4 - Wavelength
 
-• system.NsTrace (pS, dC, wV)
+  system.NsTrace (pS, dC, wV)
      Non-Sequential ray tracing
 
-• system.Parax (w)
+  system.Parax (w)
      Paraxial optics calculations
 
-• system.disable_inner
+  system.disable_inner
      Enables the central aperture.
 
-• system.enable_inner
+  system.enable_inner
 	Disables the central aperture.
 
-• system.SURFACE
+  system.SURFACE
 	Returns the surfaces the ray passed through.
 
-• system.NAME
+  system.NAME
 	Returns surface names that the ray passed through
 
-• system.GLASS
+  system.GLASS
 	Returns materials that the ray passed through.
 
-• system.XYZ
+  system.XYZ
 	[X, Y, Z] ray coordinates from its origin to the image plane.
 
-• system.OST_XYZ
+  system.OST_XYZ
 	[X, Y, Z] coordinates of ray intersections with respect to a coordinate system at its vertex, even if this vertex has a translation or rotation.
 
-• system.DISTANCE
+  system.DISTANCE
      List of distances traveled by the ray.
 
-• system.OP
+  system.OP
 	List of optical paths.
 
-• system.TOP
+  system.TOP
 	Total optical path.
 
-• system.TOP_S     List of the ray's optical path by sections.
+  system.TOP_S     List of the ray's optical path by sections.
 
-• system.ALPHA
+  system.ALPHA
      List the materials absorption coefficients
 
-• system.BULK_TRANS
+  system.BULK_TRANS
      List the transmission through all the •   system. absorption coefficients are considered.
 
-• system.S_LMN
+  system.S_LMN
      Surface normal direction cosines [L, M, N].
 
-• system.LMN
+  system.LMN
      incident ray direction cosines [L, M, N].
 
-• system.R_LMN
+  system.R_LMN
      Resulting ray direction cosines [L, M, N].
 
-• system.N0
+  system.N0
      Refractive indices before and after each interface
 
-• system.N1
+  system.N1
      Refractive indices after each interface. This is useful to differentiate between index before and after an iteration. Example:
      N0 = [n1, n2, n3, n4, n5]  N1 = [n2, n3, n4, n5, n5]
 
-• system.WAV
+  system.WAV
 	Wavelength of the ray (µm)
 
-• system.G_LMN
+  system.G_LMN
  	[L, M, N] Direction cosines that define the lines of the diffraction grating on the plane.
 
-• system.ORDER
+  system.ORDER
 	      Ray diffraction order.
 
-• system.GRATING_D
+  system.GRATING_D
 	 Distance between lines of the diffraction grating.Units (µm)
 
-• system.RP
+  system.RP
 	Fresnel reflection coefficients for polarization P.
 
-• system.RS
+  system.RS
 	Fresnel reflection coefficients for polarization S.
 
-• system.TP
+  system.TP
 	Fresnel transmission coefficients for polarization P.
 
-• system.TS
+  system.TS
 	Fresnel transmission coefficients for polarization S.
 
-• system.TTBE
+  system.TTBE
 	Total energy transmitted or reflected per element.
 
-• system.TT
+  system.TT
 	Total energy transmitted or reflected total.
 
-• system.targ_surf (int)
+  system.targ_surf (int)
     Limits the ray tracing to the defined surface
 
-• system.flat_surf (int)
+  system.flat_surf (int)
     Change a surface to flat.
 
 
