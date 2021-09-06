@@ -216,7 +216,7 @@ SYSTEM CLASS ATRIBUTES:
 
 • system.targ_surf (int)                  Limits the ray tracing to the defined surface
 
-• system.flat_surf (int)                  Shange a surface to flat.
+• system.flat_surf (int)                  Change a surface to flat.
 
 
 
