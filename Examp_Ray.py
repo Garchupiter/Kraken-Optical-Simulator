@@ -76,4 +76,4 @@ Rayos.push()
 
 # ______________________________________#
 
-Kos.display3d(Doblete, Rayos, 2)
+Kos.display2d(Doblete, Rayos, 0, 1)

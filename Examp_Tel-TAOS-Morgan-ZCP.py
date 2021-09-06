@@ -107,7 +107,7 @@ for i in range(0, len(x)):
 
 ############################################
 
-Kos.display3d(Telescopio, Rayos0, 0)
+Kos.display3d(Telescopio, Rayos0, 2)
 
 X, Y, Z, L, M, N = Rayos0.pick(-1)
 

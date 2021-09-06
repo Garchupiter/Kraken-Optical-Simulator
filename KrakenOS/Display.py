@@ -2,6 +2,8 @@
 import numpy as np
 import pyvista as pv
 import matplotlib.pyplot as plt
+import sys
+
 
 
 def add_arrow(line, position=None, direction='right', size=15, color=None):
@@ -103,10 +105,12 @@ def display3d(SYSTEM, RAYS, view=0):
     view :
         view
     """
-    p = pv.Plotter(shape=(1, 1), notebook=False)
+
+    ST1="KrakenOS v0.1. Executing Script: " + sys.argv[0]
+    p = pv.Plotter(shape=(1, 1), title=ST1,notebook=False)
     Absorb_color = np.array([(10 / 256), (23 / 256), (24 / 256)])
     Mirror_color = np.array([(189 / 256), (189 / 256), (189 / 256)])
-    Glass_color = np.array([(12 / 256), (238 / 256), (246 / 256)])
+    Glass_color = np.array([(190 / 256), (238 / 256), (246 / 256)])
     recorte = view
     NN = SYSTEM.AAA.n_blocks
     if (SYSTEM.SDT[0].Drawing == 0):
@@ -184,18 +188,30 @@ def display3d(SYSTEM, RAYS, view=0):
         for i in range(0, np.shape(RW)[0]):
             RGB = wavelength_to_rgb((RW[i] * 1000.0))
             p.add_mesh(RAYS.CCC[i], color=RGB, opacity=0.95, smooth_shading=True, line_width=1.0, show_edges=None)
-    p.add_axes()
-    p.set_focus([0, 0, 0])
-    p.set_position([(- 1000), 0, 0])
-    p.set_viewup([0, 1, 0])
+    p.add_axes(line_width=4)
+
+    [cx,cy,cz]=p.center
+    p.set_focus([cx,cy,cz])
+    # [cpx,cpy,cpz]=p.camera_position
+    # print(cpx,cpy,cpz)
+    p.camera_position=[-1.0, 0.5, 1.0]
+
+    # print(p.center, " jkjhkjhkh")
+    p.set_viewup([0, 1.0, 0])
     p.enable_anti_aliasing()
     p.disable_anti_aliasing()
     p.enable_eye_dome_lighting()
     p.disable_eye_dome_lighting()
-    p.set_background('white', top='royalblue')
-    p.add_text('Kraken - Optical Simulator')
-    p.show_grid(font_size=4)
-    p.show(auto_close=False, interactive=True, interactive_update=False)
+    p.set_background('royalblue', top='white')
+
+    # [wx,wy]=p.window_size
+    p.add_text('KrakenOS',position="upper_left" ,font_size=28,color="royalblue")
+    p.show_grid(font_size=6)
+    p.show(auto_close=False, interactive=True, interactive_update=True)
+
+    [cpx,cpy,cpz]=p.camera_position
+    print(cpx,cpy,cpz)
+
 
 def display2d(SYSTEM, RAYS, view=0, arrow=0):
     """display2d.
@@ -211,7 +227,7 @@ def display2d(SYSTEM, RAYS, view=0, arrow=0):
     """
     fs=11
     plt.figure()
-    plt.rcParams['font.family'] = 'Times New Roman'
+    plt.rcParams['font.family'] = 'Arial'
     L_color = [0, 2, 3]
     recorte = view
     NN = SYSTEM.AAA.n_blocks
