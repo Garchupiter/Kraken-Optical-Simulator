@@ -22,6 +22,82 @@ The library has been tested with the following packages and versions.
 The library has been simplified to the point of having only two classes of objects for the definition of a system, these are surf and system.
 The surf object contains all the relevant information of every optical interface, in this way, every optical interface is an object of the surf class, all interfaces, from the object plane to the image plane, contain attributes of size, shape, material or orientation.
 
+## surf class Atributes
+| class Atribute                       | Short description                                                                                                 |
+| -------------------------------------| ----------------------------------------------------------------------------------------------------------------- |
+| surf.Name = ""                       | Name of the element.                                                                                              |
+| surf.NamePos = (0,0)                 | “Name” position in the 2D diagram.                                                                                |
+| surf.Note = "None"                   | Useful for adding user notes to a surface.                                                                        |
+| surf.Rc = 0                          | Paraxial radius of curvature in millimeters.                                                                      |
+| surf.Cylinder\_Rxy\_Ratio = 1        | Ratio between the axial and sagittal radius of curvature.                                                         |
+| surf.Axicon = 0                      | values other than zero an axicon is generated with the angle defined                                              |
+| surf.Thickness = 0.0                 | Distance between this surface and the next surface.                                                               |
+| surf.Diameter = 1.0                  | Outside diameter of the surface.                                                                                  |
+| surf.InDiameter = 0.0                | Internal diameter of the surface.                                                                                 |
+| surf.k = 0.0                         | Conicity constant for classical conic surfaces, k = 0 for spherical, k = -1 for parabola, etc. Default value: 0.0 |
+|                                                                                                                                                          |
+| surf.DespX = 0.0                     | Displacement of the surface in the X, Y and Z axis                                                                |
+| surf.DespY = 0.0                     |                                                                                                                   |
+| surf.DespZ = 0.0                     |                                                                                                                   |
+|                                                                                                                                                          |
+| surf.TiltX = 0.0                     | Rotation of the surface in the X, Y and Z axis                                                                    |                                       
+| surf.TiltY = 0.0                     |                                                                                                                   |
+| surf.TiltZ = 0.0                     |                                                                                                                   |
+|                                                                                                                                                          |
+| surf.Order = 0                       | Define the order of the transformations.                                                                          |
+| surf.AxisMove = 1                    | Defines what will happen to the optical axis after a coordinate transformation.                                   |
+| surf.Diff\_Ord = 0.0                 | Diffraction order.                                                                                                |
+| surf.Grating\_D = 0.0                | Separation between the lines of the diffraction grating.                                                          |
+| surf.Grating\_Angle = 0.0            | Angle of the grating lines in the plane of the surface                                                            |
+| surf.ZNK = np.zeros (#)              | Zernike polynomials coefficients                                                                                  |
+| surf.ShiftX = 0                      | Offset the surface function on the X or Y axis.                                                                   |
+| surf.ShiftY = 0                      |                                                                                                                   |
+| surf.Mask = 0                        | (0) Do not apply mask, (1) Use mask as aperture, (2) Use mask as obstruction. Default value: 0                    |
+| surf.Mask\_Shape = Object\_3D        | Form of the mask to apply on surface                                                                              |
+| surf.AspherData = np.zeros (#)       | Asphericity coefficients.                                                                                         |
+| self.ExtraData = \[f, coef\]         | User-defined function for optical surface                                                                         |
+| Surf.Error\_map = \[X, Y, Z, SPACE\] | Error map array                                                                                                   |
+| surf.Drawing = 1                     | 1 for drawn in the 3D plot, 0 to omit.                                                                            |
+| surf.Color = \[0,0,0\]               | Element color for 3D Plot. \[R,G,B\]                                                                              |
+| surf.Solid\_3d\_stl = "None"         | Path to the 3D solid STL file.                                                                                    |
+
+
+
+## system class atributes and methods
+| class Atribute                       | Short description                                                                                                 |
+| -------------------------------------| ----------------------------------------------------------------------------------------------------------------- |
+| system.Trace (pS, dC, wV)                                                             | Sequential ray tracing.                                                                                                                               
+|                                                                                       | pS = \[1.0, 0.0, 0.0\] – Ray origin coordinates                                                                                                     
+|                                                                                       | dC = \[0.0,0.0,1.0\] - The directing cosines                                                                                                        
+|                                                                                       | wV = 0.4 - Wavelength 
+|                                                                                                                                                          |
+| system.NsTrace (pS, dC, wV)                                                           | Non-Sequential ray tracing                                                                                                                          
+| Prx = system.Parax (w)                                                                | Paraxial optics calculations                                                                                                                        
+| system.disable\_inner                                                                 | Enables the central aperture.                                                                                                                       | system.enable\_inner                                                                  | Disables the central aperture.                                                                                                                     | system.SURFACE                                                                        | Returns the surfaces the ray passed through.                                                                                                        | system.NAME                                                                           | Returns surface names that the ray passed through                                                                                                   | system.GLASS                                                                          | Returns materials that the ray passed through.                                                                                                      | system.XYZ                                                                            | \[X, Y, Z\] ray coordinates from its origin to the image plane.                                                                                     | system.OST\_XYZ                                                                       | \[X, Y, Z\] coordinates of ray intersections with respect to a coordinate system at its vertex, even if this vertex has a translation or rotation. |
+| system.DISTANCE                                                                       | List of distances traveled by the ray.                                                                                                              | system.OP                                                                             | List of optical paths.                                                                                                                              | system.TOP                                                                            | Total optical path.                                                                                                                                 | system.TOP\_S                                                                         | List of the ray's optical path by sections.                                                                                                        |
+| system.ALPHA                                                                          | List the materials absorption coefficients                                                                                                          |
+| system.BULK\_TRANS                                                                    | List the transmission through all the system. absorption coefficients are considered.                                                               |
+| system.S\_LMN                                                                         | Surface normal direction cosines \[L, M, N\].                                                                                                       |
+| system.LMN                                                                            | incident ray direction cosines \[L, M, N\].                                                                                                         |
+| system.R\_LMN                                                                         | Resulting ray direction cosines \[L, M, N\].                                                                                                        |
+| system.N0                                                                             | Refractive indices before and after each interface                                                                                                  |
+| system.N1                                                                             | Refractive indices after each interface. This is useful to differentiate between index before and after an iteration. Example:                                                                                                            |
+|                                                                                       | N0 = \[n1, n2, n3, n4, n5\]                                                                                                                         |                                                                                       | N1 = \[n2, n3, n4, n5, n5\]
+| system.WAV                                                                            | Wavelength of the ray (µm)                                                                                                                          |
+| system.G\_LMN                                                                         | \[L, M, N\] Direction cosines that define the lines of the diffraction grating on the plane.                                                        |
+| system.ORDER                                                                          | Ray diffraction order.                                                                                                                              |
+| system.GRATING\_D                                                                     | Distance between lines of the diffraction grating.Units (µm)                                                                                        |
+| system.RP                                                                             | Fresnel reflection coefficients for polarization P.                                                                                                 |
+| system.RS                                                                             | Fresnel reflection coefficients for polarization S.                                                                                                 |
+| system.TP                                                                             | Fresnel transmission coefficients for polarization P.                                                                                               |
+| system.TS                                                                             | Fresnel transmission coefficients for polarization S.                                                                                               |
+| system.TTBE                                                                           | Total energy transmitted or reflected per element.                                                                                                  |
+| system.TT                                                                             | Total energy transmitted or reflected total.                                                                                                        |
+| system.targ\_surf (int)                                                               | Limits the ray tracing to the defined surface                                                                                                       |
+| system.flat\_surf (int)                                                               | Shange a surface to flat.                                                                                                                           |
+
+
+
 ## User manual and examples
 Very important, read the included user manual (KrakenOS_User_Manual.pdf) and the set of useful examples:
 
