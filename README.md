@@ -24,6 +24,7 @@ The surf object contains all the relevant information of every optical interface
 
 ## User manual and examples
 Very important, read the included user manual (KrakenOS_User_Manual.pdf) and the set of useful examples:
+
 • Examp_Axicon.py          
 • Examp_Axicon_And_Cylinder.py          
 • Examp_Diffraction_Grating_Reflection.py          
