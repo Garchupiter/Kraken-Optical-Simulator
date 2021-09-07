@@ -1,4 +1,7 @@
-# Kraken-Optical-Simulator (KrakenOS)          
+# Kraken-Optical-Simulator (KrakenOS)         
+![GitHub Logo](/images/00.png)
+Format: ![Alt Text](url)
+
 ## Python - Exact ray tracing library 
 
 Joel Herrera V., Carlos Guerrero P., Morgan Rhaí Najera Roa, Anais Sotelo B., Ilse Plauchu F.
