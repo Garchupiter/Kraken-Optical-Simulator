@@ -20,8 +20,15 @@ The library has been tested with the following packages and versions.
 • pyvtk '0.5.18'  
 • matplotlib '3.4.3'  
 • vtk '8.2'          
-• csv '1.0'          
-• Place the directory “KrakenOS” in the same path where the code to be executed is located.          
+• csv '1.0'
+
+to install prerequisites
+
+```python
+pip install pyvista, PyVTK, vtk, numpy, scipy, matplotlib, csv342
+```
+
+• Clone the repository and place the directory “KrakenOS” in the same path where the code to be executed is located.          
 
 ## Surfaces and the optical system
 The library has been simplified to the point of having only two classes of objects for the definition of a system, these are surf and system.
