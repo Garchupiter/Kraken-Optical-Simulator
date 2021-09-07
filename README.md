@@ -32,7 +32,7 @@ The surf object contains all the relevant information of every optical interface
 ```python
 """Examp Doublet Lens Pupil"""
 
-# Load the library
+# Loading the library
 import KrakenOS as Kos
 ```
 
