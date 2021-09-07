@@ -25,7 +25,13 @@ The library has been tested with the following packages and versions.
 to install prerequisites
 
 ```python
-pip install pyvista, PyVTK, vtk, numpy, scipy, matplotlib, csv342
+pip install pyvista
+pip install PyVTK
+pip install vtk
+pip install numpy
+pip install scipy
+pip install matplotlib
+pip install csv342
 ```
 
 • Clone the repository and place the directory “KrakenOS” in the same path where the code to be executed is located.          
