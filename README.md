@@ -1,9 +1,14 @@
-# Kraken-Optical-Simulator (KrakenOS)          
+# Kraken-Optical-Simulator (KrakenOS)         
+![GitHub Logo](/images/00.png)
+Format: ![Alt Text](url)
+
 ## Python - Exact ray tracing library 
 
 Joel Herrera V., Carlos Guerrero P., Morgan Rhaí Najera Roa, Anais Sotelo B., Ilse Plauchu F.
 
 • joel@astro.unam.mx
+
+It would be appreciated if a reference to the following work, for which this package was originally build, is included whenever this code is used for a publication: (Autors for the moment, a paper is in progres)
 
 KrakenOS (Kraken - Optical Simulator) is a python library based in Numpy, Matplotlib, PyVTK and PyVista libraries, it provides a three-dimensional optical systems visualization and ray tracing. This tool has been programed on the object-oriented paradigm. KrakenOS focuses on performing sequential and non-sequential exact ray tracing, it permits to define all the parameters of the optical elements or even the mathematical function to describe their shape, it also allows adding optical properties to 3D solid elements in STL format and use glass catalogs. The library permit to control and modifying the position of the surfaces in a three-dimensional space, this allows generating off-axis systems. It also has several tools such as the calculation of wavefront aberrations in terms of Zernike polynomials, Seidel sums, Entrance and exit pupil calculation and paraxial optics.
 
@@ -11,6 +16,7 @@ KrakenOS (Kraken - Optical Simulator) is a python library based in Numpy, Matplo
 The library has been tested with the following packages and versions.
 • Python '3.7.4'          
 • numpy '1.18.5'          
+• scipy '1.7.1'          
 • pyvista '0.25.3'          
 • pyvtk '0.5.18'  
 • matplotlib '3.4.3'  
@@ -21,6 +27,128 @@ The library has been tested with the following packages and versions.
 ## Surfaces and the optical system
 The library has been simplified to the point of having only two classes of objects for the definition of a system, these are surf and system.
 The surf object contains all the relevant information of every optical interface, in this way, every optical interface is an object of the surf class, all interfaces, from the object plane to the image plane, contain attributes of size, shape, material or orientation.
+
+### A little fun before class ... and objects
+
+```python
+"""Examp Doublet Lens Pupil"""
+
+# Load the library
+import KrakenOS as Kos
+```
+
+```python
+# Creating an object of the surf class for the object plane
+P_Obj = Kos.surf()
+P_Obj.Thickness = 100
+P_Obj.Glass = "AIR"
+P_Obj.Diameter = 30.0
+
+# Creating a surface for the first face in BK7 Glass
+L1a = Kos.surf()
+L1a.Rc = 92.847
+L1a.Thickness = 6.0
+L1a.Glass = "BK7"
+L1a.Diameter = 30.0
+
+# Creating a surface for the second face in F2 Glass
+L1b = Kos.surf()
+L1b.Rc = -3.071608670000159E+001
+L1b.Thickness = 3.0
+L1b.Glass = "F2"
+L1b.Diameter = 30
+
+# Creating a surface for the third interface to air
+L1c = Kos.surf()
+L1c.Rc = -78.197
+L1c.Thickness = 97.376 - 40
+L1c.Glass = "AIR"
+L1c.Diameter = 30
+
+# Creating a surface to exemplify a pupil
+pupila.Rc = 30
+pupila.Thickness = 40.
+pupila.Glass = "AIR"
+pupila.Diameter = 5
+pupila.Name = "Pupil"
+pupila.DespY = 0.
+pupila.Nm_Poss=[-10,10]
+
+# Creating a surface for image plane
+P_Ima = Kos.surf()
+P_Ima.Rc = 0.0
+P_Ima.Thickness = 0.0
+P_Ima.Glass = "AIR"
+P_Ima.Diameter = 20.0
+P_Ima.Name = "P_Ima"
+P_Ima.Nm_Poss=[-10,10]
+```
+
+Creating a list with all the surfaces and loading the default grass catalogs (See user manual)
+```python
+A = [P_Obj, L1a, L1b, L1c, pupila, P_Ima]
+config_1 = Kos.Setup()
+```
+
+```python
+# Creating the system with previus information
+Doblete = Kos.system(A, config_1)
+```
+
+Creating a ray container
+```python
+Rays = Kos.raykeeper(Doulet)
+```
+
+Defining parameters to configure pupil on surface 4 (Again.., see user manual)
+```python
+W = 0.4
+sur = 4
+AperVal = 10
+AperType = "EPD"
+Pup = Kos.PupilCalc(Doublet, sur, W, AperType, AperVal)
+
+# Configuring field and ray array type
+Pup.Samp = 3
+Pup.Ptype = "fan"
+Pup.FieldType = "angle"
+Pup.FieldY = 2.0
+```
+
+Generating and tracing rays 
+```python
+
+# ray origin coordinates and direction cosines
+x, y, z, L, M, N = Pup.Pattern2Field()
+
+# Tracing the rays with a loop
+for i in range(0, len(x)):
+    pSource_0 = [x[i], y[i], z[i]]
+    dCos = [L[i], M[i], N[i]]
+    Doblete.Trace(pSource_0, dCos, W)
+    Rayos.push()# Saving rays
+
+# Configuring (-field) and ray array type,.. etc
+Pup.FieldY = -Pup.FieldY
+x, y, z, L, M, N = Pup.Pattern2Field()
+for i in range(0, len(x)):
+    pSource_0 = [x[i], y[i], z[i]]
+    dCos = [L[i], M[i], N[i]]
+    Doblete.Trace(pSource_0, dCos, W)
+    Rayos.push() # Saving rays
+```
+
+3D plotting
+```python
+Kos.display3d(Doblete, Rayos,2)
+```
+
+![GitHub Logo](/images/01.png)
+Format: ![Alt Text](url)
+
+
+
+
 
 ## surf class Atributes
 | class Atribute                       | Short description                                                                                                 |
