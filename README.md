@@ -125,7 +125,7 @@ for i in range(0, len(x)):
     pSource_0 = [x[i], y[i], z[i]]
     dCos = [L[i], M[i], N[i]]
     Doblete.Trace(pSource_0, dCos, W)
-    Rayos.push()# Saving rays
+    Rays.push()# Saving rays
 
 # Configuring (-field) and ray array type,.. etc
 Pup.FieldY = -Pup.FieldY
@@ -134,12 +134,12 @@ for i in range(0, len(x)):
     pSource_0 = [x[i], y[i], z[i]]
     dCos = [L[i], M[i], N[i]]
     Doblete.Trace(pSource_0, dCos, W)
-    Rayos.push() # Saving rays
+    Rays.push() # Saving rays
 ```
 
 3D plotting
 ```python
-Kos.display3d(Doblete, Rayos,2)
+Kos.display3d(Doblete, Rays,2)
 ```
 
 ![GitHub Logo](/images/01.png)
@@ -149,7 +149,7 @@ Kos.display3d(Doblete, Rayos,2)
 
 Or for 2D plotting
 ```python
-Kos.display2d(Doblete, Rayos,0,1)
+Kos.display2d(Doblete, Rays,0,1)
 ```
 
 ![GitHub Logo](/images/03.png)
