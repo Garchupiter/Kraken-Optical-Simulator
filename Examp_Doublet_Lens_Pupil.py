@@ -45,7 +45,7 @@ pupila.Rc = 30
 pupila.Thickness = 40.
 pupila.Glass = "AIR"
 pupila.Diameter = 5
-pupila.Name = "Pupila"
+pupila.Name = "Pupil"
 pupila.DespY = 0.
 pupila.Nm_Poss=[-10,10]
 
@@ -122,4 +122,4 @@ for i in range(0, len(x)):
 
 # _________________________________________#
 
-Kos.display3d(Doblete, Rayos,1)
+Kos.display3d(Doblete, Rayos,2)
