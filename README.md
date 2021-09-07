@@ -1,6 +1,5 @@
 # Kraken-Optical-Simulator (KrakenOS)         
 ![GitHub Logo](/images/00.png)
-Format: ![Alt Text](url)
 
 ## Python - Exact ray tracing library 
 
@@ -53,7 +52,7 @@ L1a.Diameter = 30.0
 
 # Creating a surface for the second face in F2 Glass
 L1b = Kos.surf()
-L1b.Rc = -3.071608670000159E+001
+L1b.Rc = -30.716
 L1b.Thickness = 3.0
 L1b.Glass = "F2"
 L1b.Diameter = 30
@@ -144,9 +143,16 @@ Kos.display3d(Doblete, Rayos,2)
 ```
 
 ![GitHub Logo](/images/01.png)
-Format: ![Alt Text](url)
 
 
+
+
+Or for 2D plotting
+```python
+Kos.display2d(Doblete, Rayos,0,1)
+```
+
+![GitHub Logo](/images/03.png)
 
 
 
