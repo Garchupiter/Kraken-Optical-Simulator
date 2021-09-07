@@ -84,7 +84,7 @@ P_Ima.Name = "P_Ima"
 P_Ima.Nm_Poss=[-10,10]
 ```
 
-Creating a list with all the surfaces and loading the dafault grass catalogs (See user manual)
+Creating a list with all the surfaces and loading the default grass catalogs (See user manual)
 ```python
 A = [P_Obj, L1a, L1b, L1c, pupila, P_Ima]
 config_1 = Kos.Setup()
@@ -100,7 +100,7 @@ Creating a ray container
 Rays = Kos.raykeeper(Doulet)
 ```
 
-Defining parameters to configure pupil on surface 4 (Again, see user manual)
+Defining parameters to configure pupil on surface 4 (Again.., see user manual)
 ```python
 W = 0.4
 sur = 4
@@ -117,6 +117,8 @@ Pup.FieldY = 2.0
 
 Generating and tracing rays 
 ```python
+
+# ray origin coordinates and direction cosines
 x, y, z, L, M, N = Pup.Pattern2Field()
 
 # Tracing the rays with a loop
