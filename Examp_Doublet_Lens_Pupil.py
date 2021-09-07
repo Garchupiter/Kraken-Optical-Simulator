@@ -122,4 +122,4 @@ for i in range(0, len(x)):
 
 # _________________________________________#
 
-Kos.display2d(Doblete, Rayos,0,1)
+Kos.display3d(Doblete, Rayos,2)
