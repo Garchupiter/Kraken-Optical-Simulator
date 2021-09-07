@@ -13,8 +13,8 @@ KrakenOS (Kraken - Optical Simulator) is a python library based in Numpy, Matplo
 ## Prerequisites
 The library has been tested with the following packages and versions.
 • Python '3.7.4'          
-• numpy '1.18.5'
-• scipy '1.7.1'
+• numpy '1.18.5'          
+• scipy '1.7.1'          
 • pyvista '0.25.3'          
 • pyvtk '0.5.18'  
 • matplotlib '3.4.3'  
