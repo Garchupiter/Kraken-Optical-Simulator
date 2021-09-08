@@ -39,7 +39,7 @@ pip install KrakenOS
 ```
 
 
-• Clone the repository and place the directory “KrakenOS” in the same path where the code to be executed is located.          
+• Or clone the repository and place the directory “KrakenOS” in the same path where the code to be executed is located.          
 
 ## Surfaces and the optical system
 The library has been simplified to the point of having only two classes of objects for the definition of a system, these are surf and system.
