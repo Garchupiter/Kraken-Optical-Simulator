@@ -33,6 +33,11 @@ pip install scipy
 pip install matplotlib
 pip install csv342
 ```
+install KrakenOS
+```python
+pip install KrakenOS
+```
+
 
 • Clone the repository and place the directory “KrakenOS” in the same path where the code to be executed is located.          
 
