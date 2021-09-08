@@ -11,8 +11,13 @@ It would be appreciated if a reference to the following work, for which this pac
 
 KrakenOS (Kraken - Optical Simulator) is a python library based in Numpy, Matplotlib, PyVTK and PyVista libraries, it provides a three-dimensional optical systems visualization and ray tracing. This tool has been programed on the object-oriented paradigm. KrakenOS focuses on performing sequential and non-sequential exact ray tracing, it permits to define all the parameters of the optical elements or even the mathematical function to describe their shape, it also allows adding optical properties to 3D solid elements in STL format and use glass catalogs. The library permit to control and modifying the position of the surfaces in a three-dimensional space, this allows generating off-axis systems. It also has several tools such as the calculation of wavefront aberrations in terms of Zernike polynomials, Seidel sums, Entrance and exit pupil calculation and paraxial optics.
 
+## install KrakenOS
+```python
+pip install KrakenOS
+```
+
 ## Prerequisites
-The library has been tested with the following packages and versions.
+The library has been tested with the following packages and versions, these are also installed with the previous instruction.
 • Python '3.7.4'          
 • numpy '1.18.5'          
 • scipy '1.7.1'          
@@ -33,10 +38,7 @@ pip install scipy
 pip install matplotlib
 pip install csv342
 ```
-install KrakenOS
-```python
-pip install KrakenOS
-```
+
 
 
 • Or clone the repository and place the directory “KrakenOS” in the same path where the code to be executed is located.          
