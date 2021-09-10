@@ -2,7 +2,7 @@
 ![GitHub Logo](/images/00.png)
 
 
-[Joel Herrera - UNAM](https://www.astroscu.unam.mx/IA/index.php?option=com_content&view=article&id=790Itemid=86&lang=es)    
+[Joel Herrera V. - UNAM](https://www.astroscu.unam.mx/IA/index.php?option=com_content&view=article&id=790Itemid=86&lang=es)    
 
 Email: joel@astro.unam.mx
 
