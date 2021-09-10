@@ -6,7 +6,7 @@
 
 Email: joel@astro.unam.mx
 
-#### collaborators:
+#### Collaborators:
 Carlos Guerrero P., Morgan Rhaí Najera Roa, Anais Sotelo B., Ilse Plauchu F.
 
 ## 
