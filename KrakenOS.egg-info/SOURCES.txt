@@ -2,8 +2,6 @@ LICENSE.txt
 MANIFEST.in
 README.md
 setup.py
-KrakenOS/1SetupClass.py
-KrakenOS/1SystemTools.py
 KrakenOS/Display.py
 KrakenOS/Display_resp.py
 KrakenOS/HitOnSurf.py
