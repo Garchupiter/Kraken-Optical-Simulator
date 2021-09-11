@@ -1,1 +1,5 @@
-include LICENSE.txt README.md
+include LICENSE.txt
+include README.md
+recursive-include KrakenOS/Cat *
+recursive-include KrakenOS/Examples *
+recursive-include KrakenOS/Docs *

@@ -93,7 +93,7 @@ def wavelength_to_rgb(wavelength, gamma=1.0):
     B *= 255
     return [(int(R) / 255.0), (int(G) / 255.0), (int(B) / 255.0)]
 
-def display3d(SYSTEM, RAYS, view=0):
+def display3d(SYSTEM, RAYS, view=0, inline=False):
     """display3d.
 
     Parameters
@@ -107,7 +107,8 @@ def display3d(SYSTEM, RAYS, view=0):
     """
 
     ST1="KrakenOS v0.1. Executing Script: " + sys.argv[0]
-    p = pv.Plotter(shape=(1, 1), title=ST1,notebook=False)
+
+    p = pv.Plotter(shape=(1, 1), title=ST1,notebook=inline)
     Absorb_color = np.array([(10 / 256), (23 / 256), (24 / 256)])
     Mirror_color = np.array([(189 / 256), (189 / 256), (189 / 256)])
     Glass_color = np.array([(190 / 256), (238 / 256), (246 / 256)])

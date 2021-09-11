@@ -428,8 +428,15 @@ class system():
                 tt = ((IT * (Tp + Ts)) / 2.0)
         else:
             tt = 1.0
+
+
+        # si tt está vacio entonces es cero #
+        if not tt:
+            tt=0
+
         self.TTBE.append(tt)
         self.TT = (self.TT * tt)
+
         return None
 
     def RestoreData(self):
@@ -576,12 +583,15 @@ class system():
                 break
             j_gg = j
             Glass = self.GlobGlass[j_gg]
+
             if ((self.Glass[j] != 'NULL') and (self.Glass[j] != 'ABSORB')):
                 Proto_pTarget = (np.asarray(RayOrig) + ((np.asarray(ResVec) * 999999999.9) * SIGN))
                 Output = self.INORM.InterNormal(RayOrig, Proto_pTarget, j, j)
                 (SurfHit, SurfNorm, pTarget, GooveVect, HitObjSpace, j) = Output
+
                 if (SurfHit == 0):
                     break
+
                 ImpVec = np.asarray(ResVec)
                 (CurrN, alpha) = (self.N_Prec[j_gg], self.AlphaPrecal[j_gg])
                 S = ImpVec
@@ -602,11 +612,14 @@ class system():
                 RayOrig = pTarget
                 self.RAY.append(RayOrig)
             j = (j + 1)
+
         if (len(self.GLASS) == 0):
             self.__CollectDataInit()
             self.val = 0
             self.__EmptyCollect(RayOrig, ResVec, WaveLength, j)
+
         self.ray_SurfHits = np.asarray(self.RAY)
+
         AT = np.transpose(self.ray_SurfHits)
         self.Hit_x = AT[0]
         self.Hit_y = AT[1]

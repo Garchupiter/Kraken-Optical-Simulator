@@ -5,6 +5,13 @@ import numpy as np
 
 class SourceRnd():
     """SourceRnd.
+
+        SourceRnd.fun = Python function of angle to cover
+        SourceRnd.field = Angle to cover from pole (Deg)
+        SourceRnd.type = 0 for circle 1 to square
+        SourceRnd.dim = Lateral size
+        SourceRnd.num = Number of rays
+
     """
 
 

@@ -5,8 +5,9 @@
 import time
 import matplotlib.pyplot as plt
 import numpy as np
-import KrakenOS as Kos
 
+import sys
+import KrakenOS as Kos
 # ______________________________________#
 
 start_time = time.time()
