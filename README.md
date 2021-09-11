@@ -1,19 +1,27 @@
 # Kraken-Optical-Simulator (KrakenOS)         
 ![GitHub Logo](/images/00.png)
-Format: ![Alt Text](url)
 
-## Python - Exact ray tracing library 
 
-Joel Herrera V., Carlos Guerrero P., Morgan Rhaí Najera Roa, Anais Sotelo B., Ilse Plauchu F.
+[Joel Herrera V. - UNAM](https://www.astroscu.unam.mx/IA/index.php?option=com_content&view=article&id=790Itemid=86&lang=es)    
 
-• joel@astro.unam.mx
+Email: joel@astro.unam.mx
+
+#### Collaborators:
+Carlos Guerrero P., Morgan Rhaí Najera Roa, Anais Sotelo B., Ilse Plauchu F.
+
+## 
 
 It would be appreciated if a reference to the following work, for which this package was originally build, is included whenever this code is used for a publication: (Autors for the moment, a paper is in progres)
 
 KrakenOS (Kraken - Optical Simulator) is a python library based in Numpy, Matplotlib, PyVTK and PyVista libraries, it provides a three-dimensional optical systems visualization and ray tracing. This tool has been programed on the object-oriented paradigm. KrakenOS focuses on performing sequential and non-sequential exact ray tracing, it permits to define all the parameters of the optical elements or even the mathematical function to describe their shape, it also allows adding optical properties to 3D solid elements in STL format and use glass catalogs. The library permit to control and modifying the position of the surfaces in a three-dimensional space, this allows generating off-axis systems. It also has several tools such as the calculation of wavefront aberrations in terms of Zernike polynomials, Seidel sums, Entrance and exit pupil calculation and paraxial optics.
 
+## install KrakenOS
+```python
+pip install KrakenOS
+```
+
 ## Prerequisites
-The library has been tested with the following packages and versions.
+The library has been tested with the following packages and versions, these are also installed with the previous instruction.
 • Python '3.7.4'          
 • numpy '1.18.5'          
 • scipy '1.7.1'          
@@ -21,8 +29,23 @@ The library has been tested with the following packages and versions.
 • pyvtk '0.5.18'  
 • matplotlib '3.4.3'  
 • vtk '8.2'          
-• csv '1.0'          
-• Place the directory “KrakenOS” in the same path where the code to be executed is located.          
+• csv '1.0'
+
+to install prerequisites
+
+```python
+pip install pyvista
+pip install PyVTK
+pip install vtk
+pip install numpy
+pip install scipy
+pip install matplotlib
+pip install csv342
+```
+
+
+
+• Or clone the repository and place the directory “KrakenOS” in the same path where the code to be executed is located.          
 
 ## Surfaces and the optical system
 The library has been simplified to the point of having only two classes of objects for the definition of a system, these are surf and system.
@@ -33,7 +56,7 @@ The surf object contains all the relevant information of every optical interface
 ```python
 """Examp Doublet Lens Pupil"""
 
-# Load the library
+# Loading the library
 import KrakenOS as Kos
 ```
 
@@ -53,7 +76,7 @@ L1a.Diameter = 30.0
 
 # Creating a surface for the second face in F2 Glass
 L1b = Kos.surf()
-L1b.Rc = -3.071608670000159E+001
+L1b.Rc = -30.716
 L1b.Thickness = 3.0
 L1b.Glass = "F2"
 L1b.Diameter = 30
@@ -126,7 +149,7 @@ for i in range(0, len(x)):
     pSource_0 = [x[i], y[i], z[i]]
     dCos = [L[i], M[i], N[i]]
     Doblete.Trace(pSource_0, dCos, W)
-    Rayos.push()# Saving rays
+    Rays.push()# Saving rays
 
 # Configuring (-field) and ray array type,.. etc
 Pup.FieldY = -Pup.FieldY
@@ -135,18 +158,25 @@ for i in range(0, len(x)):
     pSource_0 = [x[i], y[i], z[i]]
     dCos = [L[i], M[i], N[i]]
     Doblete.Trace(pSource_0, dCos, W)
-    Rayos.push() # Saving rays
+    Rays.push() # Saving rays
 ```
 
 3D plotting
 ```python
-Kos.display3d(Doblete, Rayos,2)
+Kos.display3d(Doblete, Rays,2)
 ```
 
 ![GitHub Logo](/images/01.png)
-Format: ![Alt Text](url)
 
 
+
+
+Or for 2D plotting
+```python
+Kos.display2d(Doblete, Rays,0,1)
+```
+
+![GitHub Logo](/images/03.png)
 
 
 
