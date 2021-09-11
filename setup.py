@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='KrakenOS',
-    version='0.0.31',
+    version='0.0.32',
     packages=['KrakenOS', 'KrakenOS.AstroAtmosphere', 'KrakenOS.Cat', 'KrakenOS.Examples', 'KrakenOS.Docs'],
 
     install_requires=['pyvista','PyVTK','vtk','numpy','scipy','matplotlib', 'csv342'],
