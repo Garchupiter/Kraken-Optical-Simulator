@@ -1,3 +1,4 @@
+
 # Kraken-Optical-Simulator (KrakenOS)         
 ![GitHub Logo](/images/00.png)
 
@@ -45,7 +46,15 @@ pip install csv342
 
 
 
-• Or clone the repository and place the directory “KrakenOS” in the same path where the code to be executed is located.          
+• Or clone the repository and place the directory “KrakenOS” in the same path where the code to be executed is located.    
+
+> **⚠ WARNING: If you prefer clone the repositoy instead of using pip install KrakenOS, modify the first line in the file /KrakenOS/SetupClass.py from pip = True to False.**  
+
+### 
+
+```python
+pip = False
+```
 
 ## Surfaces and the optical system
 The library has been simplified to the point of having only two classes of objects for the definition of a system, these are surf and system.
