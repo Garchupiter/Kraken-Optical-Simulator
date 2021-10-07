@@ -1,6 +1,3 @@
-""" change pip to True for pip installation """
-
-
 import inspect
 from .SystemTools import *
 RUTE=inspect.getmodule(load_Catalog).__file__
