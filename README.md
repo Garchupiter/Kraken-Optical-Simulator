@@ -53,15 +53,14 @@ pip install csv342
 
 > **⚠ WARNING: If you prefer clone the repositoy instead of using pip install KrakenOS, modify the first line in the file /KrakenOS/SetupClass.py from pip = True to False.**
 
-
-
-> **⚠ WARNING: It is not necesary in last version,there is not an option pip = True in file /KrakenOS/SetupClass.py**
-
 ### 
 
 ```python
 pip = False
 ```
+
+> **⚠ WARNING: It is not necesary in last version, there is not an option pip = True in file /KrakenOS/SetupClass.py**
+
 
 ## Surfaces and the optical system
 The library has been simplified to the point of having only two classes of objects for the definition of a system, these are surf and system.
