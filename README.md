@@ -59,6 +59,7 @@ pip install csv342
 pip = False
 ```
 
+> **⚠ WARNING: The before mentioned modification is not required in last version, the file /KrakenOS/SetupClass.py do not have the option pip = True.**  
 ## Surfaces and the optical system
 The library has been simplified to the point of having only two classes of objects for the definition of a system, these are surf and system.
 The surf object contains all the relevant information of every optical interface, in this way, every optical interface is an object of the surf class, all interfaces, from the object plane to the image plane, contain attributes of size, shape, material or orientation.
