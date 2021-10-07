@@ -10,6 +10,9 @@ Email: joel@astro.unam.mx
 #### Collaborators:
 Carlos Guerrero P., Morgan Rhaí Najera Roa, Anais Sotelo B., Ilse Plauchu F.
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5501376.svg)](https://doi.org/10.5281/zenodo.5501376)
+
+
 ## 
 
 It would be appreciated if a reference to the following work, for which this package was originally build, is included whenever this code is used for a publication: (Autors for the moment, a paper is in progres)
