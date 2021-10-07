@@ -1,65 +1,45 @@
 """ change pip to True for pip installation """
 
-pip= True
+
+import inspect
+from .SystemTools import *
+RUTE=inspect.getmodule(load_Catalog).__file__
+rute=RUTE[:-15]+ "/Cat/"
 
 
-if pip == False:
-    import os.path as path
-    from .SystemTools import *
 
-    class Setup():
+
+
+class Setup():
+
+    def __init__(self):
         """Kraken_setup.
         """
+        print("Default catalog is loaded from: ", rute)
+        cat1 = (rute + 'SCHOTT.AGF')
+        cat2 = (rute + 'TSPM.AGF')
+        cat3 = (rute + 'ESOPO.AGF')
+        cat4 = (rute + 'INFRARED.AGF')
 
-        rute = path.abspath(path.join(''))
-        cat1 = (rute + '/KrakenOS/Cat/SCHOTT.AGF')
-        cat2 = (rute + '/KrakenOS/Cat/TSPM.AGF')
-        cat3 = (rute + '/KrakenOS/Cat/ESOPO.AGF')
-        cat4 = (rute + '/KrakenOS/Cat/INFRARED.AGF')
-        cat5 = (rute + '/KrakenOS/Cat/UTILIDADES.AGF')
-        filepath = [cat1, cat2, cat3, cat4, cat5]
-        [CAT, NAMES, NM, ED, CD, TD, OD, LD, IT] = load_Catalog(filepath)
-        file = (rute + '/KrakenOS/Cat/Alum.csv')
-        (W_alum, N_alum, K_alum) = load_alluminum_complex(file)
+        self.GlassCat =[]
+        self.GlassCat.append(cat1)
+        self.GlassCat.append(cat2)
+        self.GlassCat.append(cat3)
+        self.GlassCat.append(cat4)
+
+        self.Load(self.GlassCat)
+
+    def Load(self, GL):
+
+
+        utilities = (rute + 'UTILIDADES.AGF')
+        GL.append(utilities)
+
+
+        [self.CAT, self.NAMES, self.NM, self.ED, self.CD, self.TD, self.OD, self.LD, self.IT] = load_Catalog(GL)
+        file = (rute + 'Alum.csv')
+        (self.W_alum, self.N_alum, self.K_alum) = load_alluminum_complex(file)
 
 
 
-
-else:
-    import site
-    import os.path as path
-    from .SystemTools import *
-
-    import os.path # comentar para local
-    class Setup():
-        """Kraken_setup.
-        """
-
-        rute0 = site.getsitepackages()
-        rute = rute0[0]
-
-        print("-----------------------------")
-
-        print("  The library is installed in")
-        print(rute + '/KrakenOS/')
-        print("  For help see Examples directory")
-        print("  To change glass catalog modify catalog list in SetupCas.py")
-        print("  See User_Manual USER_MANUAL_KrakenOS_Provisional.pdf in:" )
-        print(print(rute + '/Docs/'))
-        print("-----------------------------")
-
-        ## Add catalog you need
-        cat1 = (rute + '/KrakenOS/Cat/SCHOTT.AGF')
-        cat2 = (rute + '/KrakenOS/Cat/TSPM.AGF')
-        cat3 = (rute + '/KrakenOS/Cat/ESOPO.AGF')
-        cat4 = (rute + '/KrakenOS/Cat/INFRARED.AGF')
-        cat5 = (rute + '/KrakenOS/Cat/UTILIDADES.AGF')
-
-        ## Add catalog to the list filepath
-        filepath = [cat1, cat2, cat3, cat4, cat5]
-
-        [CAT, NAMES, NM, ED, CD, TD, OD, LD, IT] = load_Catalog(filepath)
-        file = (rute + '/KrakenOS/Cat/Alum.csv')
-
-        (W_alum, N_alum, K_alum) = load_alluminum_complex(file)
 

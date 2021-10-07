@@ -3,15 +3,16 @@ import numpy as np
 import os
 import sys
 import random
-currentDirectory = os.getcwd()
-sys.path.insert(1, currentDirectory)
-rute = currentDirectory
+import inspect
+
 from .SurfTools import surface_tools as SUT
 from .Prerequisites3D import *
-currentDirectory = os.getcwd()
+
 from .Physics import *
 from .HitOnSurf import *
 from .InterNormalCalc import *
+
+# from .__init__ import RUTE as ModRute
 
 def prob(pro):
     """prob.
@@ -28,6 +29,10 @@ def prob(pro):
     return random_number
 
 class system():
+
+
+    # print(ModRute)
+
     """system.
             SYSTEM CLASS ATRIBUTES AND IMPLEMENTATIONS:
 
@@ -188,6 +193,7 @@ class system():
         KN_Setup :
             KN_Setup
         """
+
         self.SDT = SurfData
         self.update = False
         self.S_Matrix = []

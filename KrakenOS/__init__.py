@@ -263,7 +263,7 @@ Enjoy it!!
 """
 
 
-import os
+# import inspect
 
 from .Physics import *
 from .Display import *
@@ -288,3 +288,14 @@ from .KrakenSys import *
 
 
 
+
+
+# RUTE=inspect.getmodule(SUT)
+# print("-------------- rute ------------")
+# print(RUTE)
+
+
+# RUTE=inspect.getmodule(SUT).__file__
+# RUTE=RUTE[:-12]
+
+# print (RUTE)

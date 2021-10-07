@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""Examp Doublet Lens"""
 
 import time
 import numpy as np
@@ -130,3 +127,4 @@ for i in range(0, 10):
     derFdeZ = DER_R_RMS(L, M, N, X, Y, dz)
     print(dz, FdeZ, derFdeZ)
     dz = dz - (FdeZ / derFdeZ)
+
