@@ -51,7 +51,11 @@ pip install csv342
 
 • Or clone the repository and place the directory “KrakenOS” in the same path where the code to be executed is located.    
 
-> **⚠ WARNING: If you prefer clone the repositoy instead of using pip install KrakenOS, modify the first line in the file /KrakenOS/SetupClass.py from pip = True to False.**  
+> **⚠ WARNING: If you prefer clone the repositoy instead of using pip install KrakenOS, modify the first line in the file /KrakenOS/SetupClass.py from pip = True to False.**
+
+
+
+> **⚠ WARNING: It is not necesary in last version,there is not an option pip = True in file /KrakenOS/SetupClass.py**
 
 ### 
 
