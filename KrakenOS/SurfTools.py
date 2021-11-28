@@ -31,9 +31,9 @@ class surface_tools():
             j
         """
         if (j != self.Surface_Flattener):
-            self.Surface_Flattener
+            # self.Surface_Flattener
             TOTAL_SURF_SHAPE = self.SDT[j].sigma_z(x, y, self.ErrSurfCase)
         else:
-            TOTAL_SURF_SHAPE = np.zeros_like(x)
+            TOTAL_SURF_SHAPE = 0.0*np.copy(x)
         return TOTAL_SURF_SHAPE
 

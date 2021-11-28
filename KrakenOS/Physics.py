@@ -1,6 +1,10 @@
+from numba import jit
+
 
 import numpy as np
 
+
+# @jit(forceobj=True)
 def FresnelEnergy(vidrio, NP, NC, ImpVec, SurfNorm, ResVec, SETUP, Wave):
     """FresnelEnergy.
 
@@ -23,7 +27,7 @@ def FresnelEnergy(vidrio, NP, NC, ImpVec, SurfNorm, ResVec, SETUP, Wave):
     Wave :
         Wave
     """
-    global Ts, Tp, Rs, Rp
+    # global Ts, Tp, Rs, Rp
     if (vidrio != 'MIRROR'):
         (Rp, Rs, Tp, Ts) = fresnel_dielectric(NP, NC, ImpVec, SurfNorm, ResVec)
     if (vidrio == 'MIRROR'):
@@ -32,6 +36,8 @@ def FresnelEnergy(vidrio, NP, NC, ImpVec, SurfNorm, ResVec, SETUP, Wave):
         (Rp, Rs, Tp, Ts) = fresnel_metal(NP, n_metal, k_complex, ImpVec, SurfNorm)
     return (Rp, Rs, Tp, Ts)
 
+
+# @jit(forceobj=True)
 def fresnel_dielectric(NP, NC, LMN_Inc, LMN_nor_surf, LMN_result):
     """fresnel_dielectric.
 
@@ -48,18 +54,26 @@ def fresnel_dielectric(NP, NC, LMN_Inc, LMN_nor_surf, LMN_result):
     LMN_result :
         LMN_result
     """
-    CosTheta0 = np.abs(np.dot(LMN_Inc, LMN_nor_surf))
-    CosTheta1 = np.abs(np.dot(LMN_result, LMN_nor_surf))
+    AA=(LMN_Inc[0]*LMN_nor_surf[0])+(LMN_Inc[1]*LMN_nor_surf[1])+(LMN_Inc[2]*LMN_nor_surf[2])
+    CosTheta0 = np.abs(AA)
+    BB=(LMN_result[0]*LMN_nor_surf[0])+(LMN_result[1]*LMN_nor_surf[1])+(LMN_result[2]*LMN_nor_surf[2])
+    CosTheta1 = np.abs(BB)
     n0 = NP
     n1 = NC
     rs = (((n0 * CosTheta0) - (n1 * CosTheta1)) / ((n0 * CosTheta0) + (n1 * CosTheta1)))
     rp = (((n1 * CosTheta0) - (n0 * CosTheta1)) / ((n1 * CosTheta0) + (n0 * CosTheta1)))
-    Rs = (rs * rs)
-    Rp = (rp * rp)
-    Tp = (1 - Rp)
-    Ts = (1 - Rs)
+
+    Rs = (rs ** 2.)
+    Rp = (rp ** 2.)
+    Tp = (1.0 - Rp)
+    Ts = (1.0 - Rs)
+
     return (Rp, Rs, Tp, Ts)
 
+
+
+
+# @jit(forceobj=True)
 def fresnel_metal(NP, n_metal, k_complex, LMN_Inc, LMN_nor_surf):
     """fresnel_metal.
 
@@ -79,6 +93,9 @@ def fresnel_metal(NP, n_metal, k_complex, LMN_Inc, LMN_nor_surf):
     n1 = NP
     n2 = np.complex(n_metal, k_complex)
     CosTheta0 = np.abs(np.dot(LMN_Inc, LMN_nor_surf))
+    if CosTheta0> 1.0:
+
+        CosTheta0 =1.0
     Thetai = np.arccos(CosTheta0)
     Thetat = np.arcsin(((n1 / n2) * np.sin(Thetai)))
     rs = (((n1 * np.cos(Thetai)) - (n2 * np.cos(Thetat))) / ((n1 * np.cos(Thetai)) + (n2 * np.cos(Thetat))))
@@ -89,6 +106,8 @@ def fresnel_metal(NP, n_metal, k_complex, LMN_Inc, LMN_nor_surf):
     Ts = (1 - Rs)
     return (Rp, Rs, Tp, Ts)
 
+
+# @jit(forceobj=True)
 def n_wave_dispersion(krakenSetup, GLSS, Wave):
     """n_wave_dispersion.
 
@@ -101,10 +120,7 @@ def n_wave_dispersion(krakenSetup, GLSS, Wave):
     Wave :
         Wave
     """
-    if (GLSS[0:4] == 'AIR_'):
-        n = float(GLSS[4:])
-        Alpha = 0.0
-    else:
+    if (GLSS[0:4] != 'AIR_'):
         CAT = krakenSetup.CAT
         NAMES = krakenSetup.NAMES
         NM = krakenSetup.NM
@@ -117,6 +133,7 @@ def n_wave_dispersion(krakenSetup, GLSS, Wave):
         if (GLSS == 'MIRROR'):
             n = (- 1.0)
             Alpha = 0.0
+
         if (GLSS == 'AIR'):
             n = 1.0
             Alpha = 0.0
@@ -124,21 +141,27 @@ def n_wave_dispersion(krakenSetup, GLSS, Wave):
             r = np.argwhere((NAMES == GLSS))[0][0]
             [Dispersion_Formula, MIL, Nd, Vd, Exclude_sub, Status] = NM[r]
             C = CD[r]
-            lam2 = (Wave * Wave)
+            lam2 = Wave **2.
+
             if (Dispersion_Formula == 1):
+                """ Schott """
                 (a0, a1, a2, a3, a4, a5) = (C[0], C[1], C[2], C[3], C[4], C[5])
-                lam4 = (lam2 * lam2)
-                lam6 = (lam4 * lam2)
-                lam8 = (lam6 * lam2)
+                lam4 = Wave **4.
+                lam6 = Wave **6.
+                lam8 = Wave **8.
                 n2 = (((((a0 + (a1 * lam2)) + (a2 / lam2)) + (a3 / lam4)) + (a4 / lam6)) + (a5 / lam8))
                 n = np.sqrt(n2)
+
             if (Dispersion_Formula == 2):
+                """ Sellmeier1 """
                 (K1, L1, K2, L2, K3, L3) = (C[0], C[1], C[2], C[3], C[4], C[5])
                 p1 = ((K1 * lam2) / (lam2 - L1))
                 p2 = ((K2 * lam2) / (lam2 - L2))
                 p3 = ((K3 * lam2) / (lam2 - L3))
                 n = np.sqrt((((p1 + p2) + p3) + 1.0))
+
             if (Dispersion_Formula == 3):
+                """Herzberger"""
                 CA = C[0]
                 CB = C[1]
                 CC = C[2]
@@ -148,28 +171,69 @@ def n_wave_dispersion(krakenSetup, GLSS, Wave):
                 CL = (1.0 / ((Wave * 2.0) - 0.028))
                 n = (((((CA + (CB * CL)) + (CC * (CL ** 2.0))) + (CD * (Wave ** 2.0))) + (CE * (Wave ** 4.0))) + (CF * (Wave ** 6.0)))
             if (Dispersion_Formula == 4):
-                print('Sellmeier 2')
+                """Sellmeier 2"""
+                GLSN = C[0] + (C[1] * Wave**2 / (Wave**2 - (C[2])**2)) + (C[3] * Wave**2 / (Wave**2 - (C[4])**2))
+                n = np.sqrt(GLSN + 1.0)
+
             if (Dispersion_Formula == 5):
-                print('Conrady')
+                """Conrady"""
+                n = C[0] + (C[1] / Wave) + (C[2] / Wave**3.5)
+
             if (Dispersion_Formula == 6):
-                print('Sellmeier 3')
+                """Sellmeier 3"""
+                GLSN = (C[0] * Wave**2 / (Wave**2 - C[1])) + (C[2] * Wave**2 / (Wave**2 - C[3])) + (C[4] * Wave**2 / (Wave**2 - C[5])) + (C[6] * Wave**2 / (Wave**2 - C[7]))
+                n = np.sqrt(GLSN + 1.0)
+
             if (Dispersion_Formula == 7):
-                print('Hanbook of Optics 1')
+                """Hanbook of Optics 1"""
+                GLSN = C[0] + (C[1] / (Wave**2 - C[2])) - (C[3] * Wave**2)
+                n = np.sqrt(GLSN)
+
             if (Dispersion_Formula == 8):
-                print('Hanbook of Optics 2')
+                """Hanbook of Optics 2"""
+                GLSN = C[0] + (C[1] * Wave**2 / (Wave**2 - C[2])) - (C[3] * Wave**2)
+                n = np.sqrt(GLSN)
+
             if (Dispersion_Formula == 9):
-                print('Sellmeier 4')
+                """Sellmeier 4"""
+                GLSN = C[0] + (C[1] * Wave**2 / (Wave**2 - C[2])) + (C[3] * Wave**2 / (Wave**2 - C[4]))
+                n = np.sqrt(GLSN)
+
             if (Dispersion_Formula == 10):
-                print('Extended')
+                """Extended"""
+                GLSN = C[0] + (C[1] * Wave**2) + (C[2] * Wave**-2) + (C[3] * Wave**-4) + (C[4] * Wave**-6) + \
+                              (C[5] * Wave**-8) + (C[6] * Wave**-10) + (C[7] * Wave**-12)
+                n = np.sqrt(GLSN)
+
             if (Dispersion_Formula == 11):
-                print('Sellmeier 5')
+                """Sellmeier 5"""
+                GLSN = (C[0] * Wave**2 / (Wave**2 - C[1])) + (C[2] * Wave**2 / (Wave**2 - C[3])) + (C[4] * Wave**2 / (Wave**2 - C[5])) + (C[6] * Wave**2 / (Wave**2 - C[7])) + (C[8] * Wave**2 / (Wave**2 - C[9]))
+                n = np.sqrt(GLSN + 1.0)
+
+
             if (Dispersion_Formula == 12):
-                print('Extended 2')
+                """Extended 2"""
+                GLSN = C[0] + (C[1] * Wave**2) + (C[2] * Wave**-2) + (C[3] * Wave**-4) + (C[4] * Wave**-6) + (C[5] * Wave**-8) + (C[6] * Wave**4) + (C[7] * Wave**6)
+                n = np.sqrt(GLSN)
+
+
+
             [Wa, Tr, Th] = IT[r]
             TR = np.interp(Wave, np.asarray(Wa), np.asarray(Tr))
             Alpha = ((- np.log(TR)) / Th[0])
+
+
+
+
+    else:
+        n = float(GLSS[4:])
+        Alpha = 0.0
+
     return (n, Alpha)
 
+
+
+# @jit(forceobj=True)
 def ParaxCalc(N_Prec, SDT, SuTo, n, Gl):
     """ParaxCalc.
 
@@ -236,4 +300,12 @@ def ParaxCalc(N_Prec, SDT, SuTo, n, Gl):
     CC = np.asarray(CC)
     DD = np.asarray(DD)
     return (SistemMatrix, S_Matrix, N_Matrix, a, b, c, d, EFFL, PPA, PPP, CC, N_Prec, DD)
+
+
+
+
+
+
+
+
 

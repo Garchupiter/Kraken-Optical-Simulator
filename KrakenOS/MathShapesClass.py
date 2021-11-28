@@ -1,6 +1,13 @@
+from numba import jit
+from numba.experimental import jitclass
+from numba import int32, float32
 
+# @jit(forceobj=True)
 import numpy as np
 from scipy.interpolate import griddata
+
+
+
 
 class extra__surf():
     """extra__surf.
@@ -31,6 +38,8 @@ class extra__surf():
         Z = self.user_surface(x, y, self.COEF)
         return Z
 
+
+@jit(forceobj=True)
 def even_asphere(x, y, E):
     """even_asphere.
 
@@ -44,17 +53,18 @@ def even_asphere(x, y, E):
         E
     """
     r = np.sqrt(((x * x) + (y * y)))
-    Z = np.zeros_like(x)
+    Z = 0.0 * np.zeros_like(x)
     for i in range(1, 9):
         if (E[(i - 1)] != 0):
-            Z = (Z + (E[(i - 1)] * np.power(r, ((2 * i) * 1.0))))
+            Z = (Z + (E[(i - 1)] * np.power(r, ((2.0 * i*1.0) * 1.0))))
     return Z
+
+
+
 
 class aspheric__surf():
     """aspheric__surf.
     """
-
-
     def __init__(self, E):
         """__init__.
 
@@ -64,6 +74,7 @@ class aspheric__surf():
             E
         """
         self.E = E
+
 
     def calculate(self, x, y):
         """calculate.
@@ -78,7 +89,10 @@ class aspheric__surf():
         Z = even_asphere(x, y, self.E)
         return Z
 
-class conic__surf():
+
+
+
+class conic__surf(object):
     """conic__surf.
     """
 
@@ -99,6 +113,8 @@ class conic__surf():
         self.KON = KON
         self.C_RXY_RATIO = C_RXY_RATIO
 
+
+
     def calculate(self, x, y):
         """calculate.
 
@@ -109,14 +125,33 @@ class conic__surf():
         y :
             y
         """
-        if (self.R_C != 0.0):
-            c = (1.0 / self.R_C)
-            s = np.sqrt(((x * x) + ((y * self.C_RXY_RATIO) * (y * self.C_RXY_RATIO))))
-            InRoot = (1 - (((((self.KON + 1.0) * c) * c) * s) * s))
-            z = (((c * s) * s) / (1.0 + np.sqrt(InRoot)))
-        else:
-            z = np.zeros_like(x)
+
+        z = CalculateCon(x, y, self.R_C , self.C_RXY_RATIO, self.KON)
+
         return z
+
+@jit(nopython=True)
+def CalculateCon(x, y, R_C , C_RXY_RATIO, KON):
+    """calculate.
+
+    Parameters
+    ----------
+    x :
+        x
+    y :
+        y
+    """
+    if (R_C != 0.0):
+        c = (1.0 / R_C)
+        s = np.sqrt(((x * x) + ((y * C_RXY_RATIO) * (y * C_RXY_RATIO))))
+        InRoot = (1 - (((((KON + 1.0) * c) * c) * s) * s))
+        z = (((c * s) * s) / (1.0 + np.sqrt(InRoot)))
+    else:
+        z = 0.0 * np.zeros_like(x)
+
+    return z
+
+
 
 class axicon__surf():
     """axicon__surf.
@@ -146,12 +181,37 @@ class axicon__surf():
         y :
             y
         """
-        if (self.AXC != 0):
-            s = np.sqrt(((x * x) + ((y * self.C_RXY_RATIO) * (y * self.C_RXY_RATIO))))
-            z_axicon = (s * np.tan(np.deg2rad(self.AXC)))
-        else:
-            z_axicon = np.zeros_like(x)
+        # if (self.AXC != 0):
+        #     s = np.sqrt(((x * x) + ((y * self.C_RXY_RATIO) * (y * self.C_RXY_RATIO))))
+        #     z_axicon = (s * np.tan(np.deg2rad(self.AXC)))
+        # else:
+        #     z_axicon = np.zeros_like(x)
+
+        z_axicon = CalculateAxic( x, y, self.C_RXY_RATIO, self.AXC)
         return z_axicon
+
+@jit(nopython=True)
+def CalculateAxic( x, y, C_RXY_RATIO, AXC):
+    """calculate.
+
+    Parameters
+    ----------
+    x :
+        x
+    y :
+        y
+    """
+    if (AXC != 0.0):
+        s = np.sqrt(((x * x) + ((y * C_RXY_RATIO) * (y * C_RXY_RATIO))))
+        z_axicon = (s * np.tan(np.deg2rad(AXC)))
+    else:
+        z_axicon = 0.0 * np.zeros_like(x)
+    return z_axicon
+
+
+
+
+
 
 class error_map__surf():
     """error_map__surf.
@@ -228,7 +288,12 @@ class error_map__surf():
         """
         z = griddata(self.points, self.values, (x, y), method='cubic')
         return z
-        23
+
+
+
+
+
+
 
 class zernike__surf():
     """zernike__surf.
@@ -264,14 +329,42 @@ class zernike__surf():
         y :
             y
         """
-        ZSP = np.zeros_like(x)
-        for i in range(0, self.COEF.shape[0]):
-            if (self.COEF[i] != 0):
-                p = (np.sqrt(((x * x) + (y * y))) / (self.DMTR / 2.0))
-                f = np.arctan2(x, y)
-                ZSP = (ZSP + (self.COEF[i] * zernike_polynomials(i, p, f, self.Z_POL, self.Z_POW)))
+        # ZSP = np.zeros_like(x)
+        # for i in range(0, self.COEF.shape[0]):
+        #     if (self.COEF[i] != 0):
+        #         p = (np.sqrt(((x * x) + (y * y))) / (self.DMTR / 2.0))
+        #         f = np.arctan2(x, y)
+        #         ZSP = (ZSP + (self.COEF[i] * zernike_polynomials(i, p, f, self.Z_POL, self.Z_POW)))
+
+        ZSP = CalculateZern(x, y, self.Z_POL, self.Z_POW, self.COEF, self.DMTR)
         return ZSP
 
+
+
+@jit(forceobj=True)
+def CalculateZern( x, y, Z_POL, Z_POW, COEF, DMTR):
+    """calculate.
+
+    Parameters
+    ----------
+    x :
+        x
+    y :
+        y
+    """
+    ZSP = 0.0*np.zeros_like(x)
+    for i in range(0, COEF.shape[0]):
+        if (COEF[i] != 0):
+            p = (np.sqrt(((x * x) + (y * y))) / (DMTR / 2.0))
+            f = np.arctan2(x, y)
+            ZSP = (ZSP + (COEF[i] * zernike_polynomials(i, p, f, Z_POL, Z_POW)))
+    return ZSP
+
+
+
+
+
+@jit(forceobj=True)
 def zernike_polynomials(term, ro, theta, Zern_pol, z_pow):
     """zernike_polynomials.
 
@@ -303,6 +396,12 @@ def zernike_polynomials(term, ro, theta, Zern_pol, z_pow):
         S = ((raiz * NR) * np.sin((m * theta)))
     return S
 
+
+
+
+
+
+@jit(forceobj=True)
 def z_parity(num):
     """z_parity.
 
@@ -319,6 +418,13 @@ def z_parity(num):
         v = 3
     return v
 
+
+
+
+
+
+
+@jit(forceobj=True)
 def r_zern(m, n):
     """r_zern.
 
@@ -346,6 +452,13 @@ def r_zern(m, n):
     a.append(pot)
     return a
 
+
+
+
+
+
+
+@jit(forceobj=True)
 def zernike_expand(L):
     """zernike_expand.
 
@@ -390,6 +503,15 @@ def zernike_expand(L):
     Z = Z[:L]
     return (Z, E)
 
+
+
+
+
+
+
+
+
+@jit(forceobj=True)
 def zernike_math_notation(term, Zern_pol, z_pow):
     """zernike_math_notation.
 
@@ -430,4 +552,33 @@ def zernike_math_notation(term, Zern_pol, z_pow):
     else:
         x = ''
     return ((S + '   ') + x)
+
+
+
+
+@jit(forceobj=True)
+def Wavefront_Zernike_Phase(x, y, COEF):
+    """Wavefront_Zernike_Phase.
+
+    Parameters
+    ----------
+    x :
+        x
+    y :
+        y
+    COEF :
+        COEF
+    """
+    NC = len(COEF)
+    (Zern_pol, z_pow) = zernike_expand(NC)
+    tcoef = COEF.shape[0]
+    p = np.sqrt(((x * x) + (y * y)))
+    f = np.arctan2(x, y)
+    ZFP = 0.0
+    for i in range(0, tcoef):
+        if (COEF[i] != 0):
+            ZFP = (ZFP + (COEF[i] * zernike_polynomials(i, p, f, Zern_pol, z_pow)))
+    return ZFP
+
+
 

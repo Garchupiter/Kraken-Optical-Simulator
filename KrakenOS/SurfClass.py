@@ -153,36 +153,46 @@ class surf():
         self.TiltX = 0.0
         self.TiltY = 0.0
         self.TiltZ = 0.0
-        self.Order = 0
-        self.AxisMove = 1
+        self.Order = 0.0
+        self.AxisMove = 1.0
         self.Diff_Ord = 0.0
         self.Grating_D = 0.0
         self.Grating_Angle = 0.0
         self.ShiftX = 0.0
         self.ShiftY = 0.0
-        self.Mask_Type = 0
-        Objeto_3D = pv.Disc(center=[0.0, 0.0, 0.0], inner=0, outer=0.001, normal=(0, 0, 1), r_res=3, c_res=3)
-        Mask = pv.MultiBlock()
-        Mask.append(Objeto_3D)
-        self.Mask_Shape = Mask
+        self.Mask_Type = 0.0
+
+        self.Mask_Shape = "None"
         self.Solid_3d_stl = 'None'
-        self.Cylinder_Rxy_Ratio = 1
-        self.Axicon = 0
+        self.Cylinder_Rxy_Ratio = 1.0
+        self.Axicon = 0.0
         self.AspherData = np.zeros(200)
         self.ExtraData = np.zeros(200)
         self.Thin_Lens = 0.0
         self.Name = ''
-        self.Nm_Poss = (0, 0)
+        self.Nm_Poss = (0.0, 0.0)
         self.Note = 'None'
-        self.Drawing = 1
+        self.Drawing = 1.0
         self.Color = [0, 0, 0]
         self.Error_map = []
         self.Res = 1
-        self.Surface_type = 0
+        self.Surface_type = 0.0
         self.SURF_FUNC = []
         self.SPECIAL_SURF_FUNC = []
-        self.SURF_FUNC.append(conic__surf(0, 0, 1))
+        self.SURF_FUNC.append(conic__surf(0.0, 0.0, 1.0))
         self.General_Status = self.update()
+
+    def RestoreVTK(self):
+        Objeto_3D = pv.Disc(center=[0.0, 0.0, 0.0], inner=0, outer=0.001, normal=(0, 0, 1), r_res=3, c_res=3)
+        Mask = pv.MultiBlock()
+        Mask.append(Objeto_3D)
+        self.Mask_Shape = Mask
+
+    def EraseVTK(self):
+
+        self.Mask_Shape = "None"
+
+
 
     def warning(self):
         """warning.
@@ -270,11 +280,26 @@ class surf():
         """
         x = (x + self.ShiftX)
         y = (y + self.ShiftY)
-        Z = np.zeros_like(x)
+        # Z = 0.0 * np.copy(x)
+        con = -1
         N_FUNC = len(self.SURF_FUNC)
+
         for i in range(0, (N_FUNC - case)):
-            Z = (self.SURF_FUNC[i].calculate(x, y) + Z)
+
+            if con==-1:
+                Z = self.SURF_FUNC[i].calculate(x, y)
+                con = 0
+
+            else:
+                Z = (self.SURF_FUNC[i].calculate(x, y) + Z)
+                con=1
+
+        if con == -1:
+            Z = 0.0 * np.copy(x)
+
         return Z
+
+
 
     def update(self):
         """update.

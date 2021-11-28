@@ -14,7 +14,10 @@ def ZernikeDataImage2Plot(datos, Type='interferogram'):
         Type
     """
     if (Type == 'interferogram'):
+
+
         datos = np.sin(((2 * np.pi) * datos))
+
     if (Type == 'phase'):
         datos = datos
     img = (datos / np.max(datos))

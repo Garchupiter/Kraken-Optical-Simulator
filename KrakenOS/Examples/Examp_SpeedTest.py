@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Examp Doublet Lens Pupil Seidel"""
-
+from numba import jit
+import timeit
 import pkg_resources
 """ Looking for if KrakenOS is installed, if not, it assumes that
 an folder downloaded from github is run"""
@@ -77,6 +78,9 @@ config_1 = Kos.Setup()
 
 # _________________________________________#
 
+
+
+
 Doblete = Kos.system(A, config_1)
 
 # _________________________________________#
@@ -88,61 +92,60 @@ AperType = "EPD"
 fieldType = "angle"
 
 Pup = Kos.PupilCalc(Doblete, Surf, W, AperType, AperVal)
-Pup.Samp = 25
-Pup.Ptype = "fan"
+
+Pup.Samp = 45
+Pup.Ptype = "hexapolar"
 Pup.FieldY = 3.25
 
-# _________________________________________#
 
-AB = Kos.Seidel(Pup)
-
-print("--------------------------------------")
-print(AB.SAC_AN)
-print(AB.SAC_NM)
-print(AB.SAC_TOTAL)
-print("--------------------------------------")
-print(AB.SCW_AN)
-print(AB.SCW_NM)
-print(AB.SCW_TOTAL)
-print("--------------------------------------")
-print(AB.TAC_AN)
-print(AB.TAC_NM)
-print(AB.TAC_TOTAL)
-print("--------------------------------------")
-print(AB.LAC_AN)
-print(AB.LAC_NM)
-print(AB.LAC_TOTAL)
-print("--------------------------------------")
-
-# print( AB[0][0])
-# print(np.sum(AB[1][0]), np.sum(AB[1][1]), np.sum(AB[1][2]), np.sum(AB[1][3]), np.sum(AB[1][4]))
-
-# j=1
-# print( AB[0][0+j])
-# print(np.sum(AB[1+j][0]), np.sum(AB[1+j][1]), np.sum(AB[1+j][2]), np.sum(AB[1+j][3]), np.sum(AB[1+j][4]))
-
-# j=2
-# print( AB[0][0+j])
-# print(np.sum(AB[1+j][0]), np.sum(AB[1+j][1]), np.sum(AB[1+j][2]), np.sum(AB[1+j][3]), np.sum(AB[1+j][4]))
-
-# j=3
-# print( AB[0][0+j])
-# print(np.sum(AB[1+j][0]), np.sum(AB[1+j][1]), np.sum(AB[1+j][2]), np.sum(AB[1+j][3]), np.sum(AB[1+j][4]))
-
-# #_________________________________________#
-
+#_________________________________________#
 
 x, y, z, L, M, N = Pup.Pattern2Field()
 Rayos = Kos.raykeeper(Doblete)
 
 # _________________________________________#
 
+
+
+start = timeit.default_timer()
+print("-----------------")
+cont=0.0
 for i in range(0, len(x)):
     pSource_0 = [x[i], y[i], z[i]]
     dCos = [L[i], M[i], N[i]]
     Doblete.Trace(pSource_0, dCos, W)
     Rayos.push()
+    cont = cont + 1.0
+
+    # print(Doblete.NP_XYZ[0:Doblete.iter+1])
+    # print(Doblete.NP_S_XYZ[0:Doblete.iter+1])
+
+
+
+
+stop = timeit.default_timer()
+execution_time = stop - start
+
+print("Program Executed in "+str(execution_time/(cont*5.0))+" per ray segment")
+print(cont*5, " Rays segments trace d")
+
+
+# 25-oct-21 Program Executed in 0.0004910416639832562 31055.0  Segmentos
+# 27-oct-21 Program Executed in 0.0002906117962646915 31055.0  Segmentos
+# 29-oct-21 Program Executed in 0.00018554626739655485 31055.0  Segmentos
+# 29-oct-21 Program Executed in 0.0001726453898889197 31055.0  Segmentos
+# 29-oct-21 Program Executed in 0.00016649437021413582 31055.0  Segmentos
+# 29-oct-21 Program Executed in 0.00015742018998550996 31055.0  Segmentos
+# 30-oct-21 Program Executed in 0.0001484923241024164 31055.0  Segmentos
+
+# 31-oct-21 implementación de FastTrace
+# 31-oct-21 Program Executed in 0.00013013021978017754 455.0  Segmentos
+# 31-oct-21 Program Executed in 0.00011787373611336453 31055.0  Segmentos
+# 31-oct-21 Program Executed in 0.00011517481751730815 31055.0  Segmentos
+
+# cambio de np.linalg.norm a np.sqrt(sum x**2)
+# 01-nov-21 Program Executed in 0.000108276663693441 31055.0  Segmentos
+
 
 # _________________________________________#
-
-Kos.display2d(Doblete, Rayos, 0)
+# Kos.display3d(Doblete, Rayos, 0)

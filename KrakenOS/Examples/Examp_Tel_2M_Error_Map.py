@@ -4,6 +4,17 @@
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pkg_resources
+required = {'KrakenOS'}
+installed = {pkg.key for pkg in pkg_resources.working_set}
+missing = required - installed
+
+if missing:
+    print("No instalado")
+    import sys
+    sys.path.append("../..")
+
+
 import KrakenOS as Kos
 import time
 

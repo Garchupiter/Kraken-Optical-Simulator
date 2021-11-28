@@ -102,6 +102,10 @@ class Prerequisites():
         j :
             j
         """
+        if self.SDT[j].Mask_Shape == "None":
+            self.SDT[j].RestoreVTK()
+
+
         if (self.SDT[j].Solid_3d_stl == 'None'):
             RES = (46 * self.SDT[j].Res)
             con = ((self.SDT[j].Diameter - (self.SDT[j].InDiameter * self.Disable_Inner)) / self.SDT[j].Diameter)

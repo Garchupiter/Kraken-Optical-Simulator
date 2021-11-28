@@ -3,6 +3,20 @@
 """Examp Doublet Lens Commands System"""
 
 import numpy as np
+import pkg_resources
+""" Looking for if KrakenOS is installed, if not, it assumes that
+an folder downloaded from github is run"""
+
+required = {'KrakenOS'}
+installed = {pkg.key for pkg in pkg_resources.working_set}
+missing = required - installed
+
+if missing:
+    print("Not installed")
+    import sys
+    sys.path.append("../..")
+
+
 import KrakenOS as Kos
 
 # _________________________________________#

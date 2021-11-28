@@ -6,6 +6,17 @@ import os
 import sys
 import matplotlib.pyplot as plt
 import numpy as np
+import pkg_resources
+required = {'KrakenOS'}
+installed = {pkg.key for pkg in pkg_resources.working_set}
+missing = required - installed
+
+if missing:
+    print("No instalado")
+    import sys
+    sys.path.append("../..")
+
+
 import KrakenOS as Kos
 
 # ______________________________________#
@@ -27,7 +38,7 @@ Thickness = 3.452200000000000E+003
 M1 = Kos.surf()
 M1.Rc = -9.638000000004009E+003
 M1.Thickness = -Thickness
-M1.k = -1.077310000000000E+000 * 0
+M1.k = -1.077310000000000E+000
 M1.Glass = "MIRROR"
 M1.Diameter = 1.059E+003 * 2.0
 M1.InDiameter = 250 * 2.0
@@ -40,13 +51,13 @@ M1.AxisMove = 0
 M2 = Kos.surf()
 M2.Rc = -3.93E+003
 M2.Thickness = Thickness + 1037.525880
-M2.k = -4.328100000000000E+000 * 0
+M2.k = -4.328100000000000E+000
 M2.Glass = "MIRROR"
 M2.Diameter = 3.365E+002 * 2.0
 M2.TiltY = 0.0
 M2.TiltX = 0.0
 M2.DespY = 0.0
-M2.DespX = 0.4
+M2.DespX = 0.0
 M2.AxisMove = 0
 
 # ______________________________________#
@@ -67,12 +78,13 @@ Telescopio = Kos.system(A, configuracion_1)
 Surf = 1
 W = 0.5016
 AperVal = 2000.
-AperType = "STOP"
+AperType = "EPD"
 Pupil = Kos.PupilCalc(Telescopio, Surf, W, AperType, AperVal)
 Pupil.Samp = 10
 Pupil.Ptype = "hexapolar"
-Pupil.FieldY = 0.1
-Pupil.FieldX = 0.0
+Pupil.FieldX = 0.1
+Pupil.FieldY = 0.0
+
 Pupil.FieldType = "angle"
 
 X, Y, Z, P2V = Kos.Phase(Pupil)
@@ -80,7 +92,8 @@ print("Peak to valley: ", P2V)
 NC = 18
 A = np.ones(38)
 
-Zcoef, Mat, w_rms = Kos.Zernike_Fitting(X, Y, Z, A)
+Zcoef, Mat, RMS2Chief, RMS2Centroid, FITTINGERROR = Kos.Zernike_Fitting(X, Y, Z, A)
+
 
 for i in range(0, NC):
     print("z", i + 1, "  ", "{0:.6f}".format(float(Zcoef[i])), ":", Mat[i])
@@ -108,7 +121,7 @@ for i in range(0, len(x)):
 
 # ______________________________________#
 
-# Kos.display3d(Telescopio, RR, 2)
+Kos.display2d(Telescopio, RR, 1,0)
 X, Y, Z, L, M, N = RR.pick(-1)
 
 # ______________________________________#
@@ -124,6 +137,19 @@ ima = Kos.WavefrontData2Image(Zcoef, 400)
 
 Type = "interferogram"
 Kos.ZernikeDataImage2Plot(ima, Type)
+
+
+
+Surf = 1
+W = 0.5016
+AperVal = 2000.
+AperType = "STOP"
+Pupil = Kos.PupilCalc(Telescopio, Surf, W, AperType, AperVal)
+Pupil.Samp = 10
+Pupil.Ptype = "hexapolar"
+Pupil.FieldX = 0.1
+Pupil.FieldY = 0.0
+
 
 AB = Kos.Seidel(Pupil)
 

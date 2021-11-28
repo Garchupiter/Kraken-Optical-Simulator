@@ -1,8 +1,7 @@
-
 import numpy as np
 from .MathShapesClass import *
 
-def RMS(SA, X, Y, Z, Zern_pol, z_pow):
+def RMS_Fitting_Error(SA, X, Y, Z, Zern_pol, z_pow):
     """RMS.
 
     Parameters
@@ -22,22 +21,29 @@ def RMS(SA, X, Y, Z, Zern_pol, z_pow):
     """
     NZ = []
     SE = np.copy(SA)
-    SE[0] = 0
-    for i in range(np.shape(X)[0]):
-        NZZ = Wavefront_Phase(X[i], Y[i], SE, Zern_pol, z_pow)
-        NZ.append(NZZ)
+    # SE[0] = 0
+    # SE[1] = 0
+    # SE[2] = 0
+    #for i in range(np.shape(X)[0]):
+    NZ = Wavefront_Phase(X, Y, SE, Zern_pol, z_pow)
     NZ = np.asarray(NZ)
+
+    # SE[0] = 0
+    # SE[1] = 0
+    # SE[2] = 0
+    # NZZ = Wavefront_Phase(X, Y, SE, Zern_pol, z_pow)
+    # print("p2v ", np.abs(np.min(NZZ)-np.max(NZZ)))
     g = (NZ - Z)
     g = (g * g)
     g = np.mean(g)
     error = np.sqrt(g)
-    gg = NZ
-    gg = (gg * gg)
-    gg = np.mean(gg)
-    RMS = np.sqrt(gg)
-    return (RMS, error)
+    # gg = NZZ-np.mean(NZZ)
+    # gg = (gg * gg)
+    # gg = np.mean(gg)
+    # RMS = np.sqrt(gg)
+    return (error)
 
-def Zernike_Fitting(x1, y1, Z1, A, minimum=0.0001):
+def Zernike_Fitting(x1, y1, Z1, Arr, minimum=0.000000001):
     """Zernike_Fitting.
 
     Parameters
@@ -53,10 +59,13 @@ def Zernike_Fitting(x1, y1, Z1, A, minimum=0.0001):
     minimum :
         minimum
     """
-    NC = len(A)
+
+    # Z1=Z1-np.mean(Z1)
+
+    NC = len(Arr)
     (Zern_pol, z_pow) = zernike_expand(NC)
     for i in range(0, 2):
-        Zi = System_Matrix_Zernikes(x1, y1, A, Zern_pol, z_pow, 0)
+        Zi = System_Matrix_Zernikes(x1, y1, Arr, Zern_pol, z_pow, 0)
         ZT = Zi.T
         ZTZ = np.matmul(ZT, Zi)
         ZTZ_1 = np.linalg.inv(ZTZ)
@@ -64,27 +73,81 @@ def Zernike_Fitting(x1, y1, Z1, A, minimum=0.0001):
         D = Z1
         D = np.asmatrix(D)
         D = D.T
-        SA = np.zeros_like(A)
-        NA = A.shape[0]
+        SA = np.zeros_like(Arr)
+        NA = Arr.shape[0]
         MA = np.asarray(np.matmul(ZTZ_1_ZT, D))
+
+
+
+        p = 2.5
+        A=Zi
+        x=MA
+        b=D
+
+        A_T=A.T
+        A_T_A=np.matmul(A_T,A)
+        Inv_A_T_A=np.linalg.inv(A_T_A)
+        Inv_A_T_A_A_T = np.matmul(Inv_A_T_A, A_T)
+        x=np.matmul(Inv_A_T_A_A_T, b)
+
+
+        # for s in range(0,15):
+        #     E=np.abs(np.matmul(A,x)-D)
+        #     #print(np.sum(np.abs(E)))
+        #     E=np.resize(E,(np.shape(E)[0]))
+        #     e = np.diag(E)
+
+        #     W=np.power(e, ((p-2.0)/2.0))
+        #     WA=np.matmul(W,A)
+
+        #     WAT=WA.T
+        #     WATxWA=np.matmul(WAT,WA)
+        #     InvWATxWA=np.linalg.inv(WATxWA)
+        #     WATW=np.matmul(WAT,W)
+        #     f1=np.matmul(InvWATxWA,WATW)
+        #     x=np.matmul(f1,D)
+
+        #     print(np.sum(np.abs(E)), " Error")
+
+        MA=x
+        # print("-------------")
+
+
+
+
+
+
         cont = 0
         ZZ = []
-        for i1 in range(0, A.shape[0]):
+        for i1 in range(0, Arr.shape[0]):
             ZZ.append(zernike_math_notation(i1, Zern_pol, z_pow))
         ZZ = np.asarray(ZZ)
         for i2 in range(0, NA):
-            if (A[i2] != 0):
+            if (Arr[i2] != 0):
                 SA[i2] = MA[cont][0]
                 cont = (cont + 1)
             else:
                 SA[i2] = 0.0
-        A = np.abs(SA)
-        Zeros = np.argwhere((A > minimum))
-        AA = np.zeros_like(A)
+        Arr = np.abs(SA)
+        Zeros = np.argwhere((Arr > minimum))
+        AA = np.zeros_like(Arr)
         AA[Zeros] = 1
-        A = AA
-    (WRMS, FITTINGERROR) = RMS(SA, x1, y1, Z1, Zern_pol, z_pow)
-    return (SA, ZZ, WRMS)
+        Arr = AA
+    FITTINGERROR= RMS_Fitting_Error(SA, x1, y1, Z1, Zern_pol, z_pow)
+    # print("(RMS) Fitting error: ", FITTINGERROR)
+
+    SE=np.copy(SA)
+    SE[0]=0
+    RMS2Chief=np.sqrt(np.sum(SE**2.0))
+    # print(RMS2Chief, "RMS(to chief) From fitted coefficents")
+
+    SE[1]=0
+    SE[2]=0
+    RMS2Centroid=np.sqrt(np.sum(SE**2.0))
+    # print(RMS2Centroid, "RMS(to centroid) From fitted coefficents")
+
+
+    return (SA, ZZ, RMS2Chief, RMS2Centroid, FITTINGERROR)
 
 def Wavefront_Zernike_Phase(x, y, COEF):
     """Wavefront_Zernike_Phase.

@@ -8,7 +8,7 @@ from scipy.optimize import fmin_cg
 from scipy.optimize import fsolve
 from .AstroAtmosphere import *
 
-def RMS_Pupil(r, SYSTEM, Surf, W):
+def RMS_Pupil(r, SYSTEM, Surf, W, tet):
     """RMS_Pupil.
 
     Parameters
@@ -26,27 +26,32 @@ def RMS_Pupil(r, SYSTEM, Surf, W):
     SYSTEM.IgnoreVignetting(0)
     SYSTEM.SurfFlat(Surf, 0)
     RP = raykeeper(SYSTEM)
-    tet = 0.1
+    # tet = 0.01
     s_0 = [0.0, 0.0, 0.0]
     c_0 = [0.0, 0.0, 1.0]
     SYSTEM.Trace(s_0, c_0, W)
     RP.push()
+
     c_1 = [np.sin(np.deg2rad(tet)), 0.0, np.cos(np.deg2rad(tet))]
     s_0 = [r, 0.0, 0.0]
     SYSTEM.Trace(s_0, c_1, W)
     RP.push()
+
     c_2 = [np.sin(np.deg2rad((- tet))), 0.0, np.cos(np.deg2rad((- tet)))]
     s_0 = [(- r), 0.0, 0.0]
     SYSTEM.Trace(s_0, c_2, W)
     RP.push()
+
     c_3 = [0.0, np.sin(np.deg2rad(tet)), np.cos(np.deg2rad(tet))]
     s_0 = [0.0, r, 0.0]
     SYSTEM.Trace(s_0, c_3, W)
     RP.push()
+
     c_4 = [0.0, np.sin(np.deg2rad((- tet))), np.cos(np.deg2rad((- tet)))]
     s_0 = [0.0, (- r), 0.0]
     SYSTEM.Trace(s_0, c_4, W)
     RP.push()
+
     (X, Y, Z, L, M, N) = RP.pick(Surf)
     delta_Z = 0
     X = (((L / N) * delta_Z) + X)
@@ -283,7 +288,7 @@ class PupilCalc():
     """
 
 
-    def __init__(self, system, Surf, W, ApTyp='EPD', AV=1.0):
+    def __init__(self, system, Surf, W, ApTyp='STOP', AV=1.0):
         """__init__.
 
         Parameters
@@ -334,17 +339,19 @@ class PupilCalc():
         self.l1 = 5000.60169
         self.l2 = 0.50169
         self.z0 = 75.0
+        self.tet= 0.01
+
         delta_Z = 0
         r = 1e-06
         cnt = 0
         while True:
-            fun = RMS_Pupil(r, self.SYSTEM, Surf, self.W)
-            h = 1e-07
-            f1 = RMS_Pupil((r + h), self.SYSTEM, Surf, self.W)
-            f2 = RMS_Pupil((r - h), self.SYSTEM, Surf, self.W)
+            fun = RMS_Pupil(r, self.SYSTEM, Surf, self.W, self.tet)
+            h = 1e-7
+            f1 = RMS_Pupil((r + h), self.SYSTEM, Surf, self.W, self.tet)
+            f2 = RMS_Pupil((r - h), self.SYSTEM, Surf, self.W, self.tet)
             der = ((f1 - f2) / (2 * h))
             r2 = (r - (fun / der))
-            if (np.abs((r - r2)) < 1e-10):
+            if (np.abs((r - r2)) < 1e-7):
                 break
             else:
                 r = r2
@@ -353,68 +360,99 @@ class PupilCalc():
             cnt = (cnt + 1)
         self.SYSTEM.IgnoreVignetting(0)
         RP = raykeeper(self.SYSTEM)
-        tet = 0.1
+
+
         s_0 = [0.0, 0.0, 0.0]
         c_0 = [0.0, 0.0, 1.0]
         self.SYSTEM.Trace(s_0, c_0, self.W)
+
         RP.push()
-        c_1 = [np.sin(np.deg2rad(tet)), 0.0, np.cos(np.deg2rad(tet))]
+        c_1 = [np.sin(np.deg2rad(self.tet)), 0.0, np.cos(np.deg2rad(self.tet))]
         s_0 = [r, 0.0, 0.0]
         self.SYSTEM.Trace(s_0, c_1, self.W)
         RP.push()
-        c_2 = [np.sin(np.deg2rad((- tet))), 0.0, np.cos(np.deg2rad((- tet)))]
+
+        c_2 = [np.sin(np.deg2rad((- self.tet))), 0.0, np.cos(np.deg2rad((- self.tet)))]
         s_0 = [(- r), 0.0, 0.0]
         self.SYSTEM.Trace(s_0, c_2, self.W)
         RP.push()
-        c_3 = [0.0, np.sin(np.deg2rad(tet)), np.cos(np.deg2rad(tet))]
+
+        c_3 = [0.0, np.sin(np.deg2rad(self.tet)), np.cos(np.deg2rad(self.tet))]
         s_0 = [0.0, r, 0.0]
         self.SYSTEM.Trace(s_0, c_3, self.W)
         RP.push()
-        c_4 = [0.0, np.sin(np.deg2rad((- tet))), np.cos(np.deg2rad((- tet)))]
+
+        c_4 = [0.0, np.sin(np.deg2rad((- self.tet))), np.cos(np.deg2rad((- self.tet)))]
         s_0 = [0.0, (- r), 0.0]
         self.SYSTEM.Trace(s_0, c_4, self.W)
         RP.push()
+
+# ----------------------------------------------------------------------------
+
         (X, Y, Z, L, M, N) = RP.pick(0)
         theta = 0
+
         for s in range(1, 5):
             theta = (theta + np.rad2deg(np.arccos((((L[0] * L[s]) + (M[0] * M[s])) + (N[0] * N[s])))))
         thetaIni = np.abs((theta / 4.0))
+
+# ----------------------------------------------------------------------------
+
         (X, Y, Z, L, M, N) = RP.pick(Surf)
         theta = 0
+
         for s in range(1, 5):
             theta = (theta + np.rad2deg(np.arccos((((L[0] * L[s]) + (M[0] * M[s])) + (N[0] * N[s])))))
         thetaSurf = np.abs((theta / 4.0))
+
+# ----------------------------------------------------------------------------
+
         (X, Y, Z, L, M, N) = RP.pick((- 1))
         theta = 0
+
         for s in range(1, 5):
             theta = (theta + np.rad2deg(np.arccos((((L[0] * L[s]) + (M[0] * M[s])) + (N[0] * N[s])))))
         thetaEnd = np.abs((theta / 4.0))
+
+# ----------------------------------------------------------------------------
+
+
+
         M_ENTER_P = (thetaIni / thetaSurf)
         M_EXIT_P = (thetaIni / thetaEnd)
         STOP_DIAM = self.SYSTEM.SDT[Surf].Diameter
+
         if (self.ApertureType == 'EPD'):
             D_Input_Pup = self.ApertureValue
         if (self.ApertureType == 'STOP'):
             D_Input_Pup = (STOP_DIAM / M_ENTER_P)
+
         RadPupInp = (D_Input_Pup / 2.0)
         D_Exit_Pup = (STOP_DIAM * M_EXIT_P)
         RadPupOut = (D_Exit_Pup / 2.0)
+
         (Xs, Ys, Zs, Ls, Ms, Ns) = RP.pick(0)
         (Xe, Ye, Ze, Le, Me, Ne) = RP.pick((- 1))
+
         delta_Z = 0
         ZZ = (Ls, Ms, Ns, Xs, Ys)
         v0 = scipy.optimize.fsolve(R_RMS, delta_Z, args=ZZ)
+
         ZZ = (Le, Me, Ne, Xe, Ye)
         vf = scipy.optimize.fsolve(R_RMS, delta_Z, args=ZZ)
+
         PosPupInp = np.asarray([0, 0, v0[0]])
         OPS = np.asarray([Le[0], Me[0], Ne[0]])
         DirPupSal = OPS
+
         (X, Y, Z, L, M, N) = RP.pick((- 1))
         px = (((L[0] / N[0]) * vf) + X[0])
         py = (((M[0] / N[0]) * vf) + Y[0])
         pz = vf
+
         PosPupOut = np.asarray([px[0], py[0], (vf[0] + Ze[0])])
         PosPupOutFoc = np.asarray([px[0], py[0], pz[0]])
+
         self.SYSTEM.Vignetting(0)
         RP.clean()
         self.RadPupInp = RadPupInp
@@ -424,6 +462,14 @@ class PupilCalc():
         self.PosPupOutFoc = PosPupOutFoc
         self.DirPupSal = DirPupSal
         self.menter = M_ENTER_P
+        Prx = self.SYSTEM.Parax(self.W)
+        self.SistemMatrix, self.S_Matrix, self.N_Matrix, self.a, self.b, self.c, self.d, self.EFFL, self.PPA, self.PPP, self.CC, self.N_Prec, self.DD = Prx
+        self.FocusAiryRadius=1.22*self.W*self.EFFL/(2.0*self.RadPupInp)
+
+
+
+
+
 
     def __patern_rect(self, x, y, kx, ky):
         """__patern_rect.
@@ -527,20 +573,25 @@ class PupilCalc():
                 theta = np.arctan2(f_x, f_y)
                 tx = (self.FieldX + (atm_dispersion * np.sin(theta)))
                 ty = (self.FieldY + (atm_dispersion * np.cos(theta)))
-                shiftX = (Pz * np.sin(np.deg2rad((- tx))))
-                shiftY = (Pz * np.sin(np.deg2rad((- ty))))
+                shiftX = (Pz * np.tan(np.deg2rad((- tx))))
+                shiftY = (Pz * np.tan(np.deg2rad((- ty))))
             else:
-                shiftX = (Pz * np.sin(np.deg2rad((- self.FieldX))))
-                shiftY = (Pz * np.sin(np.deg2rad((- self.FieldY))))
+                shiftX = (Pz * np.tan(np.deg2rad((- self.FieldX))))
+                shiftY = (Pz * np.tan(np.deg2rad((- self.FieldY))))
             f_type = 1.0
         else:
             shiftX = (- self.FieldX)
+
             shiftY = (- self.FieldY)
+
             f_type = 0.0
+
+
+
         x0 = (np.copy((x * f_type)) + shiftX)
         y0 = (np.copy((y * f_type)) + shiftY)
         z = (np.ones_like(x) * Pz)
-        z0 = np.zeros_like(x)
+        z0 = 0.0*np.copy(x)
         X2 = ((x - x0) * (x - x0))
         Y2 = ((y - y0) * (y - y0))
         Z2 = ((z - z0) * (z - z0))

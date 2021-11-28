@@ -147,7 +147,11 @@ def load_Catalog(FileCat):
         ARR_CAT.append(file)
         f = open(file, 'r')
         for x in f:
-            cat.append(x)
+
+            if not x.isspace():
+                 cat.append(x)
+
+            # cat.append(x)
     con = 0
     coords = []
     names = []
@@ -168,6 +172,8 @@ def load_Catalog(FileCat):
                 NM = cad
             if (cadena[0] == 'ED'):
                 ED = cad
+                if ED[1]=="-":
+                    ED[1]="0.0"
             if (cadena[0] == 'CD'):
                 CD = cad
             if (cadena[0] == 'TD'):
@@ -178,8 +184,14 @@ def load_Catalog(FileCat):
                 LD = cad
             if (cadena[0] == 'IT'):
                 IT = cad
-                ITT.append(IT)
+                if len(IT)==3:
+                    ITT.append(IT)
+
         NM = np.asarray(NM[1:(- 1)], dtype=np.float64)
+
+        # print(names[i])
+        # print(ED)
+
         ED = np.asarray(ED, dtype=np.float64)
         CD = np.asarray(CD, dtype=np.float64)
         TD = np.asarray(TD, dtype=np.float64)

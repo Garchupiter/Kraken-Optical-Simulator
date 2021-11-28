@@ -2,6 +2,17 @@
 # -*- coding: utf-8 -*-
 """Examp Doublet Lens Pupil"""
 
+import pkg_resources
+required = {'KrakenOS'}
+installed = {pkg.key for pkg in pkg_resources.working_set}
+missing = required - installed
+
+if missing:
+    print("No instalado")
+    import sys
+    sys.path.append("../..")
+
+
 import KrakenOS as Kos
 
 # _________________________________________#
@@ -91,6 +102,9 @@ print("Posicion pupila de salida respecto al plano focal: ")
 print(Pup.PosPupOutFoc)
 print("Orientación pupila de salida")
 print(Pup.DirPupSal)
+
+print("Airy disk diameter focal distance (micrometers)")
+print(Pup.FocusAiryRadius)
 
 # _________________________________________#
 

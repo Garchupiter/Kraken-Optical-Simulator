@@ -7,6 +7,20 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import sys
+import pkg_resources
+""" Looking for if KrakenOS is installed, if not, it assumes that
+an folder downloaded from github is run"""
+
+required = {'KrakenOS'}
+installed = {pkg.key for pkg in pkg_resources.working_set}
+missing = required - installed
+
+if missing:
+    print("Not installed")
+    import sys
+    sys.path.append("../..")
+
+
 import KrakenOS as Kos
 # ______________________________________#
 
@@ -93,15 +107,15 @@ for j in range(-tam, tam + 1):
             pSource_0 = [x_0, y_0, 0.0]
             dCos = [0.0, np.sin(np.deg2rad(tet)), np.cos(np.deg2rad(tet))]
             W = 0.4
-            Doblete.Trace(pSource_0, dCos, W)
+            Doblete.FastTrace(pSource_0, dCos, W)
             Rayos1.push()
             RayosT.push()
             W = 0.5
-            Doblete.Trace(pSource_0, dCos, W)
+            Doblete.FastTrace(pSource_0, dCos, W)
             Rayos2.push()
             RayosT.push()
             W = 0.6
-            Doblete.Trace(pSource_0, dCos, W)
+            Doblete.FastTrace(pSource_0, dCos, W)
             Rayos3.push()
             RayosT.push()
 
@@ -109,16 +123,16 @@ for j in range(-tam, tam + 1):
 
 Kos.display3d(Doblete, RayosT, 2)
 
-# ______________________________________#
+# # ______________________________________#
 
-X, Y, Z, L, M, N = Rayos1.pick(-1)
-plt.plot(X, Z, 'x')
-X, Y, Z, L, M, N = Rayos2.pick(-1)
-plt.plot(X, Z, 'x')
-X, Y, Z, L, M, N = Rayos3.pick(-1)
-plt.plot(X, Z, 'x')
-plt.xlabel('X')
-plt.ylabel('Y')
-plt.title('Spot Diagram')
-plt.axis('square')
-plt.show()
+# X, Y, Z, L, M, N = Rayos1.pick(-1)
+# plt.plot(X, Z, 'x')
+# X, Y, Z, L, M, N = Rayos2.pick(-1)
+# plt.plot(X, Z, 'x')
+# X, Y, Z, L, M, N = Rayos3.pick(-1)
+# plt.plot(X, Z, 'x')
+# plt.xlabel('X')
+# plt.ylabel('Y')
+# plt.title('Spot Diagram')
+# plt.axis('square')
+# plt.show()

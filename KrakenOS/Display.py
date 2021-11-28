@@ -108,6 +108,13 @@ def display3d(SYSTEM, RAYS, view=0, inline=False):
 
     ST1="KrakenOS v0.1. Executing Script: " + sys.argv[0]
 
+
+    CCC = pv.MultiBlock()
+    for rays in RAYS.CC:
+        RAY_VTK_OBJ = pv.lines_from_points(rays)
+        CCC.append(RAY_VTK_OBJ)
+
+
     p = pv.Plotter(shape=(1, 1), title=ST1,notebook=inline)
     Absorb_color = np.array([(10 / 256), (23 / 256), (24 / 256)])
     Mirror_color = np.array([(189 / 256), (189 / 256), (189 / 256)])
@@ -188,7 +195,7 @@ def display3d(SYSTEM, RAYS, view=0, inline=False):
         RW = np.asarray(RAYS.RayWave)
         for i in range(0, np.shape(RW)[0]):
             RGB = wavelength_to_rgb((RW[i] * 1000.0))
-            p.add_mesh(RAYS.CCC[i], color=RGB, opacity=0.95, smooth_shading=True, line_width=1.0, show_edges=None)
+            p.add_mesh(CCC[i], color=RGB, opacity=0.95, smooth_shading=True, line_width=1.0, show_edges=None)
     p.add_axes(line_width=4)
 
     [cx,cy,cz]=p.center
@@ -226,6 +233,14 @@ def display2d(SYSTEM, RAYS, view=0, arrow=0):
     view :
         view
     """
+    CCC = pv.MultiBlock()
+    for rays in RAYS.CC:
+        RAY_VTK_OBJ = pv.lines_from_points(rays)
+        CCC.append(RAY_VTK_OBJ)
+
+
+
+
     fs=11
     plt.figure()
     plt.rcParams['font.family'] = 'Arial'
@@ -306,7 +321,7 @@ def display2d(SYSTEM, RAYS, view=0, arrow=0):
         RW = np.asarray(RAYS.RayWave)
         for i in range(0, np.shape(RW)[0]):
             RGB = wavelength_to_rgb((RW[i] * 1000.0))
-            RRR = RAYS.CCC[i]
+            RRR = CCC[i]
             Ax = RRR.points[:, 0]
             Ay = RRR.points[:, 1]
             Az = RRR.points[:, 2]
@@ -327,6 +342,7 @@ def display2d(SYSTEM, RAYS, view=0, arrow=0):
     if (view == 1):
         plt.ylabel('X')
     plt.axis('equal')
+    # plt.savefig('plot.pdf')
     plt.show()
 
 def edge_3d(MeshObject, cx, cy, xz):

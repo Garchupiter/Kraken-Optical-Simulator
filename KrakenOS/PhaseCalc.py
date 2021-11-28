@@ -2,34 +2,19 @@
 import numpy as np
 import KrakenOS as Kos
 import scipy
+import copy
 
-def R_RMS(delta_Z, L, M, N, X, Y):
-    """R_RMS.
 
-    Parameters
-    ----------
-    delta_Z :
-        delta_Z
-    L :
-        L
-    M :
-        M
-    N :
-        N
-    X :
-        X
-    Y :
-        Y
-    """
-    X = (((L / N) * delta_Z) + X)
-    Y = (((M / N) * delta_Z) + Y)
-    cenX = np.mean(X)
-    cenY = np.mean(Y)
-    x1 = (X - cenX)
-    y1 = (Y - cenY)
-    R2 = ((x1 * x1) + (y1 * y1))
-    R_RMS = np.sqrt(np.mean(R2))
-    return R_RMS
+
+
+
+
+
+
+
+
+
+
 
 def Phase(PUPIL):
     """Phase.
@@ -39,112 +24,504 @@ def Phase(PUPIL):
     PUPIL :
         PUPIL
     """
+
+
+#############################################################
+    """ Crea una pupila con las propiedades pasadas como parámetro"""
+
+
+    # alpha = abcd[0]
+    # betha = abcd[1]
+    # gamma = abcd[2]
+    # ro = abcd[3]
+
+
     SYSTEM = PUPIL.SYSTEM
     sup = PUPIL.Surf
     W = PUPIL.W
     ApType = PUPIL.ApertureType
     ApVal = PUPIL.ApertureValue
     configuracion_1 = SYSTEM.SETUP
-    Samp = PUPIL.Samp
-    Ptype = PUPIL.Ptype
-    FieldY = PUPIL.FieldY
-    FieldX = PUPIL.FieldX
-    FieldType = PUPIL.FieldType
-    pSource_0 = [0.0, 0.0, 0.0]
-    dCos = [0.0, 0.0, 1.0]
     W = W
+
+    """ Se calcula la pupila """
+    Pup = Kos.PupilCalc(SYSTEM, sup, W, ApType, ApVal)
+
+    [PIX, PIY, PIZ] = PUPIL.PosPupInp
+    [POX, POY, POZ] = PUPIL.PosPupOutFoc
+
+    [PIL, PIM, PIN] = PUPIL.DirPupSal
+    [POL, POM, PON] = PUPIL.DirPupSal
+
+    Pup.Samp = PUPIL.Samp
+    Pup.Ptype = PUPIL.Ptype
+    Pup.FieldY = PUPIL.FieldY
+    Pup.FieldX = PUPIL.FieldX
+    Pup.FieldType = PUPIL.FieldType
+
+    """se generan los rayos para trazar por la pupila"""
+    x, y, z, L, M, N = Pup.Pattern2Field()
+
+
+
+
+
+    # Pup.Samp = 1
+    Pup.Ptype = 'chief'
+    xc, yc, zc, Lc, Mc, Nc = Pup.Pattern2Field()
+
+    pSource_0_c = [xc[0], yc[0], zc[0]]
+    dCos_c = [Lc[0], Mc[0], Nc[0]]
+
+    """ Traza el rayo principal"""
+    SYSTEM.IgnoreVignetting()
+    SYSTEM.Trace(pSource_0_c, dCos_c, W)
+
+    """ Toma las coordenadas y los cosenos directores del rayo
+    principal a la salida del sistema"""
+
+    [Xcc, Ycc, Zcc] = SYSTEM.XYZ[(- 1)]
+    [Lcc, Mcc, Ncc] = SYSTEM.LMN[(- 1)]
+
+
+    resf_out =  np.sqrt(((POX - Xcc)**2.0) + ((POY- Ycc)**2.0) + (POZ**2.0))
+
+# - - - - - - - - - - - - - - - - - - - - - - - - -
+    ArrSup = PUPIL.SYSTEM.SDT
+
+    SS = []
+    for ii in range(0,len(ArrSup)):
+        ArrSup[ii].EraseVTK()
+        ss = copy.deepcopy(ArrSup[ii])
+        SS.append(ss)
+
+    DisPup = SS[0].Thickness
+
+# - - - - - - - - - - - - - - - - - - - - - -
+    """ No mover """
+
+
+    """ No mover """
+    INP_P = Kos.surf()
+    INP_P.Rc = 0
+    INP_P.Thickness = DisPup
+    INP_P.Diameter = PUPIL.RadPupInp * 3.0
+    INP_P.Glass = 'AIR'
+    INP_P.DespX = xc[0]
+    INP_P.DespY = yc[0]
+    INP_P.TiltX = np.rad2deg(np.arcsin((- Mc[0])))
+    INP_P.TiltY = np.rad2deg(np.arcsin((Lc[0] / np.cos(np.arcsin((- Mc[0]))))))
+    INP_P.AxisMove = 0
+    INP_P.Order = 1
+
+# - - - - - - - - - - - - - - - - - - - - - -
+
+    OUT_P = Kos.surf()
+    OUT_P.Rc = -np.sign(POZ)*np.abs(resf_out) #+ro
+    OUT_P.Thickness = 0
+    OUT_P.Diameter = PUPIL.RadPupOut * 3
+    OUT_P.Glass = 'AIR'
+    OUT_P.DespX = POX #+ alpha
+    OUT_P.DespY = POY #+ betha
+    OUT_P.AxisMove = 0
+    OUT_P.Order = 1
+
+    OUT_P.TiltX = np.rad2deg(np.arcsin((- Mcc)))
+    OUT_P.TiltY = np.rad2deg(np.arcsin((Lcc / np.cos(np.arcsin((- Mcc))))))
+
+    Test = Kos.surf()
+    Test.Diameter = PUPIL.RadPupOut * 3
+
+# - - - - - - - - - - - - - - - - - - - - - - - - -
+
+    SS.insert(1, INP_P)
+    SS.append(OUT_P)
+
+
+    SS[0].Thickness = 0.0
+    SS[-2].Thickness = POZ #+ gamma
+
+
+    SYSTEM = Kos.system(SS, configuracion_1)
+
+# - - - - - - - - - - - - - - - - - - - - - - - - -
+
+    """ Se configuran los contenedores de rayos"""
     RR = Kos.raykeeper(SYSTEM)
-    RR2 = Kos.raykeeper(SYSTEM)
-    Pup = Kos.PupilCalc(SYSTEM, sup, W, ApType, ApVal)
-    Pup = Kos.PupilCalc(SYSTEM, sup, W, ApType, ApVal)
-    Pup.Samp = Samp
-    Pup.Ptype = Ptype
-    Pup.FieldY = FieldY
-    Pup.FieldX = FieldX
-    Pup.FieldType = FieldType
-    (x, y, z, L, M, N) = Pup.Pattern2Field()
-    SYSTEM.IgnoreVignetting(0)
+
+# - - - - - - - - - - - - - - - - - - - - - - - - -
+
+    """ Configura al sistema para ignorar los viñeteos """
+    SYSTEM.IgnoreVignetting()
+
+# - - - - - - - - - - - - - - - - - - - - - - - - -
+
+    """ Traza los rayos por systema"""
+
     for i in range(0, len(x)):
+        """ Traza los rayos al diametro de la pupila"""
         pSource_0 = [x[i], y[i], z[i]]
         dCos = [L[i], M[i], N[i]]
         SYSTEM.Trace(pSource_0, dCos, W)
         RR.push()
-        pSource_0 = (np.asarray([x[i], y[i], z[i]]) * 0.01)
-        dCos = [L[i], M[i], N[i]]
-        SYSTEM.Trace(pSource_0, dCos, W)
-        RR2.push()
-    (X_P, Y_P, Z_P, L_P, M_P, N_P) = RR2.pick((- 1))
-    delta_Z = 0
-    ZZ = (L_P, M_P, N_P, X_P, Y_P)
-    v = scipy.optimize.fsolve(R_RMS, delta_Z, args=ZZ)
-    X_P = (((L_P / N_P) * v) + X_P)
-    Y_P = (((M_P / N_P) * v) + Y_P)
-    CenX = np.mean(X_P)
-    CenY = np.mean(Y_P)
-    CenZ = (np.mean(Z_P) - v)
-    parax_focus = np.asarray([CenX, CenY, CenZ[0]])
-    (XS, YS, ZS, LS, MS, NS) = RR.pick((- 1))
-    top = np.squeeze(RR.valid_TOP)
-    op = np.squeeze(RR.valid_OP)
-    op = op[:, (- 1)]
-    (XPUP, YPUP, ZPUP, LPUP, MPUP, NPUP) = RR.pick(sup)
+
+# - - - - - - - - - - - - - - - - - - - - - - - - -
+
+    All_Rays = np.asarray(RR.OP)
+
+    axis = 1
+
+
+    AR = np.sum(All_Rays,axis) - All_Rays[:,0] - (All_Rays[:,-1]*2.)
+
+# - - - - - - - - - - - - - - - - - - - - - - - - -
+
+    """ Traza el rayo principal"""
+
+    SYSTEM.Trace(pSource_0_c, dCos_c, W)
+
+    Chief = np.asarray(SYSTEM.OP)
+
+    CH = np.sum(Chief) - Chief[0] - (Chief[-1]*2.)
+
+# - - - - - - - - - - - - - - - - - - - - - - - - -
+
+    Wi = (CH - AR )
+
+
+# - - - - - - - - - - - - - - - - - - - - - - - - -
+
+    XPUP = x - xc[0]
+    YPUP = y - yc[0]
+
+
+    x0, y0, z0, k0, l0, mi = RR.pick(1)
+    xi, yi, zi, ki, li, mi = RR.pick(-1)
+
+
+
+    # V = np.sum((Wi - (ki * alpha) - (li * betha) - gamma - ((mi - 1) * ro))**2.0)/ (len(Wi))
+
+    # A1 = np.sum(ki ** 2.0)
+    # A2 = np.sum(ki * li)
+    # A3 = np.sum(ki)
+    # A4 = np.sum(ki * (mi - 1.0))
+
+    # B1 = np.sum(li * ki)
+    # B2 = np.sum(li * li)
+    # B3 = np.sum(li)
+    # B4 = np.sum(li * (mi - 1.0))
+
+    # C1 = np.sum(ki)
+    # C2 = np.sum(li)
+    # C3 = len(xi)
+    # C4 = np.sum((mi - 1.0))
+
+    # D1 = np.sum((mi - 1.0) * ki)
+    # D2 = np.sum((mi - 1.0) * li)
+    # D3 = np.sum((mi - 1.0))
+    # D4 = np.sum((mi - 1.0) ** 2.0)
+
+
+
+    # d1 = np.sum(Wi * ki)
+    # d2 = np.sum(Wi * li)
+    # d3 = np.sum(Wi)
+    # d4 = np.sum(Wi * (mi - 1.0))
+
+
+    # A = np.array([
+    #     [A1, B1, C1, D1],
+    #     [A2, B2, C2, D2],
+    #     [A3, B3, C3, D3],
+    #     [A4, B4, C4, D4]
+    #     ])
+
+
+    # d = np.array([d1, d2, d3, d4])
+
+    # abcd = np.linalg.solve(A, d)
+
+
+    # alpha = abcd[0]
+    # betha = abcd[1]
+    # gamma = abcd[2]
+    # ro = abcd[3]
+
+
+# -------------------------------------------------
+
+    Wi = ((Wi * 1000.0) / W)
+
+    P2V = (np.max(Wi) - np.min(Wi))
+
+
     RR.clean()
-    RR2.clean()
-    [Px, Py, Pz] = Pup.PosPupOut
-    (X, Y, Z) = (CenX, CenY, CenZ[0])
-    (x0, y0, z0) = (Px, Py, Pz)
-    X2 = ((X - x0) * (X - x0))
-    Y2 = ((Y - y0) * (Y - y0))
-    Z2 = ((Z - z0) * (Z - z0))
-    S = np.sqrt(((X2 + Y2) + Z2))
-    L = ((X - x0) / S)
-    M = ((Y - y0) / S)
-    N = ((Z - z0) / S)
-    OPSR = S
-    Pup.Ptype = 'chief'
-    (xc, yc, zc, Lc, Mc, Nc) = Pup.Pattern2Field()
-    SYSTEM.IgnoreVignetting()
-    pSource_0 = [xc[0], yc[0], zc[0]]
-    dCos = [Lc[0], Mc[0], Nc[0]]
-    SYSTEM.Trace(pSource_0, dCos, W)
-    [Xc, Yc, Zc] = SYSTEM.XYZ[(- 1)]
-    [Lc, Mc, Nc] = SYSTEM.LMN[(- 1)]
-    XYZ0 = [Xc, Yc, Zc]
-    LMN0 = [Lc, Mc, Nc]
-    AP = S
-    P_O = Kos.surf()
-    P_O.Rc = 0
-    P_O.Thickness = Pz
-    P_O.Glass = 'AIR'
-    P_O.Diameter = 1.0
-    P_P = Kos.surf()
-    SYSTEM.Parax(W)
-    P_P.Rc = np.abs(AP)
-    P_P.Thickness = 0
-    P_P.Diameter = ((P_P.Rc * 0.99) * 2.0)
-    P_P.Glass = 'MIRROR'
-    P_P.DespX = Px
-    P_P.DespY = Py
-    P_P.TiltX = np.rad2deg(np.arcsin((- Mc)))
-    P_P.TiltY = np.rad2deg(np.arcsin((Lc / np.cos(np.arcsin((- Mc))))))
-    P_P.AxisMove = 0
-    P_P.Order = 1
-    P_I = Kos.surf()
-    P_I.Diameter = (((P_P.Rc * 0.99) * 2.0) * 10.0)
-    B = [P_O, P_P]
-    PS = Kos.system(B, configuracion_1)
-    RR = Kos.raykeeper(PS)
-    PS.Trace(XYZ0, LMN0, W)
-    OPSR = PS.TOP
-    for i in range(0, len(XS)):
-        pSource_0 = [XS[i], YS[i], ZS[i]]
-        dCos = [LS[i], MS[i], NS[i]]
-        PS.Trace(pSource_0, dCos, W)
-        RR.push()
-    VT = np.squeeze(RR.valid_TOP)
-    VTOPSR = OPSR
-    RRR = (((((VT - VTOPSR) * 1000.0) / W) * Pup.RadPupOut) / Pup.RadPupInp)
-    RRRR = 1000.0
-    P2V = (np.min(RRR) - np.max(RRR))
-    return ((YPUP / 1000.0), (XPUP / 1000.0), RRR, P2V)
+    RR.push()
+    # Kos.display2d(SYSTEM,RR,1,0)
+
+
+
+    return ((YPUP / Pup.RadPupInp), (XPUP / Pup.RadPupInp), Wi, np.abs(P2V))
+
+
+
+
+
+
+
+
+# def Phase2(PUPIL):
+
+#     """Phase2.
+#     in development
+
+#     Parameters
+#     ----------
+#     PUPIL :
+#         PUPIL
+#     """
+
+
+# #############################################################
+#     """ Crea una pupila con las propiedades pasadas como parámetro"""
+
+
+#     # alpha = abcd[0]
+#     # betha = abcd[1]
+#     # gamma = abcd[2]
+#     # ro = abcd[3]
+
+
+#     SYSTEM = PUPIL.SYSTEM
+#     sup = PUPIL.Surf
+#     W = PUPIL.W
+#     ApType = PUPIL.ApertureType
+#     ApVal = PUPIL.ApertureValue
+#     configuracion_1 = SYSTEM.SETUP
+#     W = W
+
+#     """ Se calcula la pupila """
+#     Pup = Kos.PupilCalc(SYSTEM, sup, W, ApType, ApVal)
+
+#     [PIX, PIY, PIZ] = PUPIL.PosPupInp
+#     [POX, POY, POZ] = PUPIL.PosPupOutFoc
+
+#     [PIL, PIM, PIN] = PUPIL.DirPupSal
+#     [POL, POM, PON] = PUPIL.DirPupSal
+
+#     Pup.Samp = PUPIL.Samp
+#     Pup.Ptype = PUPIL.Ptype
+#     Pup.FieldY = PUPIL.FieldY
+#     Pup.FieldX = PUPIL.FieldX
+#     Pup.FieldType = PUPIL.FieldType
+
+#     """se generan los rayos para trazar por la pupila"""
+#     x, y, z, L, M, N = Pup.Pattern2Field()
+
+
+#     # Pup.Samp = 1
+#     Pup.Ptype = 'chief'
+#     xc, yc, zc, Lc, Mc, Nc = Pup.Pattern2Field()
+
+#     pSource_0_c = [xc[0], yc[0], zc[0]]
+#     dCos_c = [Lc[0], Mc[0], Nc[0]]
+
+#     """ Traza el rayo principal"""
+#     SYSTEM.IgnoreVignetting()
+#     SYSTEM.Trace(pSource_0_c, dCos_c, W)
+
+#     """ Toma las coordenadas y los cosenos directores del rayo
+#     principal a la salida del sistema"""
+
+#     [Xcc, Ycc, Zcc] = SYSTEM.XYZ[(- 1)]
+#     [Lcc, Mcc, Ncc] = SYSTEM.LMN[(- 1)]
+
+
+#     resf_out =  np.sqrt(((POX - Xcc)**2.0) + ((POY- Ycc)**2.0) + (POZ**2.0))
+
+# # - - - - - - - - - - - - - - - - - - - - - - - - -
+
+
+#     ArrSup = PUPIL.SYSTEM.SDT
+
+#     SS = []
+#     for ii in range(0,len(ArrSup)):
+#         ArrSup[ii].EraseVTK()
+#         ss = copy.deepcopy(ArrSup[ii])
+#         SS.append(ss)
+
+#     DisPup = SS[0].Thickness
+
+# # - - - - - - - - - - - - - - - - - - - - - -
+#     """ No mover """
+#     SS[0].Thickness = 0.0
+#     SS[-1].Thickness = np.sign(POZ)*np.abs(resf_out) #+ gamma
+
+# # - - - - - - - - - - - - - - - - - - - - - -
+
+#     """ No mover """
+#     INP_P = Kos.surf()
+#     INP_P.Rc = 0
+#     INP_P.Thickness = DisPup
+#     INP_P.Diameter = PUPIL.RadPupInp * 3.0
+#     INP_P.Glass = 'AIR'
+#     INP_P.DespX = xc[0]
+#     INP_P.DespY = yc[0]
+#     INP_P.TiltX = np.rad2deg(np.arcsin((- Mc[0])))
+#     INP_P.TiltY = np.rad2deg(np.arcsin((Lc[0] / np.cos(np.arcsin((- Mc[0]))))))
+#     INP_P.AxisMove = 0
+#     INP_P.Order = 1
+
+# # - - - - - - - - - - - - - - - - - - - - - -
+
+#     OUT_P = Kos.surf()
+#     OUT_P.Rc = -np.sign(POZ)*np.abs(resf_out) #+ ro
+#     OUT_P.Thickness = 0
+#     OUT_P.Diameter = PUPIL.RadPupOut * 3
+#     OUT_P.Glass = 'AIR'
+#     OUT_P.DespX = Xcc #+ alpha
+#     OUT_P.DespY = Ycc #+ betha
+#     OUT_P.AxisMove = 0
+#     OUT_P.Order = 1
+
+
+#     Test = Kos.surf()
+#     Test.Diameter = PUPIL.RadPupOut * 3
+
+# # - - - - - - - - - - - - - - - - - - - - - - - - -
+
+
+#     SS.insert(1, INP_P)
+#     SS.append(OUT_P)
+#     SYSTEM = Kos.system(SS, configuracion_1)
+
+# # - - - - - - - - - - - - - - - - - - - - - - - - -
+
+#     """ Se configuran los contenedores de rayos"""
+#     RR = Kos.raykeeper(SYSTEM)
+
+# # - - - - - - - - - - - - - - - - - - - - - - - - -
+
+#     """ Configura al sistema para ignorar los viñeteos """
+#     SYSTEM.IgnoreVignetting()
+
+# # - - - - - - - - - - - - - - - - - - - - - - - - -
+
+#     """ Traza los rayos por systema"""
+
+#     for i in range(0, len(x)):
+#         """ Traza los rayos al diametro de la pupila"""
+#         pSource_0 = [x[i], y[i], z[i]]
+#         dCos = [L[i], M[i], N[i]]
+#         SYSTEM.Trace(pSource_0, dCos, W)
+#         RR.push()
+
+# # - - - - - - - - - - - - - - - - - - - - - - - - -
+
+#     All_Rays = np.asarray(RR.OP)
+
+#     axis = 1
+#     AR = (np.sum(All_Rays,axis) - All_Rays[:,0]) - All_Rays[:,-1]*2
+
+
+# # - - - - - - - - - - - - - - - - - - - - - - - - -
+
+#     """ Traza el rayo principal"""
+
+#     SYSTEM.Trace(pSource_0_c, dCos_c, W)
+
+#     Chief = np.asarray(SYSTEM.OP)
+
+#     CH = (np.sum(Chief) - Chief[0]) - Chief[-1]*2
+
+# # - - - - - - - - - - - - - - - - - - - - - - - - -
+
+#     Wi = CH - AR
+
+# # - - - - - - - - - - - - - - - - - - - - - - - - -
+
+#     XPUP = x - xc[0]
+#     YPUP = y - yc[0]
+
+
+
+
+# # -------------------------------------------------
+
+
+
+#     x0, y0, z0, k0, l0, mi = RR.pick(1)
+#     xi, yi, zi, ki, li, mi = RR.pick(-1)
+#     # V = np.sum((Wi - (ki * alpha) - (li * betha) - gamma - ((mi - 1) * ro))**2.0)/ (len(Wi))
+
+#     # A1 = np.sum(ki ** 2.0)
+#     # A2 = np.sum(ki * li)
+#     # A3 = np.sum(ki)
+#     # A4 = np.sum(ki * (mi - 1.0))
+
+#     # B1 = np.sum(li * ki)
+#     # B2 = np.sum(li * li)
+#     # B3 = np.sum(li)
+#     # B4 = np.sum(li * (mi - 1.0))
+
+#     # C1 = np.sum(ki)
+#     # C2 = np.sum(li)
+#     # C3 = len(xi)
+#     # C4 = np.sum((mi - 1.0))
+
+#     # D1 = np.sum((mi - 1.0) * ki)
+#     # D2 = np.sum((mi - 1.0) * li)
+#     # D3 = np.sum((mi - 1.0))
+#     # D4 = np.sum((mi - 1.0) ** 2.0)
+
+
+
+#     # d1 = np.sum(Wi * ki)
+#     # d2 = np.sum(Wi * li)
+#     # d3 = np.sum(Wi)
+#     # d4 = np.sum(Wi * (mi - 1.0))
+
+
+#     # A = np.array([
+#     #     [A1, B1, C1, D1],
+#     #     [A2, B2, C2, D2],
+#     #     [A3, B3, C3, D3],
+#     #     [A4, B4, C4, D4]
+#     #     ])
+
+
+#     # d = np.array([d1, d2, d3, d4])
+
+#     # abcd = np.linalg.solve(A, d)
+
+
+
+
+
+#     # alpha = abcd[0]
+#     # betha = abcd[1]
+#     # gamma = abcd[2]
+#     # ro = abcd[3]
+
+
+
+# # -------------------------------------------------
+
+#     Wi = ((Wi * 1000.0) / W)
+
+
+
+
+#     P2V = (np.max(Wi) - np.min(Wi))
+
+#     RR.clean()
+#     RR.push()
+#     # Kos.display2d(SYSTEM,RR,1,0)
+
+
+#     # Wi = Wi - np.median(Wi)
+
+#     return ((YPUP / Pup.RadPupInp), (XPUP / Pup.RadPupInp), Wi, np.abs(P2V))
+
 
