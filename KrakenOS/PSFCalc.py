@@ -3,17 +3,17 @@
 """
 Created on Thu Sep  9 07:54:16 2021
 
-@author: joelherreravazquez
+@author: joelherreravazquez & Antonio A.
 """
 
 import numpy as np
 import matplotlib.pyplot as plt
 from .MathShapesClass import *
 
-def psf(COEF, Focal, Diameter, Wave, pixels=300, PupilSample=4):
+def psf(COEF, Focal, Diameter, Wave, pixels=600, PupilSample=4,  plot=0, sqr=0):
 
     ''' Generando los polinomios de Zernike (Nomenclarura Noll)con:
-                   zernike_expand
+                   zernike_expand de Jherrera
     '''
     L=38 # Numero de terminos para la expanción polinomial
 
@@ -25,16 +25,11 @@ def psf(COEF, Focal, Diameter, Wave, pixels=300, PupilSample=4):
     '''
     Zern_pol, z_pow = zernike_expand(len(COEF))
 
-    # z=ZK.Wavefront_Zernike_Phase(x, y, COEF)
-
-    # print(z)
-
     # ####################################################################
 
     """
             Generando un mapa de pupila aberrado
     """
-
 
     #Número de Elementos en la Matriz
     N=pixels
@@ -49,7 +44,7 @@ def psf(COEF, Focal, Diameter, Wave, pixels=300, PupilSample=4):
     FocalD=Focal/1000.0
     #Longitud de Onda [m]
     wvl=Wave*1e-6 # Cambiando wave a metros
-    #Zernikes [wvl RMS]
+
 
 
 
@@ -75,12 +70,9 @@ def psf(COEF, Focal, Diameter, Wave, pixels=300, PupilSample=4):
     #Area del Círculo
     a=np.sum(np.sum(T))
 
-
-
-
     #Función de Pupila
     ##############################################################
-    #Mapa del Frente de Onda con Mácara [wvl rms]
+    #Mapa del Frente de Onda con Máscara [wvl rms]
     Wt=W*T
     #Campo complejo
     U=T*np.exp(-1j*2*np.pi*Wt)
@@ -92,8 +84,6 @@ def psf(COEF, Focal, Diameter, Wave, pixels=300, PupilSample=4):
     #Irradiancia en el Plano de Observación
     I=np.abs(F0)**2
 
-
-
     #Vector de Muestras con Cero en el Centro
     ##############################################################
     #Vector de Muestras
@@ -104,6 +94,7 @@ def psf(COEF, Focal, Diameter, Wave, pixels=300, PupilSample=4):
     #Corriendo el cero al centro
     vx=v-c
     vy=c-v
+
     #Coordenadas del Plano de la Apertura
     ##############################################################
     #Largo del Plano
@@ -125,19 +116,31 @@ def psf(COEF, Focal, Diameter, Wave, pixels=300, PupilSample=4):
     umn=u[0]*1e6
     vmx=v[N-1]*1e6
     vmn=v[0]*1e6
+
+    I = np.rot90(I)
     #Saturando la Imagen
-    I=np.sqrt(I/np.max(I))*255
 
-    #Graficando
-    ##############################################################
-    #Gráficas
-    # plt.close('all')
-    # plt.rcParams['figure.dpi'] = 200
+    II=np.sqrt(I/np.max(I))*255
 
-    plt.figure(1)
-    plt.imshow(I,extent=[umn,umx,vmx,vmn], cmap= plt.cm.bone)
-    plt.colorbar()
-    plt.ylabel('V[μm]')
-    plt.xlabel('U[μm]')
-    plt.title('Fraunhofer Prop - PSF ( note: sqrt(I) )')
+
+    if plot !=0:
+        plt.figure(1)
+        if sqr == 0:
+            plt.imshow(I,extent=[umn,umx,vmx,vmn], cmap= plt.cm.bone)
+            plt.colorbar()
+            plt.ylabel('V[μm]')
+            plt.xlabel('U[μm]')
+            plt.title('Fraunhofer Prop - PSF')
+
+        if sqr == 1:
+            plt.imshow(II,extent=[umn,umx,vmx,vmn], cmap= plt.cm.bone)
+            plt.colorbar()
+            plt.ylabel('V[μm]')
+            plt.xlabel('U[μm]')
+            plt.title('Fraunhofer Prop - PSF ( note: sqrt(I) )')
+
+    return I
+
+
+
 

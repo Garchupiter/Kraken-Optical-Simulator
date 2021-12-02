@@ -7,6 +7,7 @@ import sys
 import matplotlib.pyplot as plt
 import numpy as np
 import pkg_resources
+
 """ Looking for if KrakenOS is installed, if not, it assumes that
 an folder downloaded from github is run"""
 
@@ -31,15 +32,16 @@ sys.path.insert(1, currentDirectory + '/library')
 
 P_Obj = Kos.surf()
 P_Obj.Rc = 0
-P_Obj.Thickness = 1000*0 + 3.452200000000000E+003
+P_Obj.Thickness = 1000*0 + 3452.2
 P_Obj.Glass = "AIR"
-P_Obj.Diameter = 1.059E+003 * 2.0
+P_Obj.Diameter = 1059. * 2.0
+P_Obj.Drawing=0
 
 # ______________________________________#
 
-Thickness = 3.452200000000000E+003
+Thickness = 3452.2
 M1 = Kos.surf()
-M1.Rc = -9.6380000E+003
+M1.Rc = -9638.0
 M1.Thickness = -Thickness
 M1.k = -1.07731
 M1.Glass = "MIRROR"
@@ -51,16 +53,16 @@ M1.AxisMove = 0
 # ______________________________________#
 
 M2 = Kos.surf()
-M2.Rc = -3.93E+003
+M2.Rc = -3930.0
 M2.Thickness = Thickness + 1037.525880
 M2.k = -4.3281
 M2.Glass = "MIRROR"
-M2.Diameter = 3.365E+002 * 2.0
+M2.Diameter = 336.5 * 2.0
 M2.TiltY = 0.0
 M2.TiltX = 0.0
 M2.DespY = 0.0
 """ Se inclina el secundario """
-M2.DespX = 0.0
+M2.DespX = 1.0
 M2.AxisMove = 0
 
 # ______________________________________#
@@ -124,7 +126,7 @@ print(Pupil.EFFL)
 """ Para los calculos internos de la fase del frente de onda indicamos que
 la pupila tendrá un arreglo exapolar con 10 anillos"""
 
-Pupil.Samp = 15
+Pupil.Samp = 11
 Pupil.Ptype = "hexapolar"
 """Indicamos que los campos son tel tipo angulo, como en el caso de los telescopios
 con luz desde el infinito, para diseños con objeto certano este parametro es la altura
@@ -161,7 +163,8 @@ Zcoef, Mat, RMS2Chief, RMS2Centroid, FITTINGERROR = Kos.Zernike_Fitting(X, Y, Z,
 
 """"Se despliegan los resultados"""
 for i in range(0, NC):
-    print("z", i + 1, "  ", "{0:.6f}".format(float(Zcoef[i])), ":", Mat[i])
+    # print("z", i + 1, "  ", "{0:.8f}".format(float(Zcoef[i])), ":", Mat[i])
+    print("{0:.8f}".format(float(Zcoef[i])))
 
 # ______________________________________#
 print("(RMS) Fitting error: ", FITTINGERROR)
@@ -174,13 +177,7 @@ COEF = Zcoef
 Focal = Pupil.EFFL
 Diameter = 2.0 * Pupil.RadPupInp
 Wave = W
-# Kos.psf(COEF, Focal, Diameter, Wave)
-
-
-
-
-
-
+I= Kos.psf(COEF, Focal, Diameter, Wave,pixels=265, plot=1)
 
 
 
@@ -205,19 +202,43 @@ for i in range(0, len(x)):
 
 """ Se grafica el telescopio con los rayos almacenados"""
 
-Kos.display2d(Telescopio, RR, 1, 0 )
+Kos.display3d(Telescopio, RR, 1 )
 X, Y, Z, L, M, N = RR.pick(-1)
 
-# # ______________________________________#
+# ______________________________________#
 
-# """ Se grafica el diagrama de manchas """
-# plt.figure(2)
-# plt.plot(X, Y, 'x')
-# plt.xlabel('numbers')
-# plt.ylabel('values')
-# plt.title('spot Diagram')
-# plt.axis('square')
-# plt.show()
+""" Se grafica el diagrama de manchas """
+plt.figure(2)
+plt.plot(X, Y, 'x')
+plt.xlabel('X')
+plt.ylabel('Y')
+plt.title('spot Diagram')
+plt.axis('square')
+
+K = .100
+Lx = np.mean(X)
+Ly = np.mean(Y)
+left = (-K) + Lx
+right = (K) + Lx
+up = (K) + Ly
+down = (-K) + Ly
+
+plt.xlim([left, right])
+plt.ylim([up, down])
+
+
+plt.show()
+
+
+
+
+
+X = X - np.mean(X)
+Y = Y - np.mean(Y)
+
+R=np.sqrt(X**2 + Y**2)
+RMS = np.sqrt(np.mean(R**2))
+print("RMS Radius(mm): ", RMS)
 
 """ Se prepara una imagen con los coeficientes de 400x400"""
 # Zcoef[0]=0.
