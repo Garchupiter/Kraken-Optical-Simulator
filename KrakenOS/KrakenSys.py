@@ -258,7 +258,7 @@ class system():
                 print(self.SDT[i].Glass)
             self.Glass.append(self.SDT[i].Glass.replace(' ', ''))
             self.GlobGlass.append(self.SDT[i].Glass.replace(' ', ''))
-            if (self.GlobGlass[i] == 'NULL'):
+            if ((self.GlobGlass[i] == 'NULL') or (self.GlobGlass[i] == 'ABSORB')):
                 self.GlobGlass[i] = self.GlobGlass[(i - 1)]
 
     def __NonSequentialChooserToot(self, A_RayOrig, A_Proto_pTarget, k):
@@ -604,7 +604,7 @@ class system():
             j_gg = j
             Glass = self.GlobGlass[j_gg]
 
-            if ((self.Glass[j] != 'NULL') and (self.Glass[j] != 'ABSORB')):
+            if (self.Glass[j] != 'NULL'):
                 Proto_pTarget = (np.asarray(RayOrig) + ((np.asarray(ResVec) * 999999999.9) * SIGN))
 
 
@@ -639,19 +639,7 @@ class system():
                 GrSpa = self.SDT[j].Grating_D
                 Secuent = 0
 
-
-
-
-                # start = timeit.default_timer()
-
                 (ResVec, CurrN, sign) = self.SDT[j].PHYSICS.calculate(S, R, N, Np, D, Ord, GrSpa, self.Wave, Secuent)
-
-                # stop = timeit.default_timer()
-                # execution_time = stop - start
-                # self.ExectTime.append(execution_time)
-
-
-
 
                 SIGN = (SIGN * sign)
                 Name = self.SDT[j].Name
@@ -662,6 +650,13 @@ class system():
                 RayOrig = pTarget
                 self.RAY.append(RayOrig)
 
+            if self.Glass[j] == 'NULL':
+
+                ValToSav = [Glass, alpha, RayOrig, pTarget, HitObjSpace, SurfNorm, ImpVec, ResVec, PrevN, CurrN, WaveLength, D, Ord, GrSpa, Name, j, RayTraceType]
+                self.__CollectData(ValToSav)
+
+            if self.Glass[j] == 'ABSORB':
+                break
 
 
 
@@ -744,7 +739,7 @@ class system():
             Glass = self.GlobGlass[j_gg]
             if ((j == 0) or (count > 20) or (a == self.n)):
                 break
-            if ((self.Glass[j] != 'NULL') and (self.Glass[j] != 'ABSORB')):
+            if (self.Glass[j] != 'NULL'):
                 Proto_pTarget = (np.asarray(RayOrig) + ((np.asarray(ResVec) * 999999999.9) * SIGN))
                 Output = self.INORM.InterNormal(RayOrig, Proto_pTarget, j, jj)
                 (SurfHit, SurfNorm, pTarget, GooveVect, HitObjSpace, j) = Output
@@ -786,6 +781,24 @@ class system():
                     PrevN = CurrN
                 RayOrig = pTarget
                 self.RAY.append(RayOrig)
+
+
+
+
+
+
+            if self.Glass[j] == 'NULL':
+                ValToSav = [Glass, alpha, RayOrig, pTarget, HitObjSpace, SurfNorm, ImpVec, ResVec, PrevN, CurrN, WaveLength, D, Ord, GrSpa, Name, j, RayTraceType]
+                self.__CollectData(ValToSav)
+
+            if self.Glass[j] == 'ABSORB':
+                break
+
+
+
+
+
+
             count = (count + 1)
         if (len(self.GLASS) == 0):
             self.__CollectDataInit()
@@ -860,6 +873,7 @@ class system():
                     break
 
             j = (j + 1)
+
 
 
         self.ray_SurfHits = np.asarray(self.RAY)

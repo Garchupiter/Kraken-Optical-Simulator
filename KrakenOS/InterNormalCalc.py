@@ -322,11 +322,36 @@ class InterNormalCalc():
         """
         Pg_o = [0, 0, 0, 1]
         Pg_v = [np.sin(np.deg2rad(self.SDT[j].Grating_Angle)), np.cos(np.deg2rad(self.SDT[j].Grating_Angle)), 0, 1]
-        NPg_o = self.TRANS_2A[j].dot(Pg_o)
-        NPg_v = self.TRANS_2A[j].dot(Pg_v)
-        Pgn = np.asarray([(- (NPg_o[(0, 0)] - NPg_v[(0, 0)])), (- (NPg_o[(0, 1)] - NPg_v[(0, 1)])), (NPg_o[(0, 2)] - NPg_v[(0, 2)])])
-        Pgn = (Pgn / np.linalg.norm(Pgn))
-        return Pgn
+        # NPg_o = self.TRANS_2A[j].dot(Pg_o)
+        # NPg_v = self.TRANS_2A[j].dot(Pg_v)
+        # Pgn = np.asarray([(- (NPg_o[(0, 0)] - NPg_v[(0, 0)])), (- (NPg_o[(0, 1)] - NPg_v[(0, 1)])), (NPg_o[(0, 2)] - NPg_v[(0, 2)])])
+        # Pgn = (Pgn / np.linalg.norm(Pgn))
+        Pg_v= np.asarray(Pg_v)
+
+
+
+
+        self.P1[0], self.P1[1], self.P1[2] = 0, 0, 0
+        self.P2[0], self.P2[1], self.P2[2] = np.sin(np.deg2rad(self.SDT[j].Grating_Angle)), np.cos(np.deg2rad(self.SDT[j].Grating_Angle)), 0
+
+        NP1 = self.TRANS_2A[j].dot(self.P1)
+        NP2 = self.TRANS_2A[j].dot(self.P2)
+
+
+        self.Pn[0] = - (NP1[(0, 0)] - NP2[(0, 0)])
+        self.Pn[1] = - (NP1[(0, 1)] - NP2[(0, 1)])
+        self.Pn[2] = - (NP1[(0, 2)] - NP2[(0, 2)])
+
+
+        LNOR=np.sqrt((self.Pn[0]**2.)+(self.Pn[1]**2.)+(self.Pn[2]**2.))
+
+        Pg_v = (self.Pn / LNOR)
+
+
+
+
+
+        return Pg_v
 
     def InterNormal(self, PP_start, PP_stop, j, jj):
         """InterNormal.

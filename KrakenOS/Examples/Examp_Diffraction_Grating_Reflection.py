@@ -60,7 +60,7 @@ Dif_Obj.Diameter = 30.0
 Dif_Obj.Grating_D = 1.0
 Dif_Obj.Diff_Ord = 1
 Dif_Obj.Grating_Angle = 45.0
-Dif_Obj.Surface_type = 1
+# Dif_Obj.Surface_type = 1
 
 # _________________________________________#
 

@@ -163,8 +163,8 @@ Zcoef, Mat, RMS2Chief, RMS2Centroid, FITTINGERROR = Kos.Zernike_Fitting(X, Y, Z,
 
 """"Se despliegan los resultados"""
 for i in range(0, NC):
-    # print("z", i + 1, "  ", "{0:.8f}".format(float(Zcoef[i])), ":", Mat[i])
-    print("{0:.8f}".format(float(Zcoef[i])))
+    print("z", i + 1, "  ", "{0:.8f}".format(float(Zcoef[i])), ":", Mat[i])
+
 
 # ______________________________________#
 print("(RMS) Fitting error: ", FITTINGERROR)

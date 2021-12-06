@@ -82,7 +82,7 @@ objeto.AxisMove = 0
 P_Ima = Kos.surf()
 P_Ima.Rc = 0
 P_Ima.Thickness = 100.0
-P_Ima.Glass = "BK7"
+P_Ima.Glass = "AIR"
 P_Ima.Diameter = 500.0
 P_Ima.Drawing = 1
 

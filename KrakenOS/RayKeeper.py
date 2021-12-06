@@ -230,6 +230,11 @@ class raykeeper():
         N_ELEMENT :
             N_ELEMENT
         """
+
+        gls = self.SYSTEM.SDT[N_ELEMENT].Glass
+        if gls == "NULL":
+            print("NULL surface has been chosen, the return values correspond to those of the previous surface")
+
         self.numsup = (self.nelements - 1)
         self.xyz = self.valid_XYZ
         self.lmn = self.valid_LMN
@@ -260,6 +265,7 @@ class raykeeper():
         for c in BB:
             for d in c:
                 ray0 = self.xyz[d]
+
                 [x1, y1, z1] = ray0[N_ELEMENT]
                 X.append(x1)
                 Y.append(y1)

@@ -299,6 +299,10 @@ class diffraction_grating_physics():
         pass
 
     def calculate(self, S, R, N, Np, D, Ord, d, W, Secuent):
+        """R = surface normal"""
+        """D = rulling normal"""
+
+
         """calculate.
 
         Parameters
@@ -322,19 +326,39 @@ class diffraction_grating_physics():
         Secuent :
             Secuent
         """
+        # R=-R
         lamb = W
         RefRef = ((- 1.) * np.sign(Np))
         SIGN = 1.
-        print(RefRef, Np)
+        # print(RefRef, Np)
         if (Np == (- 1.)):
             Np = np.abs(N)
+
         mu = (N / Np)
+
         T = ((Ord * lamb) / (Np * d))
-        V = (mu * np.dot(S, R))
         W = ((((mu * mu) - 1.) + (T * T)) - (((2.0 * mu) * T) * np.dot(S, D)))
-        Q = ((RefRef * np.sqrt(((V * V) - W))) - V)
+        V = (mu * np.dot(S, R))
+
+
+        a = 1.0
+        b = 2.0*V
+        c = W
+
+        Q1 = (-b + np.sqrt(b**2 -4*a*c ))/(2*a)
+        Q2 = (-b - np.sqrt(b**2 -4*a*c ))/(2*a)
+
+
+        if Q1 > Q2:
+            Q = Q1
+        else:
+            Q = Q2
+
         S = np.asarray(S)
         Sp = (((mu * S) - (T * D)) + (Q * R))
         Sp = (Sp / np.linalg.norm(Sp))
+
+        # print(np.rad2deg(np.arccos(np.dot(D,R))), np.rad2deg(np.arccos(np.dot(D,S))))
+
         return (Sp, np.abs(Np), SIGN)
 
