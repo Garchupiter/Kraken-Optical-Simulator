@@ -109,4 +109,4 @@ for i in range(-tam, tam + 1):
 
 # ______________________________________#
 
-Kos.display2d(Doblete, Rayos, 1)
+Kos.display3d(Doblete, Rayos, 1)

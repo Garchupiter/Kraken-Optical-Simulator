@@ -14,9 +14,11 @@ class Setup():
         """
         print("Default catalog is loaded from: ", rute)
         cat1 = (rute + 'SCHOTT.AGF')
+        cat2 = (rute + 'infrared.agf')
 
         self.GlassCat =[]
         self.GlassCat.append(cat1)
+        self.GlassCat.append(cat2)
 
         self.Load(self.GlassCat)
 

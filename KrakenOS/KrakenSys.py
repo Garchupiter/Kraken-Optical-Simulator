@@ -255,7 +255,7 @@ class system():
         for i in range(0, self.n):
             if (type(self.SDT[i].Glass) == type(1.0)):
                 self.SDT[i].Glass = ('AIR_' + str(self.SDT[i].Glass))
-                print(self.SDT[i].Glass)
+                # print(self.SDT[i].Glass)
             self.Glass.append(self.SDT[i].Glass.replace(' ', ''))
             self.GlobGlass.append(self.SDT[i].Glass.replace(' ', ''))
             if ((self.GlobGlass[i] == 'NULL') or (self.GlobGlass[i] == 'ABSORB')):

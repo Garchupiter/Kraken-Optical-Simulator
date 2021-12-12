@@ -181,6 +181,7 @@ class surf():
         self.SPECIAL_SURF_FUNC = []
         self.SURF_FUNC.append(conic__surf(0.0, 0.0, 1.0))
         self.General_Status = self.update()
+        self.SubAperture = [1,0,0]
 
     def RestoreVTK(self):
         Objeto_3D = pv.Disc(center=[0.0, 0.0, 0.0], inner=0, outer=0.001, normal=(0, 0, 1), r_res=3, c_res=3)
@@ -337,6 +338,7 @@ class surf():
         self.Sv_ExtraData = self.ExtraData
         self.Sv_Thin_Lens = self.Thin_Lens
         self.Sv_Error_map = self.Error_map
+        self.Sv_SubAperture = self.SubAperture
 
     def RestoreSetup(self):
         """RestoreSetup.
@@ -368,4 +370,4 @@ class surf():
         self.ExtraData = self.Sv_ExtraData
         self.Thin_Lens = self.Sv_Thin_Lens
         self.Error_map = self.Sv_Error_map
-
+        self.SubAperture = self.Sv_SubAperture

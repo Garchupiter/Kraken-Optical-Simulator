@@ -7,6 +7,9 @@ class Prerequisites():
     """
 
 
+# self.SubAperture[0]
+
+
     def __init__(self, SurfData, SUTO):
         """__init__.
 
@@ -62,12 +65,12 @@ class Prerequisites():
             if (self.SDT[n].Order == 0):
                 L_te_h.rotate_x(tx)
                 L_te_h.rotate_y(ty)
-                L_te_h.rotate_z(tz)
+                L_te_h.rotate_z(-tz)
                 L_te_h.translate([dx, dy, dz])
                 L_te_h.translate([0, 0, self.SDT[(n - 1)].Thickness])
             else:
                 L_te_h.translate([dx, dy, dz])
-                L_te_h.rotate_z(tz)
+                L_te_h.rotate_z(-tz)
                 L_te_h.rotate_y(ty)
                 L_te_h.rotate_x(tx)
                 L_te_h.translate([0, 0, self.SDT[(n - 1)].Thickness])
@@ -86,9 +89,16 @@ class Prerequisites():
         plane_objectAx = plane_object.points[:, 0]
         plane_objectAy = plane_object.points[:, 1]
         plane_objectAz = plane_object.points[:, 2]
+
         plane_objectAx = np.asarray(plane_objectAx)
         plane_objectAy = np.asarray(plane_objectAy)
         plane_objectAz = np.asarray(plane_objectAz)
+
+
+
+        plane_objectAx = plane_objectAx + self.SDT[j].SubAperture[2]
+        plane_objectAy = plane_objectAy + self.SDT[j].SubAperture[1]
+
         plane_objectAz = self.SuTo.SurfaceShape(plane_objectAx, plane_objectAy, j)
         plane_objectC = np.c_[(plane_objectAx, plane_objectAy, plane_objectAz)]
         plane_object.points = plane_objectC
@@ -108,12 +118,12 @@ class Prerequisites():
 
         if (self.SDT[j].Solid_3d_stl == 'None'):
             RES = (46 * self.SDT[j].Res)
-            con = ((self.SDT[j].Diameter - (self.SDT[j].InDiameter * self.Disable_Inner)) / self.SDT[j].Diameter)
+            con = (((self.SDT[j].Diameter *self.SDT[j].SubAperture[0]) - (self.SDT[j].InDiameter * self.Disable_Inner)) / (self.SDT[j].Diameter *self.SDT[j].SubAperture[0]))
             if (con == 0):
                 con = 1
             r_RES = int((RES * con))
             INNER = ((self.SDT[j].InDiameter * self.Disable_Inner) / 2.0)
-            OUTER = (self.SDT[j].Diameter / 2.0)
+            OUTER = ((self.SDT[j].Diameter *self.SDT[j].SubAperture[0]) / 2.0)
             disc = pv.Disc(center=[0.0, 0.0, 0.0], inner=INNER, outer=OUTER, normal=(0, 0, 1), r_res=r_RES, c_res=(RES * 2))
             L_te_h = self.Flat2SigmaSurface(disc, j)
             if (self.SDT[j].InDiameter > 0):
@@ -140,7 +150,7 @@ class Prerequisites():
         j :
             j
         """
-        rad2 = (self.SDT[j].Diameter / 2.0)
+        rad2 = ((self.SDT[j].Diameter *self.SDT[j].SubAperture[0]) / 2.0)
         x2 = []
         y2 = []
         for i in range(0, self.ANG):
@@ -151,9 +161,13 @@ class Prerequisites():
         x2 = np.asarray(x2)
         y2 = np.asarray(y2)
         z2 = np.zeros_like(x2)
+
+        x2 = x2 + self.SDT[j].SubAperture[2]
+        y2 = y2 + self.SDT[j].SubAperture[1]
+
         points2 = np.c_[(x2, y2, z2)]
         L_te = pv.PolyData(points2)
-        L_te.rotate_z((- self.SDT[j].TiltZ))
+        L_te.rotate_z(( self.SDT[j].TiltZ))
         x2 = L_te.points[:, 0]
         y2 = L_te.points[:, 1]
         z2 = self.SuTo.SurfaceShape(x2, y2, j)

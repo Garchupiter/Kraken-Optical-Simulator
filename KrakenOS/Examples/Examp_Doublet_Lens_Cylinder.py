@@ -100,3 +100,4 @@ for i in range(-tam, tam + 1):
 # _________________________________________#
 
 Kos.display2d(Doblete, Rayos, 0)
+Kos.display2d(Doblete, Rayos, 1)

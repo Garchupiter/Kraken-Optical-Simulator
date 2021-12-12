@@ -218,7 +218,7 @@ def display3d(SYSTEM, RAYS, view=0, inline=False):
     p.show(auto_close=False, interactive=True, interactive_update=True)
 
     [cpx,cpy,cpz]=p.camera_position
-    print(cpx,cpy,cpz)
+    # print(cpx,cpy,cpz)
 
 
 def display2d(SYSTEM, RAYS, view=0, arrow=0):

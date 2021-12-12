@@ -110,10 +110,10 @@ class InterNormalCalc():
         if (self.SDT[j].Thin_Lens == 0):
             self.vj = j
 
-            ASD=np.sqrt((Px1**2) + (Py1**2))
+            ASD=np.sqrt(((Px1-self.SDT[j].SubAperture[2])**2) + ((Py1-self.SDT[j].SubAperture[1])**2))
             D0 = (2.0 * ASD)
-            DiamInf = (self.SDT[j].InDiameter * self.Disable_Inner)
-            DiamSup = (self.SDT[j].Diameter + (10000.0 * self.ExtraDiameter))
+            DiamInf = ((self.SDT[j].InDiameter * self.SDT[j].SubAperture[0]) * self.Disable_Inner)
+            DiamSup = ((self.SDT[j].Diameter * self.SDT[j].SubAperture[0]) + (10000.0 * self.ExtraDiameter))
             if ((D0 > DiamSup) or (D0 < DiamInf)):
                 SurfHit = 0
                 P_x2 = 0
@@ -125,11 +125,11 @@ class InterNormalCalc():
                     P_x2 = self.HS.vevaX
                     P_y2 = self.HS.vevaY
 
-                    ASD=np.sqrt((Px1**2) + (Py1**2))
+                    ASD=np.sqrt(((Px1-self.SDT[j].SubAperture[2])**2) + ((Py1-self.SDT[j].SubAperture[1])**2))
                     D0 = (2.0 * ASD)
 
-                    DiamInf = (self.SDT[j].InDiameter * self.Disable_Inner)
-                    DiamSup = (self.SDT[j].Diameter + (10000.0 * self.ExtraDiameter))
+                    DiamInf = ((self.SDT[j].InDiameter * self.SDT[j].SubAperture[0]) * self.Disable_Inner)
+                    DiamSup = ((self.SDT[j].Diameter * self.SDT[j].SubAperture[0]) + (10000.0 * self.ExtraDiameter))
                     if ((D0 > DiamSup) or (D0 < DiamInf)):
                         SurfHit = 0
                 else:
@@ -138,10 +138,10 @@ class InterNormalCalc():
                     P_y2 = 0
                     P_z2 = 0
         else:
-            ASD=np.sqrt((Px1**2) + (Py1**2))
+            ASD=np.sqrt(((Px1 - self.SDT[j].SubAperture[2])**2) + ((Py1 - self.SDT[j].SubAperture[1])**2))
             D0 = (2.0 * ASD)
 
-            if ((D0 > self.SDT[j].Diameter) or (D0 < self.SDT[j].InDiameter)):
+            if ((D0 > self.SDT[j].Diameter * self.SDT[j].SubAperture[0]) or (D0 < self.SDT[j].InDiameter * self.SDT[j].SubAperture[0] )):
                 SurfHit = 0
                 P_x2 = 0
                 P_y2 = 0
@@ -320,19 +320,14 @@ class InterNormalCalc():
         j :
             j
         """
-        Pg_o = [0, 0, 0, 1]
-        Pg_v = [np.sin(np.deg2rad(self.SDT[j].Grating_Angle)), np.cos(np.deg2rad(self.SDT[j].Grating_Angle)), 0, 1]
-        # NPg_o = self.TRANS_2A[j].dot(Pg_o)
-        # NPg_v = self.TRANS_2A[j].dot(Pg_v)
-        # Pgn = np.asarray([(- (NPg_o[(0, 0)] - NPg_v[(0, 0)])), (- (NPg_o[(0, 1)] - NPg_v[(0, 1)])), (NPg_o[(0, 2)] - NPg_v[(0, 2)])])
-        # Pgn = (Pgn / np.linalg.norm(Pgn))
-        Pg_v= np.asarray(Pg_v)
 
 
 
+        # self.P1[0], self.P1[1], self.P1[2] = 0, 0, 0
+        # self.P2[0], self.P2[1], self.P2[2] = np.sin(np.deg2rad(self.SDT[j].Grating_Angle)), np.cos(np.deg2rad(self.SDT[j].Grating_Angle)), 0
 
         self.P1[0], self.P1[1], self.P1[2] = 0, 0, 0
-        self.P2[0], self.P2[1], self.P2[2] = np.sin(np.deg2rad(self.SDT[j].Grating_Angle)), np.cos(np.deg2rad(self.SDT[j].Grating_Angle)), 0
+        self.P2[0], self.P2[1], self.P2[2] = -np.cos(np.deg2rad(self.SDT[j].Grating_Angle)), -np.sin(np.deg2rad(self.SDT[j].Grating_Angle)),0
 
         NP1 = self.TRANS_2A[j].dot(self.P1)
         NP2 = self.TRANS_2A[j].dot(self.P2)

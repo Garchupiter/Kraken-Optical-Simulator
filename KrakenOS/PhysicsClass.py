@@ -298,9 +298,13 @@ class diffraction_grating_physics():
         """
         pass
 
-    def calculate(self, S, R, N, Np, D, Ord, d, W, Secuent):
-        """R = surface normal"""
-        """D = rulling normal"""
+    def calculate(self, S, R, N, Np, P, Ord, d, W, Secuent):
+        Ang=np.rad2deg(np.arccos( np.dot(R,S)))
+        # print(S, R, Ord, Ang)
+
+
+        if np.abs(Ang) < 90:
+            R = -R
 
 
         """calculate.
@@ -326,39 +330,50 @@ class diffraction_grating_physics():
         Secuent :
             Secuent
         """
-        # R=-R
+
+
+        D = np.cross(R, P)
+
+
+
         lamb = W
         RefRef = ((- 1.) * np.sign(Np))
         SIGN = 1.
+
         # print(RefRef, Np)
         if (Np == (- 1.)):
             Np = np.abs(N)
 
+##########################################
         mu = (N / Np)
-
         T = ((Ord * lamb) / (Np * d))
-        W = ((((mu * mu) - 1.) + (T * T)) - (((2.0 * mu) * T) * np.dot(S, D)))
-        V = (mu * np.dot(S, R))
+##########################################
+
+        V = (mu * np.dot(R,S))
+        W = ((((mu ** 2.0) - 1.) + (T ** 2.0)) - (((2.0 * mu) * T) * np.dot(D,S)))
 
 
-        a = 1.0
-        b = 2.0*V
-        c = W
-
-        Q1 = (-b + np.sqrt(b**2 -4*a*c ))/(2*a)
-        Q2 = (-b - np.sqrt(b**2 -4*a*c ))/(2*a)
 
 
-        if Q1 > Q2:
-            Q = Q1
-        else:
-            Q = Q2
+        Q1 = ( np.sqrt((V**2 - W))) - V
+        Q2 = (-np.sqrt((V**2 - W))) - V
+
+        if RefRef == 1:
+            if Q1 > Q2:
+                Q = Q1
+            else:
+                Q = Q2
+
+        if RefRef == -1:
+            if Q1 < Q2:
+                Q = Q1
+            else:
+                Q = Q2
+
 
         S = np.asarray(S)
         Sp = (((mu * S) - (T * D)) + (Q * R))
-        Sp = (Sp / np.linalg.norm(Sp))
 
-        # print(np.rad2deg(np.arccos(np.dot(D,R))), np.rad2deg(np.arccos(np.dot(D,S))))
-
+        SIGN = SIGN*-1*RefRef
         return (Sp, np.abs(Np), SIGN)
 
