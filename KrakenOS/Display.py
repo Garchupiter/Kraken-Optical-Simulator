@@ -198,6 +198,9 @@ def display3d(SYSTEM, RAYS, view=0, inline=False):
             p.add_mesh(CCC[i], color=RGB, opacity=0.95, smooth_shading=True, line_width=1.0, show_edges=None)
     p.add_axes(line_width=4)
 
+
+
+
     [cx,cy,cz]=p.center
     p.set_focus([cx,cy,cz])
     # [cpx,cpy,cpz]=p.camera_position
@@ -215,7 +218,8 @@ def display3d(SYSTEM, RAYS, view=0, inline=False):
     # [wx,wy]=p.window_size
     p.add_text('KrakenOS',position="upper_left" ,font_size=28,color="royalblue")
     p.show_grid(font_size=6)
-    p.show(auto_close=False, interactive=True, interactive_update=True)
+    p.show(auto_close=False, interactive=True, interactive_update=False)
+    # interactive_update=True esto es para que se pueda continuar trabajando en la ventana
 
     [cpx,cpy,cpz]=p.camera_position
     # print(cpx,cpy,cpz)

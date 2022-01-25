@@ -31,7 +31,7 @@ class Hit_Solver():
         self.MN = 0
         self.LN = 0
         self.SuTo.ErrSurfCase = 0
-        self.delta = 0.05
+        self.delta = 0.04
         self.delta2 = 2.0 * self.delta
         self.deltaLineCurve = 1e-13
         self.Parray=np.asarray([0.0, 0.0, 0.0])
@@ -84,6 +84,7 @@ class Hit_Solver():
     #     return ((Dx / Dr), (Dy / Dr), (Dz / Dr))
 
     def SurfDer(self, x, y, z):
+        #http://www2.math.umd.edu/~dlevy/classes/amsc466/lecture-notes/differentiation-chap.pdf
         """SurfDer.
 
         Parameters
@@ -96,8 +97,6 @@ class Hit_Solver():
             z
         """
 
-
-
         self.vx1 = np.asarray([(x + self.delta), x, x, (x - self.delta), x, x, (x + self.delta2), x, x, (x - self.delta2), x, x])
         self.vy1 = np.asarray([y, (y + self.delta), y, y, (y - self.delta), y, y, (y + self.delta2), y, y, (y - self.delta2), y])
         self.vz1 = np.asarray([z, z, (z + self.delta), z, z, (z - self.delta), z, z, (z + self.delta2), z, z, (z - self.delta2)])
@@ -105,38 +104,25 @@ class Hit_Solver():
 
         F = self.SuTo.SurfaceShape(self.vx1, self.vy1, self.vj) - self.vz1
 
-        AX1=-F[6] #-(self.__xyzF(x+(2*delta),y,z,j))
-        AX2=8.*F[0] #8.0*(self.__xyzF(x+delta,y,z,j))
-        AX3=-8.*F[3] #-8.0*(self.__xyzF(x-delta,y,z,j))
-        AX4=F[9] #(self.__xyzF(x-(2*delta),y,z,j) )
+        AX1=-F[6]
+        AX2=8.*F[0]
+        AX3=-8.*F[3]
+        AX4=F[9]
         Dx=(AX1+AX2+AX3+AX4)/(12.0*self.delta)
 
-
-        AY1=-F[6+1] #-(self.__xyzF(x+(2*delta),y,z,j))
-        AY2=8.*F[0+1] #8.0*(self.__xyzF(x+delta,y,z,j))
-        AY3=-8.*F[3+1] #-8.0*(self.__xyzF(x-delta,y,z,j))
-        AY4=F[9+1] #(self.__xyzF(x-(2*delta),y,z,j) )
+        AY1=-F[6+1]
+        AY2=8.*F[0+1]
+        AY3=-8.*F[3+1]
+        AY4=F[9+1]
         Dy=(AY1+AY2+AY3+AY4)/(12.0*self.delta)
 
-
-
-        AZ1=-F[6+2] #-(self.__xyzF(x+(2*delta),y,z,j))
-        AZ2=8.*F[0+2] #8.0*(self.__xyzF(x+delta,y,z,j))
-        AZ3=-8.*F[3+2] #-8.0*(self.__xyzF(x-delta,y,z,j))
-        AZ4=F[9+2] #(self.__xyzF(x-(2*delta),y,z,j) )
+        AZ1=-F[6+2]
+        AZ2=8.*F[0+2]
+        AZ3=-8.*F[3+2]
+        AZ4=F[9+2]
         Dz=(AZ1+AZ2+AZ3+AZ4)/(12.0*self.delta)
 
-
-
-        # V = F1 / (2.0 * self.delta)
-
-
-        # Dx = V[0] - V[3]
-        # Dy = V[1] - V[4]
-        # Dz = V[2] - V[5]
-
         Dr = np.sqrt((((Dx ** 2.) + (Dy ** 2.)) + (Dz ** 2.)))
-
         return ((Dx / Dr), (Dy / Dr), (Dz / Dr))
 
 

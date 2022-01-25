@@ -152,7 +152,7 @@ class InterNormalCalc():
                 P_y2 = ((M / N) * self.SDT[j].Thin_Lens)
                 P_z2 = self.SDT[j].Thin_Lens
 
-        return (SurfHit, P_x2, P_y2, P_z2, Px1, Py1, Pz1)
+        return (SurfHit, P_x2, P_y2, P_z2, Px1, Py1, Pz1, L, M, N)
 
     def __SigmaHitTransfSpaceFast(self, PP_start, PP_stop, j):
 
@@ -364,6 +364,7 @@ class InterNormalCalc():
         """
         PTO_exit = [0, 0, 0]
         PTO_exit_Object_Space = [0, 0, 0]
+        LMN_exit_Object_Space = [0, 0, 1]
         norm = [0, 0, 1]
         SurfHit = 1
 
@@ -379,8 +380,8 @@ class InterNormalCalc():
 
             if (SurfHit != 0):
 
-                (SurfHit, Px2, Py2, Pz2, Px1, Py1, Pz1) = self.__SigmaHitTransfSpace(PP_start, PP_stop, j)
-
+                (SurfHit, Px2, Py2, Pz2, Px1, Py1, Pz1, L, M, N) = self.__SigmaHitTransfSpace(PP_start, PP_stop, j)
+                LMN_exit_Object_Space = [L, M, N]
 
                 if (self.SDT[j].Thin_Lens == 0):
 
@@ -392,7 +393,7 @@ class InterNormalCalc():
                     (norm, PTO_exit, PTO_exit_Object_Space) = self.__ParaxCalcObjOut2OrigSpace(Px2, Py2, Pz2, Px1, Py1, Pz1, j)
         else:
             (SurfHit, norm, PTO_exit, Pgn) = self.__InterNormalSolidObject(jj, PP_start, PP_stop)
-        return (SurfHit, np.asarray(norm), np.asarray(PTO_exit), np.asarray(Pgn), np.asarray(PTO_exit_Object_Space), j)
+        return (SurfHit, np.asarray(norm), np.asarray(PTO_exit), np.asarray(Pgn), np.asarray(PTO_exit_Object_Space), np.asarray(LMN_exit_Object_Space), j)
 
 
 

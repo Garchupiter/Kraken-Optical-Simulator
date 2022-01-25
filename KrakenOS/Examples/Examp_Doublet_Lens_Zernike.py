@@ -78,6 +78,7 @@ P_Ima.Diameter = 100.0
 A = [P_Obj, L1a, L1b, L1c, P_Ima]
 configuracion_1 = Kos.Setup()
 
+
 # ______________________________________#
 
 Doblete = Kos.system(A, configuracion_1)
@@ -99,6 +100,7 @@ for i in range(-tam, tam + 1):
             dCos = [0.0, np.sin(np.deg2rad(tet)), np.cos(np.deg2rad(tet))]
             W = 0.4
             Doblete.Trace(pSource_0, dCos, W)
+
             Rayos.push()
 
 # ______________________________________#

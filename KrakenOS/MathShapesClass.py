@@ -1,6 +1,6 @@
-from numba import jit
-from numba.experimental import jitclass
-from numba import int32, float32
+# from numba import jit
+# from numba.experimental import jitclass
+# from numba import int32, float32
 
 # @jit(forceobj=True)
 import numpy as np
@@ -39,7 +39,7 @@ class extra__surf():
         return Z
 
 
-@jit(forceobj=True)
+# @jit(forceobj=True)
 def even_asphere(x, y, E):
     """even_asphere.
 
@@ -130,7 +130,7 @@ class conic__surf(object):
 
         return z
 
-@jit(nopython=True)
+# @jit(nopython=True)
 def CalculateCon(x, y, R_C , C_RXY_RATIO, KON):
     """calculate.
 
@@ -190,7 +190,7 @@ class axicon__surf():
         z_axicon = CalculateAxic( x, y, self.C_RXY_RATIO, self.AXC)
         return z_axicon
 
-@jit(nopython=True)
+# @jit(nopython=True)
 def CalculateAxic( x, y, C_RXY_RATIO, AXC):
     """calculate.
 
@@ -341,7 +341,7 @@ class zernike__surf():
 
 
 
-@jit(forceobj=True)
+# @jit(forceobj=True)
 def CalculateZern( x, y, Z_POL, Z_POW, COEF, DMTR):
     """calculate.
 
@@ -364,7 +364,7 @@ def CalculateZern( x, y, Z_POL, Z_POW, COEF, DMTR):
 
 
 
-@jit(forceobj=True)
+# @jit(forceobj=True)
 def zernike_polynomials(term, ro, theta, Zern_pol, z_pow):
     """zernike_polynomials.
 
@@ -401,7 +401,7 @@ def zernike_polynomials(term, ro, theta, Zern_pol, z_pow):
 
 
 
-@jit(forceobj=True)
+# @jit(forceobj=True)
 def z_parity(num):
     """z_parity.
 
@@ -424,7 +424,7 @@ def z_parity(num):
 
 
 
-@jit(forceobj=True)
+# @jit(forceobj=True)
 def r_zern(m, n):
     """r_zern.
 
@@ -458,7 +458,7 @@ def r_zern(m, n):
 
 
 
-@jit(forceobj=True)
+# @jit(forceobj=True)
 def zernike_expand(L):
     """zernike_expand.
 
@@ -511,7 +511,7 @@ def zernike_expand(L):
 
 
 
-@jit(forceobj=True)
+# @jit(forceobj=True)
 def zernike_math_notation(term, Zern_pol, z_pow):
     """zernike_math_notation.
 
@@ -556,7 +556,7 @@ def zernike_math_notation(term, Zern_pol, z_pow):
 
 
 
-@jit(forceobj=True)
+# @jit(forceobj=True)
 def Wavefront_Zernike_Phase(x, y, COEF):
     """Wavefront_Zernike_Phase.
 

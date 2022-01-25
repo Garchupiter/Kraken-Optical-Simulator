@@ -337,6 +337,7 @@ class system():
         self.XYZ = []
         self.XYZ.append([0, 0, 0])
         self.OST_XYZ = []
+        self.OST_LMN = []
         self.S_LMN = []
         self.LMN = []
         self.R_LMN = []
@@ -376,7 +377,7 @@ class system():
         """
         Empty = np.asarray([])
         RayTraceType = 0
-        ValToSav = [Empty, Empty, pS, pS, Empty, Empty, dC, Empty, Empty, Empty, WaveLength, Empty, Empty, Empty, Empty, j, RayTraceType]
+        ValToSav = [Empty, Empty, pS, pS, Empty, Empty, dC, Empty, Empty, Empty, WaveLength, Empty, Empty, Empty, Empty, Empty, j, RayTraceType]
         self.__CollectData(ValToSav)
 
     def __WavePrecalc(self):
@@ -399,7 +400,7 @@ class system():
         ValToSav :
             ValToSav
         """
-        [Glass, alpha, RayOrig, pTarget, HitObjSpace, SurfNorm, ImpVec, ResVec, PrevN, CurrN, WaveLength, D, Ord, GrSpa, Name, j, RayTraceType] = ValToSav
+        [Glass, alpha, RayOrig, pTarget, HitObjSpace, LMNObjSpace, SurfNorm, ImpVec, ResVec, PrevN, CurrN, WaveLength, D, Ord, GrSpa, Name, j, RayTraceType] = ValToSav
 
 
 
@@ -411,6 +412,11 @@ class system():
         self.XYZ[0] = self.S_XYZ[0]
         self.XYZ.append(pTarget)
         self.OST_XYZ.append(HitObjSpace)
+        self.OST_LMN.append(LMNObjSpace)
+
+
+
+
         p = (np.asarray(RayOrig) - np.asarray(pTarget))
         dist = np.linalg.norm(p)
         self.DISTANCE.append(dist)
@@ -623,7 +629,7 @@ class system():
 
 
 
-                (SurfHit, SurfNorm, pTarget, GooveVect, HitObjSpace, j) = Output
+                (SurfHit, SurfNorm, pTarget, GooveVect, HitObjSpace, LMNObjSpace, j) = Output
 
                 if (SurfHit == 0):
                     break
@@ -644,7 +650,7 @@ class system():
                 SIGN = (SIGN * sign)
                 Name = self.SDT[j].Name
                 RayTraceType = 0
-                ValToSav = [Glass, alpha, RayOrig, pTarget, HitObjSpace, SurfNorm, ImpVec, ResVec, PrevN, CurrN, WaveLength, D, Ord, GrSpa, Name, j, RayTraceType]
+                ValToSav = [Glass, alpha, RayOrig, pTarget, HitObjSpace, LMNObjSpace, SurfNorm, ImpVec, ResVec, PrevN, CurrN, WaveLength, D, Ord, GrSpa, Name, j, RayTraceType]
                 self.__CollectData(ValToSav)
                 PrevN = CurrN
                 RayOrig = pTarget
@@ -652,7 +658,7 @@ class system():
 
             if self.Glass[j] == 'NULL':
 
-                ValToSav = [Glass, alpha, RayOrig, pTarget, HitObjSpace, SurfNorm, ImpVec, ResVec, PrevN, CurrN, WaveLength, D, Ord, GrSpa, Name, j, RayTraceType]
+                ValToSav = [Glass, alpha, RayOrig, pTarget, HitObjSpace, LMNObjSpace, SurfNorm, ImpVec, ResVec, PrevN, CurrN, WaveLength, D, Ord, GrSpa, Name, j, RayTraceType]
                 self.__CollectData(ValToSav)
 
             if self.Glass[j] == 'ABSORB':
@@ -742,7 +748,7 @@ class system():
             if (self.Glass[j] != 'NULL'):
                 Proto_pTarget = (np.asarray(RayOrig) + ((np.asarray(ResVec) * 999999999.9) * SIGN))
                 Output = self.INORM.InterNormal(RayOrig, Proto_pTarget, j, jj)
-                (SurfHit, SurfNorm, pTarget, GooveVect, HitObjSpace, j) = Output
+                (SurfHit, SurfNorm, pTarget, GooveVect, HitObjSpace, LMNObjSpace, j) = Output
                 if (SurfHit == 0):
                     break
                 ImpVec = np.asarray(ResVec)
@@ -773,7 +779,7 @@ class system():
                 SIGN = (SIGN * sign)
                 Name = self.SDT[j].Name
                 RayTraceType = 1
-                ValToSav = [Glass, alpha, RayOrig, pTarget, HitObjSpace, SurfNorm, ImpVec, ResVec, PrevN, CurrN, WaveLength, D, Ord, GrSpa, Name, j, RayTraceType]
+                ValToSav = [Glass, alpha, RayOrig, pTarget, HitObjSpace,LMNObjSpace, SurfNorm, ImpVec, ResVec, PrevN, CurrN, WaveLength, D, Ord, GrSpa, Name, j, RayTraceType]
                 self.__CollectData(ValToSav)
                 if (a == b):
                     PrevN = PrevN

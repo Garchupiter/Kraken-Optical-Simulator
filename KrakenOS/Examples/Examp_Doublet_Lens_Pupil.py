@@ -52,10 +52,10 @@ L1c.Diameter = 30
 # _________________________________________#
 
 pupila = Kos.surf()
-pupila.Rc = 30
+pupila.Rc = 0
 pupila.Thickness = 40.
 pupila.Glass = "AIR"
-pupila.Diameter = 5
+pupila.Diameter = 3
 pupila.Name = "Pupil"
 pupila.DespY = 0.
 pupila.Nm_Poss=[-10,10]
@@ -84,7 +84,7 @@ Rayos = Kos.raykeeper(Doblete)
 
 W = 0.4
 sup = 4
-AperVal = 10
+AperVal = 3
 AperType = "EPD"
 Pup = Kos.PupilCalc(Doblete, sup, W, AperType, AperVal)
 
@@ -136,4 +136,5 @@ for i in range(0, len(x)):
 
 # _________________________________________#
 
-Kos.display3d(Doblete, Rayos,2)
+# Kos.display3d(Doblete, Rayos,2)
+Kos.display2d(Doblete, Rayos,0,1)

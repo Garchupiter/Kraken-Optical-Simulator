@@ -95,4 +95,4 @@ for i in range(-100, 100 + 1):
 # ______________________________________#
 
 Kos.display3d(Lens, Rays, 1)
-Kos.display2d(Lens, Rays, 0)
+# Kos.display2d(Lens, Rays, 0)
