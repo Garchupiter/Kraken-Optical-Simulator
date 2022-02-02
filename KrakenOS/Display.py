@@ -163,7 +163,7 @@ def display3d(SYSTEM, RAYS, view=0, inline=False):
                 p.add_mesh(edges, 'red')
                 points2 = np.c_[(0, 0, 0)]
                 c = pv.PolyData(points2)
-    p.add_mesh(SYSTEM.DDD, color=[5, 5, 5], opacity=0.95, show_edges=None)
+    p.add_mesh(SYSTEM.DDD, color=[0.5, 0.5, 0.5], opacity=0.95, show_edges=None)
     NN = SYSTEM.AAA.n_blocks
     n = 0
     for g in SYSTEM.side_number:
