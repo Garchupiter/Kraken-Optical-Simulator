@@ -39,8 +39,8 @@ Spider.Diameter = 1.059E+003 * 2.0
 plane1 = pv.Plane(center=[0, 0, 0], direction=[0, 0, 1], i_size=30, j_size=2100, i_resolution=10, j_resolution=10)
 plane2 = pv.Plane(center=[0, 0, 0], direction=[0, 0, 1], i_size=2100, j_size=30, i_resolution=10, j_resolution=10)
 Baffle1 = pv.Disc(center=[0.0, 0.0, 0.0], inner=0, outer=875 / 2.0, normal=[0, 0, 1], r_res=1, c_res=100)
-Baffle2 = Baffle1.boolean_add(plane1)
-Baffle3 = Baffle2.boolean_add(plane2)
+Baffle2 = Baffle1.merge(plane1)
+Baffle3 = Baffle2.merge(plane2)
 
 # ______________________________________#
 

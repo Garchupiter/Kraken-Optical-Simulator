@@ -136,52 +136,87 @@ class surf():
         """
 
 
-    def __init__(self):
+    def __init__(self, Rc = 0.0, Thickness = 1e-11,Diameter = 1.0, InDiameter = 0.0, k = 0.0, Glass = 'AIR'\
+        ,ZNK = np.zeros(36)\
+        ,DespX = 0.0\
+        ,DespY = 0.0\
+        ,DespZ = 0.0\
+        ,TiltX = 0.0\
+        ,TiltY = 0.0\
+        ,TiltZ = 0.0\
+        ,Order = 0.0\
+        ,AxisMove = 1.0\
+        ,Diff_Ord = 0.0\
+        ,Grating_D = 0.0\
+        ,Grating_Angle = 0.0\
+        ,ShiftX = 0.0\
+        ,ShiftY = 0.0\
+        ,Mask_Type = 0.0\
+
+        ,Mask_Shape = "None"\
+        ,Solid_3d_stl = "None"\
+        ,Cylinder_Rxy_Ratio = 1.0\
+        ,Axicon = 0.0\
+        ,AspherData = np.zeros(200)\
+        ,ExtraData = np.zeros(200)\
+        ,Thin_Lens = 0.0\
+        ,Name = ''\
+        ,Nm_Pos = (0.0, 0.0)\
+        ,Note = "None"\
+        ,Drawing = 1.0\
+        ,Color = [0, 0, 0]\
+        ,Error_map = []\
+        ,Res = 1\
+        ,Surface_type = 0.0\
+        ,SURF_FUNC = [conic__surf(0.0, 0.0, 1.0)]\
+        ,SPECIAL_SURF_FUNC = []\
+        ,SubAperture = [1,0,0]):
+
         """__init__.
         """
         pass
-        self.Rc = 0.0
-        self.Thickness = 1e-11
-        self.Diameter = 1.0
-        self.InDiameter = 0.0
-        self.k = 0.0
-        self.ZNK = np.zeros(36)
-        self.Glass = 'AIR'
-        self.DespX = 0.0
-        self.DespY = 0.0
-        self.DespZ = 0.0
-        self.TiltX = 0.0
-        self.TiltY = 0.0
-        self.TiltZ = 0.0
-        self.Order = 0.0
-        self.AxisMove = 1.0
-        self.Diff_Ord = 0.0
-        self.Grating_D = 0.0
-        self.Grating_Angle = 0.0
-        self.ShiftX = 0.0
-        self.ShiftY = 0.0
-        self.Mask_Type = 0.0
+        self.Rc = Rc
+        self.Thickness = Thickness
+        self.Diameter = Diameter
+        self.InDiameter = InDiameter
+        self.k = k
+        self.Glass = Glass
 
-        self.Mask_Shape = "None"
-        self.Solid_3d_stl = 'None'
-        self.Cylinder_Rxy_Ratio = 1.0
-        self.Axicon = 0.0
-        self.AspherData = np.zeros(200)
-        self.ExtraData = np.zeros(200)
-        self.Thin_Lens = 0.0
-        self.Name = ''
-        self.Nm_Poss = (0.0, 0.0)
-        self.Note = 'None'
-        self.Drawing = 1.0
-        self.Color = [0, 0, 0]
-        self.Error_map = []
-        self.Res = 1
-        self.Surface_type = 0.0
-        self.SURF_FUNC = []
-        self.SPECIAL_SURF_FUNC = []
-        self.SURF_FUNC.append(conic__surf(0.0, 0.0, 1.0))
+        self.ZNK = ZNK
+        self.DespX = DespX
+        self.DespY = DespY
+        self.DespZ = DespZ
+        self.TiltX = TiltX
+        self.TiltY = TiltY
+        self.TiltZ = TiltZ
+        self.Order = Order
+        self.AxisMove = AxisMove
+        self.Diff_Ord = Diff_Ord
+        self.Grating_D = Grating_D
+        self.Grating_Angle = Grating_Angle
+        self.ShiftX = ShiftX
+        self.ShiftY = ShiftY
+        self.Mask_Type = Mask_Type
+
+        self.Mask_Shape = Mask_Shape
+        self.Solid_3d_stl = Solid_3d_stl
+        self.Cylinder_Rxy_Ratio = Cylinder_Rxy_Ratio
+        self.Axicon = Axicon
+        self.AspherData = AspherData
+        self.ExtraData = ExtraData
+        self.Thin_Lens = Thin_Lens
+        self.Name = Name
+        self.Nm_Pos = Nm_Pos
+        self.Note = Note
+        self.Drawing = Drawing
+        self.Color = Color
+        self.Error_map = Error_map
+        self.Res = Res
+        self.Surface_type = Surface_type
+        self.SURF_FUNC = SURF_FUNC
+        self.SPECIAL_SURF_FUNC = SPECIAL_SURF_FUNC
         self.General_Status = self.update()
-        self.SubAperture = [1,0,0]
+        self.SubAperture = SubAperture
 
     def RestoreVTK(self):
         Objeto_3D = pv.Disc(center=[0.0, 0.0, 0.0], inner=0, outer=0.001, normal=(0, 0, 1), r_res=3, c_res=3)
@@ -305,7 +340,7 @@ class surf():
     def update(self):
         """update.
         """
-        self.General_Status = np.asarray([id(self.Rc), id(self.Diameter), id(self.InDiameter), id(self.k), id(self.ZNK), id(self.AspherData), id(self.ExtraData), id(self.Cylinder_Rxy_Ratio), id(self.ShiftX), id(self.ShiftY), id(self.Axicon), id(self.Thin_Lens), id(self.Error_map), id(self.Thickness), id(self.DespX), id(self.DespY), id(self.DespZ), id(self.TiltX), id(self.TiltY), id(self.TiltZ), id(self.Order), id(self.AxisMove), id(self.Glass), id(self.Diff_Ord), id(self.Grating_D), id(self.Grating_Angle), id(self.Mask_Type), id(self.Mask_Shape), id(self.Solid_3d_stl), id(self.Name), id(self.Nm_Poss), id(self.Note), id(self.Drawing), id(self.Color), id(self.Surface_type), id(self.Res)])
+        self.General_Status = np.asarray([id(self.Rc), id(self.Diameter), id(self.InDiameter), id(self.k), id(self.ZNK), id(self.AspherData), id(self.ExtraData), id(self.Cylinder_Rxy_Ratio), id(self.ShiftX), id(self.ShiftY), id(self.Axicon), id(self.Thin_Lens), id(self.Error_map), id(self.Thickness), id(self.DespX), id(self.DespY), id(self.DespZ), id(self.TiltX), id(self.TiltY), id(self.TiltZ), id(self.Order), id(self.AxisMove), id(self.Glass), id(self.Diff_Ord), id(self.Grating_D), id(self.Grating_Angle), id(self.Mask_Type), id(self.Mask_Shape), id(self.Solid_3d_stl), id(self.Name), id(self.Nm_Pos), id(self.Note), id(self.Drawing), id(self.Color), id(self.Surface_type), id(self.Res)])
         return self.General_Status
 
     def SaveSetup(self):

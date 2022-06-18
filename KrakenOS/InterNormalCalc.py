@@ -139,7 +139,8 @@ class InterNormalCalc():
                     P_z2 = 0
         else:
             ASD=np.sqrt(((Px1 - self.SDT[j].SubAperture[2])**2) + ((Py1 - self.SDT[j].SubAperture[1])**2))
-            D0 = (2.0 * ASD)
+            D0 = (2.0 * ASD)*0.999999
+            #0.9999 to avoid kill the rays in the edge
 
             if ((D0 > self.SDT[j].Diameter * self.SDT[j].SubAperture[0]) or (D0 < self.SDT[j].InDiameter * self.SDT[j].SubAperture[0] )):
                 SurfHit = 0

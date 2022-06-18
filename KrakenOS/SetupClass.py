@@ -12,7 +12,7 @@ class Setup():
     def __init__(self):
         """Kraken_setup.
         """
-        print("Default catalog is loaded from: ", rute)
+        print("Catalog dir: ", rute)
         cat1 = (rute + 'SCHOTT.AGF')
         cat2 = (rute + 'infrared.agf')
 

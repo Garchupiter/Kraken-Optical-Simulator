@@ -3,7 +3,7 @@ import numpy as np
 import pyvista as pv
 import matplotlib.pyplot as plt
 import sys
-
+from matplotlib import rc
 
 
 def add_arrow(line, position=None, direction='right', size=15, color=None):
@@ -93,7 +93,9 @@ def wavelength_to_rgb(wavelength, gamma=1.0):
     B *= 255
     return [(int(R) / 255.0), (int(G) / 255.0), (int(B) / 255.0)]
 
-def display3d(SYSTEM, RAYS, view=0, inline=False):
+def display3d(SYSTEM, RAYS, view=0, inline=False,     BackgCol= 'white', BackgColTop = 'white', GridCol="black"):
+
+
     """display3d.
 
     Parameters
@@ -107,18 +109,27 @@ def display3d(SYSTEM, RAYS, view=0, inline=False):
     """
 
     ST1="KrakenOS v0.1. Executing Script: " + sys.argv[0]
-
+    OPA = 0.95
 
     CCC = pv.MultiBlock()
-    for rays in RAYS.CC:
-        RAY_VTK_OBJ = pv.lines_from_points(rays)
-        CCC.append(RAY_VTK_OBJ)
+    INST = isinstance(RAYS, list)
+    if INST == True:
+        for R in RAYS:
+            for rays in R.CC:
+                RAY_VTK_OBJ = pv.lines_from_points(rays)
+                CCC.append(RAY_VTK_OBJ)
+    else:
+        for rays in RAYS.CC:
+            RAY_VTK_OBJ = pv.lines_from_points(rays)
+            CCC.append(RAY_VTK_OBJ)
 
 
     p = pv.Plotter(shape=(1, 1), title=ST1,notebook=inline)
     Absorb_color = np.array([(10 / 256), (23 / 256), (24 / 256)])
     Mirror_color = np.array([(189 / 256), (189 / 256), (189 / 256)])
-    Glass_color = np.array([(190 / 256), (238 / 256), (246 / 256)])
+    # Glass_color = np.array([(190 / 256), (238 / 256), (246 / 256)])
+    # Glass_color = np.array([(15 / 256), (141 / 256), (147 / 256)])
+    Glass_color=np.array([12/256, 238/256, 246/256])
     recorte = view
     NN = SYSTEM.AAA.n_blocks
     if (SYSTEM.SDT[0].Drawing == 0):
@@ -128,6 +139,7 @@ def display3d(SYSTEM, RAYS, view=0, inline=False):
     if (SYSTEM.SDT[0].Drawing == 1):
         c = SYSTEM.AAA[0]
         cc = SYSTEM.AAA[0]
+
     for n in range(1, NN):
         if (SYSTEM.SDT[n].Drawing == 1):
             AAAA = SYSTEM.AAA[n]
@@ -141,6 +153,7 @@ def display3d(SYSTEM, RAYS, view=0, inline=False):
                         color = Absorb_color
                 else:
                     color = SYSTEM.SDT[n].Color
+
                 cc = cc.merge(AAAA)
                 if (recorte == 1):
                     clippedx = AAAA.clip((1, 0, 0), invert=False)
@@ -153,17 +166,22 @@ def display3d(SYSTEM, RAYS, view=0, inline=False):
                     clippedy = clippedx.clip((0, (- 1), 0), invert=False)
                     c = c.merge(clippedy)
                 if (recorte == 0):
-                    No_clipped = AAAA
-                    c = c.merge(No_clipped)
+                    c = cc
+
+
+
                 if (recorte == 2):
                     clippedx = AAAA.clip((1, 0, 0), invert=False)
                     c = c.merge(clippedx)
-                p.add_mesh(c, color, opacity=0.95, specular=1, specular_power=15, smooth_shading=True, show_edges=False)
-                edges = c.extract_feature_edges(boundary_edges=True, feature_edges=True, manifold_edges=False)
-                p.add_mesh(edges, 'red')
+                p.add_mesh(c, color, opacity=OPA, specular=1, specular_power=15, smooth_shading=True, show_edges=False)
+                edges = c.extract_feature_edges(feature_angle=10, boundary_edges=True, feature_edges=False, manifold_edges=False)
+                if SYSTEM.SDT[n].Solid_3d_stl != "None" and recorte ==0:
+                    print(" ") # No edges
+                else:
+                    p.add_mesh(edges, 'red')
                 points2 = np.c_[(0, 0, 0)]
                 c = pv.PolyData(points2)
-    p.add_mesh(SYSTEM.DDD, color=[0.5, 0.5, 0.5], opacity=0.95, show_edges=None)
+    p.add_mesh(SYSTEM.DDD, color=[0.5, 0.5, 0.5], opacity=OPA, show_edges=None)
     NN = SYSTEM.AAA.n_blocks
     n = 0
     for g in SYSTEM.side_number:
@@ -180,26 +198,62 @@ def display3d(SYSTEM, RAYS, view=0, inline=False):
                 color = SYSTEM.SDT[g].Color
             if (recorte == 1):
                 clippedx = SYSTEM.BBB[n].clip('x', invert=False)
-                p.add_mesh(clippedx, color, smooth_shading=True, show_edges=None)
+                p.add_mesh(clippedx, color ,opacity=OPA, smooth_shading=True, show_edges=None)
                 clippedy = SYSTEM.BBB[n].clip('-y', invert=False)
-                p.add_mesh(clippedy, color, smooth_shading=True, show_edges=None)
+                p.add_mesh(clippedy, color,opacity=OPA, smooth_shading=True, show_edges=None)
             if (recorte == 0):
                 No_clipped = SYSTEM.BBB[n]
-                p.add_mesh(No_clipped, color, smooth_shading=False, show_edges=None)
+                p.add_mesh(No_clipped, color,opacity=OPA, smooth_shading=False, show_edges=None)
             if (recorte == 2):
                 BBBB = SYSTEM.BBB[n]
                 clippedx = BBBB.clip((1, 0, 0), invert=False)
-                p.add_mesh(clippedx, color, smooth_shading=True, show_edges=None)
+                p.add_mesh(clippedx, color,opacity=OPA, smooth_shading=True, show_edges=None)
         n = (n + 1)
-    if (len(RAYS.RayWave) != 0):
-        RW = np.asarray(RAYS.RayWave)
-        for i in range(0, np.shape(RW)[0]):
-            RGB = wavelength_to_rgb((RW[i] * 1000.0))
-            p.add_mesh(CCC[i], color=RGB, opacity=0.95, smooth_shading=True, line_width=1.0, show_edges=None)
+
+
+
+
+
+
+
+
+    if INST == True:
+       for R in RAYS:
+            if (len(R.RayWave) != 0):
+                RW = np.asarray(R.RayWave)
+                for i in range(0, np.shape(RW)[0]):
+                    RGB = wavelength_to_rgb((RW[i] * 1000.0))
+                    p.add_mesh(CCC[i], color=RGB, opacity=OPA, smooth_shading=True, line_width=1.0, show_edges=None)
+
+    else:
+        if (len(RAYS.RayWave) != 0):
+            RW = np.asarray(RAYS.RayWave)
+            for i in range(0, np.shape(RW)[0]):
+                RGB = wavelength_to_rgb((RW[i] * 1000.0))
+                p.add_mesh(CCC[i], color=RGB, opacity=OPA, smooth_shading=True, line_width=1.0, show_edges=None)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+             # if (len(RAYS.RayWave) != 0):
+             #     RW = np.asarray(RAYS.RayWave)
+             #     for i in range(0, np.shape(RW)[0]):
+             #         RGB = wavelength_to_rgb((RW[i] * 1000.0))
+             #         p.add_mesh(CCC[i], color=RGB, opacity=OPA, smooth_shading=True, line_width=1.0, show_edges=None)
+
+
+
     p.add_axes(line_width=4)
-
-
-
 
     [cx,cy,cz]=p.center
     p.set_focus([cx,cy,cz])
@@ -210,14 +264,16 @@ def display3d(SYSTEM, RAYS, view=0, inline=False):
     # print(p.center, " jkjhkjhkh")
     p.set_viewup([0, 1.0, 0])
     p.enable_anti_aliasing()
-    p.disable_anti_aliasing()
+    # p.disable_anti_aliasing()
     p.enable_eye_dome_lighting()
     p.disable_eye_dome_lighting()
-    p.set_background('royalblue', top='white')
+    p.set_background(BackgCol, top=BackgColTop)
+
+
 
     # [wx,wy]=p.window_size
-    p.add_text('KrakenOS',position="upper_left" ,font_size=28,color="royalblue")
-    p.show_grid(font_size=6)
+    p.add_text('KrakenOS',position="upper_left" ,font_size=20,color="royalblue")
+    p.show_grid(font_size=6,color=GridCol)
     p.show(auto_close=False, interactive=True, interactive_update=False)
     # interactive_update=True esto es para que se pueda continuar trabajando en la ventana
 
@@ -252,18 +308,20 @@ def display2d(SYSTEM, RAYS, view=0, arrow=0):
     recorte = view
     NN = SYSTEM.AAA.n_blocks
     if (SYSTEM.SDT[0].Drawing == 0):
-        points2 = np.c_[(0, 0, 0)]
-        c = pv.PolyData(points2)
+        points2 = np.c_[(0.0, 0.0, 0.0)]
+        c = pv.PolyData(points2, force_float=False)
     if (SYSTEM.SDT[0].Drawing == 1):
         c = SYSTEM.AAA[0]
     sign=-1.0
-    sn=1.0
+    sn=0.65
+    mx = []
+    mn = []
     for n in range(0, NN):
         sn = sn * sign
         if (SYSTEM.SDT[n].Drawing == 1):
             AAAA = SYSTEM.AAA[n]
             if (SYSTEM.SDT[n].Glass != 'NULL'):
-                (PosX, PosY) = SYSTEM.SDT[n].Nm_Poss
+                (PosX, PosY) = SYSTEM.SDT[n].Nm_Pos
                 s = SYSTEM.SDT[n].Name
                 ss = SYSTEM.Object_Num[n]
                 if (view == 0):
@@ -279,7 +337,7 @@ def display2d(SYSTEM, RAYS, view=0, arrow=0):
                     delta = ((np.max(ay) - np.min(ay)) / 10)
                     plt.text(az[np.argmin((ay * ay))], sn*1.5*(np.min(ay) - (1.5 * delta)), (('[' + str(ss)) + ']'), fontsize=fs)
 
-                    plt.plot([az[np.argmin((ay * ay))], az[np.argmin((ay * ay))]], [0, sn*1.5*(np.min(ay) - delta)], '-.', c='red', linewidth=0.5)
+                    plt.plot([az[np.argmin((ay * ay))], az[np.argmin((ay * ay))]], [np.mean(ay), sn*1.5*(np.min(ay) - delta)], '-.', c='red', linewidth=0.5)
                     if ((PosX != 0) or (PosY != 0)):
                         plt.arrow((np.max(az) + PosX), (np.max(ay) + PosY/2), (- PosX), (- PosY/2.0), head_width=0.5, head_length=1.0, fc='k', ec='k', length_includes_head=True)
                         plt.arrow((np.max(az) + PosX), (np.max(ay) + PosY), (- PosX)*0, (- PosY)/2.0, head_width=0.1, head_length=0.0, fc='k', ec='k', length_includes_head=True)
@@ -297,11 +355,13 @@ def display2d(SYSTEM, RAYS, view=0, arrow=0):
                     plt.text(az[np.argmin((ax * ax))], sn*1.5*(np.min(ax) - (1.5 * delta)), (('[' + str(ss)) + ']'), fontsize=fs)
 
 
-                    plt.plot([az[np.argmin((ax * ax))], az[np.argmin((ax * ax))]], [0, sn*1.5*(np.min(ax) - delta)], '-.', c='red', linewidth=0.5)
+                    plt.plot([az[np.argmin((ax * ax))], az[np.argmin((ax * ax))]], [np.mean(ax), sn*1.5*(np.min(ax) - delta)], '-.', c='red', linewidth=0.5)
                     if ((PosX != 0) or (PosY != 0)):
                         plt.arrow((np.max(az) + PosX), (np.max(ax) + PosY/2), (- PosX), (- PosY/2.0), head_width=0.5, head_length=1.0, fc='k', ec='k', length_includes_head=True)
                         plt.arrow((np.max(az) + PosX), (np.max(ax) + PosY), (- PosX)*0, (- PosY)/2.0, head_width=0.1, head_length=0.0, fc='k', ec='k', length_includes_head=True)
 
+            mx.append(np.max(az))
+            mn.append(np.min(az))
 
     NN = SYSTEM.BBB.n_blocks
     for n in range(0, NN):
@@ -318,8 +378,13 @@ def display2d(SYSTEM, RAYS, view=0, arrow=0):
             (ax, ay, az) = edge_3d(AAAA, 0, (- 1), 0)
             plt.plot(az, ax, sim, c='black', linewidth=0.5)
 
+    mx = np.asarray(mx)
+    mn = np.asarray(mn)
 
-
+    m1=np.min(mn)
+    m2=np.max(mx)
+    m3=(m2-m1)/20.0
+    plt.plot([m1-m3 , m2+m3],[0,0],'--', color="black", linewidth=1)
 
     if (len(RAYS.RayWave) != 0):
         RW = np.asarray(RAYS.RayWave)
@@ -340,11 +405,11 @@ def display2d(SYSTEM, RAYS, view=0, arrow=0):
 
 
     plt.title('System Plot')
-    plt.xlabel('Z')
+    plt.xlabel('Z (mm)')
     if (view == 0):
-        plt.ylabel('Y')
+        plt.ylabel('Y (mm)')
     if (view == 1):
-        plt.ylabel('X')
+        plt.ylabel('X (mm)')
     plt.axis('equal')
     # plt.savefig('plot.pdf')
     plt.show()

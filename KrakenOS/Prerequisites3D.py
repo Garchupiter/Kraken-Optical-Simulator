@@ -22,7 +22,8 @@ class Prerequisites():
         """
         self.SDT = SurfData
         self.n = len(self.SDT)
-        self.ANG = 360
+        self.ANG = np.arange(0, 362, 1)
+        self.ANG_Rad = np.deg2rad(self.ANG)
         self.Disable_Inner = 1
         self.ExtraDiameter = 0
         self.SuTo = SUTO
@@ -63,17 +64,17 @@ class Prerequisites():
             if (np.abs(np.cos(np.deg2rad(sty))) < Tol_Err):
                 ty = (ty + Tol_Err)
             if (self.SDT[n].Order == 0):
-                L_te_h.rotate_x(tx)
-                L_te_h.rotate_y(ty)
-                L_te_h.rotate_z(-tz)
-                L_te_h.translate([dx, dy, dz])
-                L_te_h.translate([0, 0, self.SDT[(n - 1)].Thickness])
+                L_te_h.rotate_x(tx, inplace=True)
+                L_te_h.rotate_y(ty, inplace=True)
+                L_te_h.rotate_z(-tz, inplace=True)
+                L_te_h.translate([dx, dy, dz],inplace=True)
+                L_te_h.translate([0, 0, self.SDT[(n - 1)].Thickness],inplace=True)
             else:
-                L_te_h.translate([dx, dy, dz])
-                L_te_h.rotate_z(-tz)
-                L_te_h.rotate_y(ty)
-                L_te_h.rotate_x(tx)
-                L_te_h.translate([0, 0, self.SDT[(n - 1)].Thickness])
+                L_te_h.translate([dx, dy, dz],inplace=True)
+                L_te_h.rotate_z(-tz,inplace=True)
+                L_te_h.rotate_y(ty,inplace=True)
+                L_te_h.rotate_x(tx,inplace=True)
+                L_te_h.translate([0, 0, self.SDT[(n - 1)].Thickness],inplace=True)
         return L_te_h
 
     def Flat2SigmaSurface(self, plane_object, j):
@@ -132,7 +133,7 @@ class Prerequisites():
                 L_te_h = L_te_h.delaunay_2d()
         else:
             L_te_h = pv.read(self.SDT[j].Solid_3d_stl)
-            L_te_h.compute_normals(cell_normals=True, point_normals=True, split_vertices=True, flip_normals=False, consistent_normals=True, auto_orient_normals=False, non_manifold_traversal=True, feature_angle=30.0, inplace=True)
+            L_te_h.compute_normals(cell_normals=True, point_normals=True, split_vertices=True, flip_normals=False, consistent_normals=True, auto_orient_normals=False, non_manifold_traversal=True, feature_angle=30.0, inplace = False)
         L_te_h = self.GeometricRotatAndTran(L_te_h, j)
         MASK = self.SDT[j].Mask_Shape
         OBJECT_MASK = pv.MultiBlock()
@@ -151,28 +152,20 @@ class Prerequisites():
             j
         """
         rad2 = ((self.SDT[j].Diameter *self.SDT[j].SubAperture[0]) / 2.0)
-        x2 = []
-        y2 = []
-        for i in range(0, self.ANG):
-            x2.append((rad2 * np.cos(np.deg2rad(i))))
-            y2.append((rad2 * np.sin(np.deg2rad(i))))
-        x2.append((rad2 * np.cos(np.deg2rad(0))))
-        y2.append((rad2 * np.sin(np.deg2rad(0))))
-        x2 = np.asarray(x2)
-        y2 = np.asarray(y2)
-        z2 = np.zeros_like(x2)
 
+        x2 = rad2 * np.cos(self.ANG_Rad)
+        y2 = rad2 * np.sin(self.ANG_Rad)
+        z2 = np.zeros_like(x2)
         x2 = x2 + self.SDT[j].SubAperture[2]
         y2 = y2 + self.SDT[j].SubAperture[1]
 
         points2 = np.c_[(x2, y2, z2)]
-        L_te = pv.PolyData(points2)
-        L_te.rotate_z(( self.SDT[j].TiltZ))
+        L_te = pv.PolyData(points2, force_float=False)
         x2 = L_te.points[:, 0]
         y2 = L_te.points[:, 1]
         z2 = self.SuTo.SurfaceShape(x2, y2, j)
         points2 = np.c_[(x2, y2, z2)]
-        L_te = pv.PolyData(points2)
+        L_te = pv.PolyData(points2, force_float=False)
         L_te = self.GeometricRotatAndTran(L_te, j)
         return L_te.points
 
@@ -194,9 +187,34 @@ class Prerequisites():
         x2 = PTS2[:, 0]
         y2 = PTS2[:, 1]
         z2 = PTS2[:, 2]
+
+        RR = np.zeros_like(x2)
+        for s in range(0, len(x2)):
+            x2 = np.roll(x2, 1)
+            y2 = np.roll(y2, 1)
+            z2 = np.roll(z2, 1)
+
+            X = x2 - x1
+            Y = y2 - y1
+            Z = z2 - z1
+            R = np.sqrt(X**2 + Y**2 + Z**2)
+
+
+            RR[s] = np.mean(R)
+        ag = np.argmin(RR)
+
+        x2 = np.roll(x2, ag)
+        y2 = np.roll(y2, ag)
+        z2 = np.roll(z2, ag)
+
+
+
+
+
+
         P = []
         F = []
-        for i in range(0, self.ANG):
+        for i in range(0, 360):
             P.append([x1[i], y1[i], z1[i]])
             P.append([x2[i], y2[i], z2[i]])
             P.append([x1[(i + 1)], y1[(i + 1)], z1[(i + 1)]])
@@ -207,14 +225,16 @@ class Prerequisites():
             F.append([3, (3 + (i * 6)), (4 + (i * 6)), (5 + (i * 6))])
         P = np.asarray(P)
         F = np.asarray(F)
-        cant = pv.PolyData(P, F)
+        cant = pv.PolyData(P, F, force_float=False)
         Ax = cant.points[:, 0]
         Ay = cant.points[:, 1]
         Az = cant.points[:, 2]
         Ax = np.asarray(Ax)
         Ay = np.asarray(Ay)
         Az = np.asarray(Az)
-        cant.compute_normals(cell_normals=True, point_normals=True, split_vertices=True, flip_normals=False, consistent_normals=True, auto_orient_normals=False, non_manifold_traversal=True, feature_angle=30.0, inplace=True)
+
+        cant.compute_normals(cell_normals=True, point_normals=True, split_vertices=True, flip_normals=False, consistent_normals=True, auto_orient_normals=False, non_manifold_traversal=True, feature_angle=30.0, inplace = False)
+
         return cant
 
     def Prerequisites3DSolids(self):

@@ -1,4 +1,4 @@
-from numba import jit
+#from numba import jit
 
 
 import numpy as np
@@ -217,6 +217,24 @@ def n_wave_dispersion(krakenSetup, GLSS, Wave):
                 n = np.sqrt(GLSN)
 
 
+            if (Dispersion_Formula == 13):
+                """HIKARI Catalog"""
+                GLSN0 = C[0]
+                GLSN1 =(C[1] * Wave**2)
+                GLSN2 =(C[2] * Wave**4)
+                GLSN3 =(C[3] * Wave**-2)
+                GLSN4 =(C[4] * Wave**-4)
+                GLSN5 =(C[5] * Wave**-6)
+                GLSN6 =(C[6] * Wave**-8)
+                GLSN7 =(C[7] * Wave**-10)
+                GLSN8 =(C[8] * Wave**-12)
+                GLSN = GLSN0 + GLSN1 + GLSN2 + GLSN3 + GLSN4 + GLSN5 + GLSN6 + GLSN7 + GLSN8
+
+                """ n(W)2 = A0 + A1*W**2 + A2*W**4 + A3*W**−2 + A4*W**−4 + A5*W**−6 + A6*W**−8 + A7*W**−10 + A8*W**−12"""
+
+                n = np.sqrt(GLSN)
+
+
 
             [Wa, Tr, Th] = IT[r]
             TR = np.interp(Wave, np.asarray(Wa), np.asarray(Tr))
@@ -257,15 +275,15 @@ def ParaxCalc(N_Prec, SDT, SuTo, n, Gl):
     CC = []
     DD = []
     KK = []
-    for j in range(0, n):
+    for j in range(0, n+0):
         sag_rad = (SDT[j].Diameter / 400.0)
         SG = SuTo.SurfaceShape(sag_rad, 0.0, j)
         if (SG != 0.0):
             R_p = ((sag_rad * sag_rad) / (2.0 * SG))
         else:
-            R_p = 999999999999.9
+            R_p = 9999999999999.9
         if (SDT[j].Solid_3d_stl != 'None'):
-            R_p = 999999999999.9
+            R_p = 9999999999999.9
         Glass = Gl[j]
         if (Glass != 'NULL'):
             CurrN = N_Prec[j]
@@ -277,29 +295,38 @@ def ParaxCalc(N_Prec, SDT, SuTo, n, Gl):
         R = R_p
         if (Glass == 'MIRROR'):
             n1 = (- n1)
-        RR = np.matrix([[(n1 / n2), ((n1 - n2) / (n2 * R))], [0.0, 1]])
+
+        if (SDT[j].Thin_Lens == 0):
+            RR = np.matrix([[(n1 / n2), ((n1 - n2) / (n2 * R))], [0.0, 1]])
+        else:
+            RR = np.matrix([[1.0, -1.0 / SDT[j].Thin_Lens], [0.0, 1]])
+
         CC.append((1 / R))
         DD.append(dd)
         KK.append(0)
         TT = np.matrix([[1.0, 0.0], [dd, 1.0]])
         S_Matrix.append(RR)
-        N_Matrix.append(('R sup: ' + str(j)))
+        N_Matrix.append(('R surf ' + str(j)))
         S_Matrix.append(TT)
-        N_Matrix.append(((('T sup: ' + str(j)) + ' to ') + str((j + 1))))
+        N_Matrix.append(((('T surf ' + str(j)) + ' to ') + str((j + 1))))
         PrevN = CurrN
     SistemMatrix = np.matrix([[1.0, 0.0], [0.0, 1.0]])
     for Mi in S_Matrix[::(- 1)]:
         SistemMatrix = np.dot(SistemMatrix, Mi)
+
+    """ Hecht E. - Optics-AW (2002) """
     a = SistemMatrix[0][(0, 0)]
     b = SistemMatrix[0][(0, 1)]
     c = SistemMatrix[1][(0, 0)]
     d = SistemMatrix[1][(0, 1)]
     EFFL = ((- 1) / b)
-    PPA = ((1 - d) / b)
-    PPP = ((a - 1) / b)
+    PPA = ((1 - a) / -b)
+    PPP = ((d - 1) / -b)
     CC = np.asarray(CC)
     DD = np.asarray(DD)
     return (SistemMatrix, S_Matrix, N_Matrix, a, b, c, d, EFFL, PPA, PPP, CC, N_Prec, DD)
+
+
 
 
 

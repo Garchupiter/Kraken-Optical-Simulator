@@ -238,6 +238,8 @@ class system():
         self.Pr3D.Disable_Inner = 1
         (self.c_p, self.n_p, self.d_p) = (0, 0, 0)
         self.tt=1.
+        self.energy_probability = 0
+        self.NsLimit = 200
 
         # (ResVec, CurrN, sign) = self.SDT[2].PHYSICS.calculate([-0.01295049, 0.14862896 ,0.98880823], [-0., -0., -1.], 1.0, 1.0, [0., 1. ,0.], 0.0, 0.0, 0.6, 0.)
 
@@ -336,8 +338,11 @@ class system():
         self.T_XYZ = []
         self.XYZ = []
         self.XYZ.append([0, 0, 0])
+
         self.OST_XYZ = []
+        self.OST_XYZ.append([0, 0, 0])
         self.OST_LMN = []
+
         self.S_LMN = []
         self.LMN = []
         self.R_LMN = []
@@ -743,7 +748,7 @@ class system():
             j = self.GlassOnSide[j]
             j_gg = self.GlassOnSide[j_gg]
             Glass = self.GlobGlass[j_gg]
-            if ((j == 0) or (count > 20) or (a == self.n)):
+            if ((j == 0) or (count > self.NsLimit) or (a == self.n)):
                 break
             if (self.Glass[j] != 'NULL'):
                 Proto_pTarget = (np.asarray(RayOrig) + ((np.asarray(ResVec) * 999999999.9) * SIGN))
@@ -767,16 +772,22 @@ class system():
                 Ord = self.SDT[j].Diff_Ord
                 GrSpa = self.SDT[j].Grating_D
                 Secuent = 0
-                (ResVec, CurrN, sign) = self.SDT[j].PHYSICS.calculate(ResVec, R, N, Np, D, Ord, GrSpa, self.Wave, Secuent)
+                ResVec_N, R_N, N_N, Np_N = ResVec, R, N, Np
+                (ResVec, CurrN, sign) = self.SDT[j].PHYSICS.calculate(ResVec_N, R_N, N_N, Np_N, D, Ord, GrSpa, self.Wave, Secuent)
                 (Rp0, Rs0, Tp0, Ts0) = FresnelEnergy(self.Glass[j], N, Np, ResVec, R, ResVec, self.SETUP, self.Wave)
                 self.tt = 1.0
                 if (self.Glass[j] != 'MIRROR'):
                     self.tt = ((Tp0 + Ts0) / 2.0)
-                PROB = prob(self.tt)[0]
-                if (PROB > 0):
-                    Secuent = 1
-                    (ResVec, CurrN, sign) = self.SDT[j].PHYSICS.calculate(ResVec, R, N, Np, D, Ord, GrSpa, self.Wave, Secuent)
+
+                if self.energy_probability==1:
+                    PROB = prob(self.tt)[0]
+
+                    if (PROB > 0):
+                        Secuent = 1
+                        (ResVec, CurrN, sign) = self.SDT[j].PHYSICS.calculate(ResVec_N, R_N, N_N, Np_N, D, Ord, GrSpa, self.Wave, Secuent)
+
                 SIGN = (SIGN * sign)
+
                 Name = self.SDT[j].Name
                 RayTraceType = 1
                 ValToSav = [Glass, alpha, RayOrig, pTarget, HitObjSpace,LMNObjSpace, SurfNorm, ImpVec, ResVec, PrevN, CurrN, WaveLength, D, Ord, GrSpa, Name, j, RayTraceType]

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """Examp Tel 2M Spyder Spot Diagram"""
 
-import os
+# import os
 import numpy as np
 import pkg_resources
 required = {'KrakenOS'}
@@ -28,9 +28,9 @@ P_Obj.Drawing = 0
 # ______________________________________#
 
 M1 = Kos.surf()
-M1.Rc = -6.06044E+003
+M1.Rc = -6.0E+003
 M1.Thickness = -1.774190000000000E+003 + 1.853722901194000E+000
-M1.k = -1.637E+000
+M1.k = -1.6+000
 M1.Glass = "MIRROR"
 M1.Diameter = 6.63448E+002 * 2.0
 M1.InDiameter = 228.6 * 2.0
@@ -41,14 +41,11 @@ M1.AxisMove = 1
 # ______________________________________#
 
 M2 = Kos.surf()
-M2.Rc = -6.06044E+003
+M2.Rc = -6.00E+003
 M2.Thickness = -M1.Thickness
-M2.k = -3.5782E+001
+M2.k = -3.4782E+001
 M2.Glass = "MIRROR"
-M2.Diameter = 2.995730651164167E+002 * 2.0
-ED0 = np.zeros(20)
-ED0[2] = 4.458178314555000E-018
-M2.AspherData = ED0
+M2.Diameter = 3.0E+002 * 2.0
 
 # ______________________________________#
 
@@ -60,14 +57,13 @@ Vertex.Drawing = 0
 
 # ______________________________________#
 
-currentDirectory = os.getcwd()
-direc = r"Prisma.stl"
+file = r"Prisma.stl"
 
 # ______________________________________#
 
 objeto = Kos.surf()
 objeto.Diameter = 118.0 * 2.0
-objeto.Solid_3d_stl = direc
+objeto.Solid_3d_stl = file
 objeto.Thickness = 600
 objeto.Glass = "BK7"
 objeto.TiltX = 55
@@ -96,6 +92,12 @@ configuracion_1 = Kos.Setup()
 Telescope = Kos.system(A, configuracion_1)
 Rays = Kos.raykeeper(Telescope)
 
+
+
+
+Telescope.energy_probability = 1
+Telescope.NsLimit = 10
+
 # ______________________________________#
 
 W = 0.633
@@ -118,7 +120,7 @@ for gg in range(0, 10):
                 Telescope.NsTrace(pSource_0, dCos, W)
                 Rays.push()
 
-# ______________________________________#
+# # ______________________________________#
 
 Kos.display3d(Telescope, Rays, 0)
 print(Telescope.EFFL)

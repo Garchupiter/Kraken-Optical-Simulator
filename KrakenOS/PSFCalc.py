@@ -10,6 +10,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from .MathShapesClass import *
 
+
+
 def psf(COEF, Focal, Diameter, Wave, pixels=600, PupilSample=4,  plot=0, sqr=0):
 
     ''' Generando los polinomios de Zernike (Nomenclarura Noll)con:
@@ -36,10 +38,9 @@ def psf(COEF, Focal, Diameter, Wave, pixels=600, PupilSample=4,  plot=0, sqr=0):
     #Variable de Muestreo
     Q=PupilSample
     #Diámetro de la Apertura [m]
-    D=3.0
     D=Diameter/1000.0
     #Diámetro de la Obstrucción[m]
-    Do=0.5
+    Do = 0.5
     #Número F
     FocalD=Focal/1000.0
     #Longitud de Onda [m]
@@ -73,9 +74,9 @@ def psf(COEF, Focal, Diameter, Wave, pixels=600, PupilSample=4,  plot=0, sqr=0):
     #Función de Pupila
     ##############################################################
     #Mapa del Frente de Onda con Máscara [wvl rms]
-    Wt=W*T
+    # Wt=W*T
     #Campo complejo
-    U=T*np.exp(-1j*2*np.pi*Wt)
+    U=T*np.exp(-1j*2*np.pi*W)
 
     #PSF-Fraunhofer
     ##############################################################
@@ -120,7 +121,7 @@ def psf(COEF, Focal, Diameter, Wave, pixels=600, PupilSample=4,  plot=0, sqr=0):
     I = np.rot90(I)
     #Saturando la Imagen
 
-    II=np.sqrt(I/np.max(I))*255
+
 
 
     if plot !=0:
@@ -133,11 +134,24 @@ def psf(COEF, Focal, Diameter, Wave, pixels=600, PupilSample=4,  plot=0, sqr=0):
             plt.title('Fraunhofer Prop - PSF')
 
         if sqr == 1:
+            II=np.sqrt(I/np.max(I))*255
             plt.imshow(II,extent=[umn,umx,vmx,vmn], cmap= plt.cm.bone)
             plt.colorbar()
             plt.ylabel('V[μm]')
             plt.xlabel('U[μm]')
             plt.title('Fraunhofer Prop - PSF ( note: sqrt(I) )')
+
+        if sqr == 2:
+            III = np.log(I)
+            III = III-np.min(III)
+            III = 255*III/np.max(III)
+
+            plt.imshow(III,extent=[umn,umx,vmx,vmn], cmap= plt.cm.bone)
+            plt.colorbar()
+            plt.ylabel('V[μm]')
+            plt.xlabel('U[μm]')
+            plt.title('Fraunhofer Prop - PSF ( note: sqrt(I) )')
+
 
     return I
 

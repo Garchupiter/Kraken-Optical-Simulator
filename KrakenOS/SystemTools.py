@@ -142,7 +142,7 @@ def load_Catalog(FileCat):
     ARR_OD = []
     ARR_LD = []
     ARR_IT = []
-    print('Loading glass calatogs:')
+    print('Processing glass catalog:')
     for file in FileCat:
         ARR_CAT.append(file)
         f = open(file, 'r')
@@ -207,4 +207,3 @@ def load_Catalog(FileCat):
         ARR_IT.append(IT)
     CATALOG = [ARR_CAT, names, ARR_NM, ARR_ED, ARR_CD, ARR_TD, ARR_OD, ARR_LD, ARR_IT]
     return CATALOG
-

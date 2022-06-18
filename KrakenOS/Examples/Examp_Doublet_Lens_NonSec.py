@@ -82,10 +82,14 @@ Rayos = Kos.raykeeper(Doblete)
 
 # _________________________________________#
 
+
+Doblete.energy_probability=1 # 0 for transmission only
+
+
 tam = 10
 rad = 14.0
 tsis = len(A) - 1
-for nsc in range(0, 100):
+for nsc in range(0, 10):
     for j in range(-tam, tam + 1):
         x_0 = (0 / tam) * rad
         y_0 = (j / tam) * rad

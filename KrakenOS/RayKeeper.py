@@ -37,6 +37,7 @@ class raykeeper():
             self.invalid_T_XYZ.append(np.asarray(self.SYSTEM.T_XYZ))
             self.invalid_XYZ.append(np.asarray(self.SYSTEM.XYZ))
             self.invalid_OST_XYZ.append(np.asarray(self.SYSTEM.OST_XYZ))
+            self.invalid_OST_LMN.append(np.asarray(self.SYSTEM.OST_LMN))
             self.invalid_S_LMN.append(np.asarray(self.SYSTEM.S_LMN))
             self.invalid_LMN.append(np.asarray(self.SYSTEM.LMN))
             self.invalid_R_LMN.append(np.asarray(self.SYSTEM.R_LMN))
@@ -68,6 +69,7 @@ class raykeeper():
             self.valid_T_XYZ.append(np.asarray(self.SYSTEM.T_XYZ))
             self.valid_XYZ.append(np.asarray(self.SYSTEM.XYZ))
             self.valid_OST_XYZ.append(np.asarray(self.SYSTEM.OST_XYZ))
+            self.valid_OST_LMN.append(np.asarray(self.SYSTEM.OST_LMN))
             self.valid_S_LMN.append(np.asarray(self.SYSTEM.S_LMN))
             self.valid_LMN.append(np.asarray(self.SYSTEM.LMN))
             self.valid_R_LMN.append(np.asarray(self.SYSTEM.R_LMN))
@@ -104,6 +106,7 @@ class raykeeper():
         self.T_XYZ.append(np.asarray(self.SYSTEM.T_XYZ))
         self.XYZ.append(np.asarray(self.SYSTEM.XYZ))
         self.OST_XYZ.append(np.asarray(self.SYSTEM.OST_XYZ))
+        self.OST_LMN.append(np.asarray(self.SYSTEM.OST_LMN))
         self.S_LMN.append(np.asarray(self.SYSTEM.S_LMN))
         self.LMN.append(np.asarray(self.SYSTEM.LMN))
         self.R_LMN.append(np.asarray(self.SYSTEM.R_LMN))
@@ -140,6 +143,7 @@ class raykeeper():
         self.T_XYZ = []
         self.XYZ = []
         self.OST_XYZ = []
+        self.OST_LMN = []
         self.S_LMN = []
         self.LMN = []
         self.R_LMN = []
@@ -170,6 +174,7 @@ class raykeeper():
         self.valid_T_XYZ = []
         self.valid_XYZ = []
         self.valid_OST_XYZ = []
+        self.valid_OST_LMN = []
         self.valid_S_LMN = []
         self.valid_LMN = []
         self.valid_R_LMN = []
@@ -200,6 +205,7 @@ class raykeeper():
         self.invalid_T_XYZ = []
         self.invalid_XYZ = []
         self.invalid_OST_XYZ = []
+        self.invalid_OST_LMN = []
         self.invalid_S_LMN = []
         self.invalid_LMN = []
         self.invalid_R_LMN = []
@@ -222,13 +228,15 @@ class raykeeper():
         self.invalid_TTBE = []
         self.invalid_TT = []
 
-    def pick(self, N_ELEMENT=(- 1)):
+    def pick(self, N_ELEMENT=(- 1), coordinates = "global"):
         """pick.
 
         Parameters
         ----------
         N_ELEMENT :
             N_ELEMENT
+
+            coordinates = "global" or "local"
         """
 
         gls = self.SYSTEM.SDT[N_ELEMENT].Glass
@@ -236,8 +244,14 @@ class raykeeper():
             print("NULL surface has been chosen, the return values correspond to those of the previous surface")
 
         self.numsup = (self.nelements - 1)
-        self.xyz = self.valid_XYZ
-        self.lmn = self.valid_LMN
+
+        if coordinates == "global":
+            self.xyz = self.valid_XYZ
+            self.lmn = self.valid_LMN
+        else:
+            self.xyz = self.valid_OST_XYZ
+            self.lmn = self.valid_OST_LMN
+
         self.s = self.valid_SURFACE
         if ((N_ELEMENT < 0) or (N_ELEMENT > self.numsup)):
             N_ELEMENT = self.numsup

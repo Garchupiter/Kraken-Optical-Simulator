@@ -149,10 +149,11 @@ S=normal superficie
         R = 2.0
 
     if (R > 1.0):
+        # print("Replexion total interna : ", R)
         n2 = - n1
         NN = n1 / n2
         # R = (NN * NN) * d22
-        SIGN = - 1.0
+        SIGN = -1.0
 
     c1 = np.dot(Nv,Iv)
     if c1 < 0.0 :
@@ -161,7 +162,7 @@ S=normal superficie
 
     c2 = np.sqrt(1.0-IP)
     T = NN * Iv + ((( NN * c1 ) - c2)) * Nv
-
+    # print("Hola")
     return T, np.abs(n2), SIGN
 
 

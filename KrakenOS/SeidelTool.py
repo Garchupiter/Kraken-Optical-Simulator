@@ -173,23 +173,28 @@ class Seidel():
         sI_a = np.asarray(sI_a)
         sII_a = np.asarray(sII_a)
         sIII_a = np.asarray(sIII_a)
+
         self.si = ((sI - sI_k) - sI_a)
         self.sii = ((sII - sII_k) - sII_a)
         self.siii = ((sIII - sIII_k) - sIII_a)
         self.siv = ((sIV - sIV_k) - sIV_a)
         self.sv = ((sV - sV_k) - sV_a)
+        #---------------------------------#
         self.SAC = [self.si, self.sii, self.siii, self.siv, self.sv]
         self.SAC_TOTAL = [np.sum(self.si), np.sum(self.sii), np.sum(self.siii), np.sum(self.siv), np.sum(self.sv)]
         self.SAC_NM = ['si', 'sii', 'siii', 'siv', 'sv']
+
         Units = 1000.0
         self.W040 = (((Units * (1 / 8.0)) * self.si) / W)
         self.W131 = (((Units * (1 / 2.0)) * self.sii) / W)
         self.W222 = (((Units * (1 / 2.0)) * self.siii) / W)
         self.W220 = (((Units * (1 / 4.0)) * self.siv) / W)
         self.W311 = (((Units * (1 / 2.0)) * self.sv) / W)
+        #---------------------------------#
         self.SCW = [self.W040, self.W131, self.W222, self.W220, self.W311]
         self.SCW_TOTAL = [np.sum(self.W040), np.sum(self.W131), np.sum(self.W222), np.sum(self.W220), np.sum(self.W311)]
         self.SCW_NM = ['W040', 'W131', 'W222', 'W220', 'W311']
+
         self.TSPH = (self.si / ((2.0 * u[(- 1)]) * n_1[(- 1)]))
         self.TSCO = (self.sii / ((2.0 * u[(- 1)]) * n_1[(- 1)]))
         self.TTCO = ((3.0 * self.sii) / ((2.0 * u[(- 1)]) * n_1[(- 1)]))
@@ -198,9 +203,13 @@ class Seidel():
         self.TSFC = ((self.siii + self.siv) / ((2.0 * u[(- 1)]) * n_1[(- 1)]))
         self.TTFC = (((3.0 * self.siii) + self.siv) / ((2.0 * u[(- 1)]) * n_1[(- 1)]))
         self.TDIS = ((- self.sv) / ((2.0 * u[(- 1)]) * n_1[(- 1)]))
+        #---------------------------------#
+
         self.TAC = [self.TSPH, self.TSCO, self.TTCO, self.TAST, self.TPFC, self.TSFC, self.TTFC, self.TDIS]
         self.TAC_TOTAL = [np.sum(self.TSPH), np.sum(self.TSCO), np.sum(self.TTCO), np.sum(self.TAST), np.sum(self.TPFC), np.sum(self.TSFC), np.sum(self.TTFC), np.sum(self.TDIS)]
         self.TAC_NM = ['TSPH', 'TSCO', 'TTCO', 'TAST', 'TPFC', 'TSFC', 'TTFC', 'TDIS']
+
+        #---------------------------------#
         self.LSPH = (self.si / (((2.0 * u[(- 1)]) * u[(- 1)]) * n_1[(- 1)]))
         self.LSCO = (self.sii / (((2.0 * u[(- 1)]) * u[(- 1)]) * n_1[(- 1)]))
         self.LTCO = ((3.0 * self.sii) / (((2.0 * u[(- 1)]) * u[(- 1)]) * n_1[(- 1)]))
@@ -209,9 +218,11 @@ class Seidel():
         self.LSFC = ((self.siii + self.siv) / (((2.0 * u[(- 1)]) * u[(- 1)]) * n_1[(- 1)]))
         self.LTFC = (((3.0 * self.siii) + self.siv) / (((2.0 * u[(- 1)]) * u[(- 1)]) * n_1[(- 1)]))
         self.LDIS = ((- self.sv) / (((2.0 * u[(- 1)]) * u[(- 1)]) * n_1[(- 1)]))
+        #---------------------------------#
         self.LAC = [self.LSPH, self.LSCO, self.LTCO, self.LAST, self.LPFC, self.LSFC, self.LTFC, self.LDIS]
         self.LAC_TOTAL = [np.sum(self.LSPH), np.sum(self.LSCO), np.sum(self.LTCO), np.sum(self.LAST), np.sum(self.LPFC), np.sum(self.LSFC), np.sum(self.LTFC), np.sum(self.LDIS)]
         self.LAC_NM = ['LSPH', 'LSCO', 'LTCO', 'LAST', 'LPFC', 'LSFC', 'LTFC', 'LDIS']
+
         self.SAC_AN = 'Seidel Aberration Coefficents'
         self.SCW_AN = 'Seidel coefficients in waves'
         self.TAC_AN = 'Transverse Aberration Coefficents'
