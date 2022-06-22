@@ -123,6 +123,7 @@ S=normal superficie
 
     cos=np.dot(Nv, Iv)
 
+
     if (cos < (- 1.0)):
         ang = 180.0
     else:
@@ -130,7 +131,10 @@ S=normal superficie
 
     if (ang <= 90.0):
         Nv = - Nv
+    else:
+        ang = 180 - ang
 
+    # print(ang)
     """----------------------------------------------"""
 
 
@@ -162,8 +166,8 @@ S=normal superficie
 
     c2 = np.sqrt(1.0-IP)
     T = NN * Iv + ((( NN * c1 ) - c2)) * Nv
-    # print("Hola")
-    return T, np.abs(n2), SIGN
+
+    return T, np.abs(n2), SIGN, ang
 
 
 # @jit(nopython=True)
@@ -300,8 +304,19 @@ class diffraction_grating_physics():
         pass
 
     def calculate(self, S, R, N, Np, P, Ord, d, W, Secuent):
-        Ang=np.rad2deg(np.arccos( np.dot(R,S)))
-        # print(S, R, Ord, Ang)
+
+        cos=np.dot(R,S)
+        Ang=np.rad2deg(np.arccos( cos))
+
+        ang = Ang
+
+        if (cos < (- 1.0)):
+            ang = 180.0
+        else:
+            ang = np.rad2deg(np.arccos(cos))
+
+        if (ang >= 90.0):
+            ang = 180 - ang
 
 
         if np.abs(Ang) < 90:
@@ -376,5 +391,5 @@ class diffraction_grating_physics():
         Sp = (((mu * S) - (T * D)) + (Q * R))
 
         SIGN = SIGN*-1*RefRef
-        return (Sp, np.abs(Np), SIGN)
+        return (Sp, np.abs(Np), SIGN, ang)
 

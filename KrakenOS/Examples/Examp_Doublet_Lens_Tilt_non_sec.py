@@ -37,6 +37,17 @@ L1a.Diameter = 30.0
 L1a.AxisMove = 1
 L1a.TiltX = 13.0
 L1a.DespZ = 5.0
+R = [[0.0, 0.0, 0.0],
+     [0.0, 0.0, 0.0]]
+
+A = [[0.0, 0.0, 0.0],
+     [0.0, 0.0, 0.0]]
+
+W = [0.35, 0.45, 0.55]
+
+THETA = [0, 45]
+
+L1a.Coating =[R, A, W, THETA]
 
 # _________________________________________#
 
@@ -46,6 +57,11 @@ L1b.Thickness = 3.0
 L1b.Glass = "F2"
 L1b.Diameter = 30
 
+
+THETA = [0, 45]
+
+L1b.Coating =[R, A, W, THETA]
+
 # _________________________________________#
 
 L1c = Kos.surf()
@@ -53,6 +69,11 @@ L1c.Rc = (-7.819730726078505E+001)
 L1c.Thickness = 9.737604742910693E+001
 L1c.Glass = "AIR"
 L1c.Diameter = 30
+
+
+THETA = [0, 45]
+
+L1c.Coating =[R, A, W, THETA]
 
 # _________________________________________#
 
@@ -72,6 +93,7 @@ configuracion_1 = Kos.Setup()
 
 Doblete = Kos.system(A, configuracion_1)
 Rayos = Kos.raykeeper(Doblete)
+Doblete.energy_probability=1
 
 # _________________________________________#
 

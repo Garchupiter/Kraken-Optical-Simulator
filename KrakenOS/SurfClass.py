@@ -170,7 +170,9 @@ class surf():
         ,Surface_type = 0.0\
         ,SURF_FUNC = [conic__surf(0.0, 0.0, 1.0)]\
         ,SPECIAL_SURF_FUNC = []\
-        ,SubAperture = [1,0,0]):
+        ,SubAperture = [1,0,0], Coating = [[],[],[],[]]):
+
+        # coating = [[R],[A],[W],[THETA]]
 
         """__init__.
         """
@@ -217,6 +219,7 @@ class surf():
         self.SPECIAL_SURF_FUNC = SPECIAL_SURF_FUNC
         self.General_Status = self.update()
         self.SubAperture = SubAperture
+        self.Coating = Coating
 
     def RestoreVTK(self):
         Objeto_3D = pv.Disc(center=[0.0, 0.0, 0.0], inner=0, outer=0.001, normal=(0, 0, 1), r_res=3, c_res=3)
@@ -249,13 +252,13 @@ class surf():
         self.Surface_type = 0
         if (self.Diff_Ord != 0):
             self.Surface_type = 1
-            print('Surface type 1')
+            # print('Surface type 1')
         if (self.Thin_Lens != 0):
             self.Surface_type = 2
-            print('Surface type 2')
+            # print('Surface type 2')
         if (self.Solid_3d_stl != 'None'):
             self.Surface_type = 3
-            print('Surface type 3')
+            # print('Surface type 3')
         if ((self.Diff_Ord != 0) and (self.Thin_Lens != 0)):
             self.warning()
             self.Surface_type = 0
@@ -374,6 +377,7 @@ class surf():
         self.Sv_Thin_Lens = self.Thin_Lens
         self.Sv_Error_map = self.Error_map
         self.Sv_SubAperture = self.SubAperture
+        self.Sv_Coating = self.Coating
 
     def RestoreSetup(self):
         """RestoreSetup.
@@ -406,3 +410,4 @@ class surf():
         self.Thin_Lens = self.Sv_Thin_Lens
         self.Error_map = self.Sv_Error_map
         self.SubAperture = self.Sv_SubAperture
+        self.Coating = self.Sv_Coating

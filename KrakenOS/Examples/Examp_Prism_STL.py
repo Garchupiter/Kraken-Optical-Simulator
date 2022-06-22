@@ -25,6 +25,8 @@ P = Kos.surf()
 P.Thickness = 10.0
 P.Diameter = 5
 
+
+
 file = r"prism.stl"
 Solid = Kos.surf()
 Solid.Diameter = 20
@@ -33,6 +35,22 @@ Solid.Glass= "BK7"
 Solid.DespY = -5
 Solid.AxisMove = 2
 Solid.Thickness = -10
+#coating = [[T],[R],[A],[W],[THETA]]
+
+R = [[0.0, 0.0, 0.0],
+     [0.0, 0.0, 0.0]]
+
+A = [[0.0, 0.0, 0.0],
+     [0.0, 0.0, 0.0]]
+
+W = [0.35, 0.45, 0.55]
+
+THETA = [0, 45]
+
+Solid.Coating =[R, A, W, THETA]
+
+
+
 
 P2 = Kos.surf()
 P2.Thickness = -10.0
@@ -57,15 +75,22 @@ A = [P_Obj, P, Solid, P2, Solid2, P_Ima]
 configuracion_1 = Kos.Setup()
 SOLID = Kos.system(A, configuracion_1)
 Rays = Kos.raykeeper(SOLID)
+SOLID.energy_probability = 1
+
+
 
 
 AA = [P_Obj, P, P_Ima]
 SOLID2 = Kos.system(AA, configuracion_1)
 
-W= 0.65
+
+
+
+
+W= 0.54
 Surf, W, AperVal, AperType = 1, W, P.Diameter, "EPD"
 P = Kos.PupilCalc(SOLID2, Surf, W, AperType, AperVal)
-P.Samp, P.Ptype, P.FieldX, P.FieldType = 10, "fany", 0, "angle"
+P.Samp, P.Ptype, P.FieldX, P.FieldType = 1, "fany", 0, "angle"
 x, y, z, L, M, N = P.Pattern2Field()
 Kos.NsTraceLoop(x, y, z, L, M, N, W, Rays, clean = 1)
 

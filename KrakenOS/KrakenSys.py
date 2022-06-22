@@ -240,8 +240,10 @@ class system():
         self.tt=1.
         self.energy_probability = 0
         self.NsLimit = 200
+        self.ang = 0
 
-        # (ResVec, CurrN, sign) = self.SDT[2].PHYSICS.calculate([-0.01295049, 0.14862896 ,0.98880823], [-0., -0., -1.], 1.0, 1.0, [0., 1. ,0.], 0.0, 0.0, 0.6, 0.)
+
+        # (ResVec, CurrN, sign ,ang) = self.SDT[2].PHYSICS.calculate([-0.01295049, 0.14862896 ,0.98880823], [-0., -0., -1.], 1.0, 1.0, [0., 1. ,0.], 0.0, 0.0, 0.6, 0.)
 
     def __SurFuncSuscrip(self):
         """__SurFuncSuscrip.
@@ -382,6 +384,7 @@ class system():
         """
         Empty = np.asarray([])
         RayTraceType = 0
+        ang = 0
         ValToSav = [Empty, Empty, pS, pS, Empty, Empty, dC, Empty, Empty, Empty, WaveLength, Empty, Empty, Empty, Empty, Empty, j, RayTraceType]
         self.__CollectData(ValToSav)
 
@@ -440,7 +443,13 @@ class system():
         self.ORDER.append(Ord)
         self.GRATING.append(GrSpa)
         if (self.val == 1):
+            # Coating
+            Rp2, Rs2, Tp2, Ts2, V  = self.CoatingFun(self.SDT[j].Coating, self.ang, self.Wave)
             (Rp, Rs, Tp, Ts) = FresnelEnergy(Glass, PrevN, CurrN, ImpVec, SurfNorm, ResVec, self.SETUP, self.Wave)
+            if V == 1:
+                Rp, Rs, Tp, Ts = Rp2, Rs2, Tp2, Ts2
+
+
         else:
             (Rp, Rs, Tp, Ts) = (0, 0, 0, 0)
         self.RP.append(Rp)
@@ -468,6 +477,35 @@ class system():
         self.TT = (self.TT * self.tt*self.BULK_TRANS[-1])
 
         return None
+
+    def CoatingFun(self, TRA, Theta, wav):
+        R = np.asarray(TRA[0])
+        A = np.asarray(TRA[1])
+        W = np.asarray(TRA[2])
+        THETA = np.asarray(TRA[3])
+
+        T = 1-R-A
+
+        if len(THETA) == 0:
+            V = 0
+            Rp, Rs, Tp, Ts = 0, 0, 0, 0
+        else:
+            V = 1
+            idx_theta = (np.abs(THETA - Theta)).argmin()
+            idx_w = (np.abs(W - wav)).argmin()
+
+            T = T[idx_theta]
+            R = R[idx_theta]
+            A = A[idx_theta]
+
+
+            T = T[idx_w]
+            R = R[idx_w]
+            A = A[idx_w]
+
+            Rp, Rs, Tp, Ts = R, R, T, T
+
+        return Rp, Rs, Tp, Ts, V
 
     def RestoreData(self):
         """RestoreData.
@@ -646,11 +684,15 @@ class system():
                 N = PrevN
                 Np = CurrN
                 D = GooveVect
+
                 Ord = self.SDT[j].Diff_Ord
+                # print(Ord)
+
                 GrSpa = self.SDT[j].Grating_D
                 Secuent = 0
 
-                (ResVec, CurrN, sign) = self.SDT[j].PHYSICS.calculate(S, R, N, Np, D, Ord, GrSpa, self.Wave, Secuent)
+                (ResVec, CurrN, sign ,self.ang) = self.SDT[j].PHYSICS.calculate(S, R, N, Np, D, Ord, GrSpa, self.Wave, Secuent)
+
 
                 SIGN = (SIGN * sign)
                 Name = self.SDT[j].Name
@@ -662,6 +704,7 @@ class system():
                 self.RAY.append(RayOrig)
 
             if self.Glass[j] == 'NULL':
+                ang = 0
 
                 ValToSav = [Glass, alpha, RayOrig, pTarget, HitObjSpace, LMNObjSpace, SurfNorm, ImpVec, ResVec, PrevN, CurrN, WaveLength, D, Ord, GrSpa, Name, j, RayTraceType]
                 self.__CollectData(ValToSav)
@@ -769,22 +812,36 @@ class system():
                         N = CurrN
                         Np = 1
                 D = GooveVect
+
                 Ord = self.SDT[j].Diff_Ord
+                # print(Ord)
+                # Ord = self.SDT[j].Diff_Ord
                 GrSpa = self.SDT[j].Grating_D
                 Secuent = 0
                 ResVec_N, R_N, N_N, Np_N = ResVec, R, N, Np
-                (ResVec, CurrN, sign) = self.SDT[j].PHYSICS.calculate(ResVec_N, R_N, N_N, Np_N, D, Ord, GrSpa, self.Wave, Secuent)
+                (ResVec, CurrN, sign ,ang) = self.SDT[j].PHYSICS.calculate(ResVec_N, R_N, N_N, Np_N, D, Ord, GrSpa, self.Wave, Secuent)
+
+                # Coating
                 (Rp0, Rs0, Tp0, Ts0) = FresnelEnergy(self.Glass[j], N, Np, ResVec, R, ResVec, self.SETUP, self.Wave)
+                Rp2, Rs2, Tp2, Ts2, V = self.CoatingFun(self.SDT[j].Coating, self.ang, self.Wave)
+                if V == 1:
+                    Rp0, Rs0, Tp0, Ts0 = Rp2, Rs2, Tp2, Ts2
+
+                    # print(V, Rp0, Rs0, Tp0, Ts0, j)
+
+
                 self.tt = 1.0
                 if (self.Glass[j] != 'MIRROR'):
                     self.tt = ((Tp0 + Ts0) / 2.0)
 
+
                 if self.energy_probability==1:
                     PROB = prob(self.tt)[0]
+                    # print(PROB)
 
                     if (PROB > 0):
                         Secuent = 1
-                        (ResVec, CurrN, sign) = self.SDT[j].PHYSICS.calculate(ResVec_N, R_N, N_N, Np_N, D, Ord, GrSpa, self.Wave, Secuent)
+                        (ResVec, CurrN, sign ,ang) = self.SDT[j].PHYSICS.calculate(ResVec_N, R_N, N_N, Np_N, D, Ord, GrSpa, self.Wave, Secuent)
 
                 SIGN = (SIGN * sign)
 
@@ -805,7 +862,8 @@ class system():
 
 
             if self.Glass[j] == 'NULL':
-                ValToSav = [Glass, alpha, RayOrig, pTarget, HitObjSpace, SurfNorm, ImpVec, ResVec, PrevN, CurrN, WaveLength, D, Ord, GrSpa, Name, j, RayTraceType]
+                ang = 0
+                ValToSav = [Glass, alpha, RayOrig, pTarget, HitObjSpace, SurfNorm, ImpVec, ResVec, PrevN, CurrN, WaveLength, D, Ord, GrSpa, Name, j, RayTraceType, ang]
                 self.__CollectData(ValToSav)
 
             if self.Glass[j] == 'ABSORB':
@@ -875,10 +933,11 @@ class system():
                     N = PrevN
                     Np = CurrN
                     D = GooveVect
+
                     Ord = self.SDT[j].Diff_Ord
                     GrSpa = self.SDT[j].Grating_D
 
-                    (ResVec, CurrN, sign) = self.SDT[j].PHYSICS.calculate(S, R, N, Np, D, Ord, GrSpa, self.Wave, 0)
+                    (ResVec, CurrN, sign ,ang) = self.SDT[j].PHYSICS.calculate(S, R, N, Np, D, Ord, GrSpa, self.Wave, 0)
 
                     SIGN = (SIGN * sign)
 

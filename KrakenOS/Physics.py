@@ -34,6 +34,10 @@ def FresnelEnergy(vidrio, NP, NC, ImpVec, SurfNorm, ResVec, SETUP, Wave):
         n_metal = np.interp(Wave, SETUP.W_alum, SETUP.N_alum)
         k_complex = np.interp(Wave, SETUP.W_alum, SETUP.K_alum)
         (Rp, Rs, Tp, Ts) = fresnel_metal(NP, n_metal, k_complex, ImpVec, SurfNorm)
+
+
+
+    # print(self.SDT[j].Coating, ang)
     return (Rp, Rs, Tp, Ts)
 
 
