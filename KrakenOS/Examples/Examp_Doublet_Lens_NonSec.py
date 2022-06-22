@@ -42,18 +42,8 @@ L1a.Rc = 9.284706570002484E+001
 L1a.Thickness = 6.0
 L1a.Glass = "BK7"
 L1a.Diameter = 30.0
-L1a.Axicon = 0
-R = [[0.0, 0.0, 0.0],
-     [0.0, 0.0, 0.0]]
 
-A = [[0.0, 0.0, 0.0],
-     [0.0, 0.0, 0.0]]
 
-W = [0.35, 0.45, 0.55]
-
-THETA = [0, 45]
-
-L1a.Coating =[R, A, W, THETA]
 # _________________________________________#
 
 L1b = Kos.surf()
@@ -61,7 +51,6 @@ L1b.Rc = -3.071608670000159E+001
 L1b.Thickness = 3.0
 L1b.Glass = "F2"
 L1b.Diameter = 30
-L1b.Coating =[R, A, W, THETA]
 
 # _________________________________________#
 
@@ -70,7 +59,6 @@ L1c.Rc = -7.819730726078505E+001
 L1c.Thickness = 9.737604742910693E+001
 L1c.Glass = "AIR"
 L1c.Diameter = 30
-L1c.Coating =[R, A, W, THETA]
 
 # _________________________________________#
 
@@ -96,13 +84,13 @@ Rayos = Kos.raykeeper(Doblete)
 
 
 Doblete.energy_probability=1 # 0 for transmission only
-Doblete.NsLimit
+Doblete.NsLimit=50
 
 
 tam = 10
 rad = 14.0
 tsis = len(A) - 1
-for nsc in range(0, 10):
+for nsc in range(0, 30):
     for j in range(-tam, tam + 1):
         x_0 = (0 / tam) * rad
         y_0 = (j / tam) * rad

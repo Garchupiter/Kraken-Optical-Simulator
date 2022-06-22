@@ -38,6 +38,19 @@ L1a.AxisMove = 1
 L1a.TiltX = 13.0
 L1a.DespZ = 5.0
 
+# reflectivity
+R = [[0.5, 0.5, 0.5],
+     [0.0, 0.0, 0.0]]
+# absorption
+A = [[0.0, 0.0, 0.0],
+     [0.0, 0.0, 0.0]]
+# wavelength
+W = [0.35, 0.45, 0.55]
+# angle
+THETA = [0, 45]
+# anti reflection coating
+L1a.Coating =[R, A, W, THETA]
+"""Note: this cannot change the total internal reflection """
 
 # _________________________________________#
 
@@ -48,6 +61,9 @@ L1b.Glass = "F2"
 L1b.Diameter = 30
 
 
+THETA = [0, 45]
+
+L1b.Coating =[R, A, W, THETA]
 
 # _________________________________________#
 
@@ -57,6 +73,8 @@ L1c.Thickness = 9.737604742910693E+001
 L1c.Glass = "AIR"
 L1c.Diameter = 30
 
+
+L1c.Coating =[R, A, W, THETA]
 
 
 # _________________________________________#

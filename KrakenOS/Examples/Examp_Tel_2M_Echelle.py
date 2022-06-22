@@ -326,4 +326,4 @@ plt.show()
 
 
 
-Kos.display3d(Telescope, Rays, 2)
+Kos.display3d(Telescope, Rays, 0)

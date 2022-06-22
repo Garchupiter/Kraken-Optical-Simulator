@@ -35,6 +35,23 @@ Solid.Glass= "BK7"
 Solid.DespY = -5
 Solid.AxisMove = 2
 Solid.Thickness = -10
+#coating = [[T],[R],[A],[W],[THETA]]
+
+# reflectivity
+R = [[0.0, 0.0, 0.0],
+     [0.0, 0.0, 0.0]]
+# absorption
+A = [[0.0, 0.0, 0.0],
+     [0.0, 0.0, 0.0]]
+# wavelength
+W = [0.35, 0.45, 0.55]
+# angle
+THETA = [0, 45]
+# anti reflection coating
+Solid.Coating =[R, A, W, THETA]
+"""Note: this cannot change the total internal reflection """
+
+
 
 
 
