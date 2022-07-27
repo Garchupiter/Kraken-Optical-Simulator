@@ -287,7 +287,7 @@ class paraxial_exact_physics():
         empty5 :
             empty5
         """
-        return (Nsurf_norm, 1, 1)
+        return (Nsurf_norm, 1, 1, 0)
 
 
 

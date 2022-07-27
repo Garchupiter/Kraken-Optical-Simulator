@@ -118,7 +118,7 @@ class Prerequisites():
 
 
         if (self.SDT[j].Solid_3d_stl == 'None'):
-            RES = (46 * self.SDT[j].Res)
+            RES = (47 * self.SDT[j].Res)
             con = (((self.SDT[j].Diameter *self.SDT[j].SubAperture[0]) - (self.SDT[j].InDiameter * self.Disable_Inner)) / (self.SDT[j].Diameter *self.SDT[j].SubAperture[0]))
             if (con == 0):
                 con = 1

@@ -64,7 +64,7 @@ M1.Thickness = -Thickness
 M1.k = -1.077310000000000E+000
 M1.Glass = "MIRROR"
 M1.Diameter = 1.059E+003 * 2.0
-M1.InDiameter = 250 * 2.0
+
 
 # ______________________________________#
 
@@ -124,7 +124,7 @@ for i in range(-tam, tam + 1):
 
 # ______________________________________#
 
-Kos.display3d(Telescopio, Rayos, 2)
+Kos.display3d(Telescopio, Rayos, 0)
 X, Y, Z, L, M, N = Rayos.pick(-1)
 
 # ______________________________________#
