@@ -770,10 +770,43 @@ class system():
         (PrevN, alpha) = (self.N_Prec[j], self.AlphaPrecal[j])
         j = 0
         SIGN = 1
+
+        # if len(GUIDE)!=0:
+
+        #     self.aaaa = np.asarray(GUIDE)
+        #     self.bbbb = np.roll(self.aaaa, -1)
+        #     self.bbbb[-1] = self.aaaa[1]
+        #     self.cccc = np.roll(self.bbbb, -1)
+        #     self.cccc[-1] = self.aaaa[1]
+        #     mp = np.argmax(self.cccc)
+        #     self.cccc[mp + 1] = self.aaaa[1]
+        #     self.dddd = np.ones_like(self.cccc)
+
+        # else:
+        #     self.aaaa = []
+        #     self.bbbb = []
+        #     self.cccc = []
+        #     self.dddd = []
+
         while True:
             if (j == self.Targ_Surf):
                 break
             (a, b, c, PreSurfHit) = self.__NonSequentialChooser(SIGN, RayOrig, ResVec, j)
+
+
+            # if len(GUIDE)==0:
+            #     (a, b, c, PreSurfHit) = self.__NonSequentialChooser(SIGN, RayOrig, ResVec, j)
+            #     self.aaaa.append(a)
+            #     self.bbbb.append(b)
+            #     self.cccc.append(c)
+            #     self.dddd.append(PreSurfHit)
+
+            # else:
+            #     a = self.aaaa[j]
+            #     b = self.bbbb[j]
+            #     c = self.cccc[j]
+            #     PreSurfHit = self.dddd[j]
+
             if (PreSurfHit == 0):
                 break
             if (a < b):
@@ -786,6 +819,7 @@ class system():
                     j_gg = b
             if (a == b):
                 j_gg = (b - 1)
+
             j = b
             jj = b
             j = self.GlassOnSide[j]
@@ -854,6 +888,10 @@ class system():
                 else:
                     PrevN = CurrN
                 RayOrig = pTarget
+
+                if (a==b) and (b==c) and (c == PreSurfHit):
+                    break
+
                 self.RAY.append(RayOrig)
 
 

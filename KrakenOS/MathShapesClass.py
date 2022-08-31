@@ -142,9 +142,13 @@ def CalculateCon(x, y, R_C , C_RXY_RATIO, KON):
         y
     """
     if (R_C != 0.0):
-        c = (1.0 / R_C)
+
         s = np.sqrt(((x * x) + ((y * C_RXY_RATIO) * (y * C_RXY_RATIO))))
+
+        c = (1.0 / R_C)
         InRoot = (1 - (((((KON + 1.0) * c) * c) * s) * s))
+
+        InRoot = np.abs(InRoot)
         z = (((c * s) * s) / (1.0 + np.sqrt(InRoot)))
     else:
         z = 0.0 * np.zeros_like(x)

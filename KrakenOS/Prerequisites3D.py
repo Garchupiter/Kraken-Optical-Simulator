@@ -141,6 +141,8 @@ class Prerequisites():
             Mask_poly = self.Flat2SigmaSurface(mask, j)
             Mask_poly = self.GeometricRotatAndTran(Mask_poly, j)
             OBJECT_MASK.append(Mask_poly)
+
+        # L_te_h = L_te_h.scale([0.1, 0.1, 0.1], inplace=False)
         return (L_te_h, OBJECT_MASK)
 
     def SidePerim(self, j):

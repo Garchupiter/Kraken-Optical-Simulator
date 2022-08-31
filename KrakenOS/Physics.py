@@ -142,6 +142,7 @@ def n_wave_dispersion(krakenSetup, GLSS, Wave):
             n = 1.0
             Alpha = 0.0
         if ((GLSS != 'MIRROR') and (GLSS != 'AIR')):
+            # print(GLSS)
             r = np.argwhere((NAMES == GLSS))[0][0]
             [Dispersion_Formula, MIL, Nd, Vd, Exclude_sub, Status] = NM[r]
             C = CD[r]
