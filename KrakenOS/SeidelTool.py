@@ -6,8 +6,6 @@ from .PupilTool import PupilCalc, SolveVectCross
 class Seidel():
     """Seidel.
     """
-
-
     def __init__(self, PUPIL):
         """__init__.
 

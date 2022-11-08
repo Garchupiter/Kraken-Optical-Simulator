@@ -1,15 +1,9 @@
-# from numba import jit
-# @jit(forceobj=True)
-
 import numpy as np
 from .SurfTools import surface_tools as SUT
-# from scipy.optimize import fsolve
-# import math
 
 class Hit_Solver():
     """Hit_Solver.
     """
-
 
     def __init__(self, SurfData):
         """__init__.
@@ -44,45 +38,6 @@ class Hit_Solver():
         self.vyi = [0.0, self.delta, 0.0, 0.0, - self.delta, 0.0]
         self.vzi = [0.0, 0.0, self.delta, 0.0, 0.0, - self.delta]
 
-
-
-    # def SurfDer(self, x, y, z):
-    #     """SurfDer.
-
-    #     Parameters
-    #     ----------
-    #     x :
-    #         x
-    #     y :
-    #         y
-    #     z :
-    #         z
-    #     """
-
-    #     # self.vx = np.asarray([(x + self.delta), x, x, (x - self.delta), x, x])
-    #     # self.vy = np.asarray([y, (y + self.delta), y, y, (y - self.delta), y])
-    #     # self.vz = np.asarray([z, z, (z + self.delta), z, z, (z - self.delta)])
-
-
-    #     self.vx1 = np.asarray([(x + self.delta), x, x, (x - self.delta), x, x, (x + self.delta2), x, x, (x - self.delta2), x, x])
-    #     self.vy1 = np.asarray([y, (y + self.delta), y, y, (y - self.delta), y, y, (y + self.delta2), y, y, (y - self.delta2), y])
-    #     self.vz1 = np.asarray([z, z, (z + self.delta), z, z, (z - self.delta), z, z, (z + self.delta2), z, z, (z - self.delta2)])
-
-
-    #     F1 = self.SuTo.SurfaceShape(self.vx1, self.vy1, self.vj) - self.vz1
-
-
-    #     V = F1 / (2.0 * self.delta)
-
-
-    #     Dx = V[0] - V[3]
-    #     Dy = V[1] - V[4]
-    #     Dz = V[2] - V[5]
-
-    #     Dr = np.sqrt((((Dx ** 2.) + (Dy ** 2.)) + (Dz ** 2.)))
-
-    #     return ((Dx / Dr), (Dy / Dr), (Dz / Dr))
-
     def SurfDer(self, x, y, z):
         #http://www2.math.umd.edu/~dlevy/classes/amsc466/lecture-notes/differentiation-chap.pdf
         """SurfDer.
@@ -96,12 +51,9 @@ class Hit_Solver():
         z :
             z
         """
-
         self.vx1 = np.asarray([(x + self.delta), x, x, (x - self.delta), x, x, (x + self.delta2), x, x, (x - self.delta2), x, x])
         self.vy1 = np.asarray([y, (y + self.delta), y, y, (y - self.delta), y, y, (y + self.delta2), y, y, (y - self.delta2), y])
         self.vz1 = np.asarray([z, z, (z + self.delta), z, z, (z - self.delta), z, z, (z + self.delta2), z, z, (z - self.delta2)])
-
-
         F = self.SuTo.SurfaceShape(self.vx1, self.vy1, self.vj) - self.vz1
 
         AX1=-F[6]
@@ -125,13 +77,6 @@ class Hit_Solver():
         Dr = np.sqrt((((Dx ** 2.) + (Dy ** 2.)) + (Dz ** 2.)))
         return ((Dx / Dr), (Dy / Dr), (Dz / Dr))
 
-
-
-
-
-
-
-
     def __surface_Derivative(self,x,y,z,j):
         #http://www2.math.umd.edu/~dlevy/classes/amsc466/lecture-notes/differentiation-chap.pdf
         delta=0.000001
@@ -154,19 +99,8 @@ class Hit_Solver():
         AZ4=(self.__xyzF(x, y, z-2*delta,j) )
         Dz=(AZ1+AZ2+AZ3+AZ4)/(12*delta)
 
-        # Dx=(self.__xyzF(x+delta,y,z,j)-self.__xyzF(x-delta,y,z,j))/(2.0*delta)
-        # Dy=(self.__xyzF(x,y+delta,z,j)-self.__xyzF(x,y-delta,z,j))/(2.0*delta)
-        # Dz=(self.__xyzF(x,y,z+delta,j)-self.__xyzF(x,y,z-delta,j))/(2.0*delta)
-
         Dr=np.sqrt((Dx*Dx)+(Dy*Dy)+(Dz*Dz))
         return Dx/Dr,Dy/Dr,Dz/Dr
-
-
-
-
-
-
-
 
     def __DerLineCurve(self, gf):
         """__DerLineCurve.
@@ -183,7 +117,6 @@ class Hit_Solver():
         kl=self.Parray - self.NP_z1
         X = (( kl * self.LN ) + self.NP_x1)
         Y = (( kl * self.MN ) + self.NP_y1)
-
 
         SP = self.SuTo.SurfaceShape(X, Y, self.vj)
         AA = (SP - self.Parray)
@@ -212,16 +145,10 @@ class Hit_Solver():
             j
         """
 
-        # if (len(self.SDT[j].Error_map) == 0):
-        #     self.SuTo.ErrSurfCase = 0
-        # else:
-        #     self.SuTo.ErrSurfCase = 0
-
         self.vevaX = 0.
         self.vevaY = 0.
         self.vj = j
 
-        # cnt = 0
         PP_z2 = Pz1
         P_z2 = Pz1
         self.NP_x1 = Px1
@@ -233,7 +160,6 @@ class Hit_Solver():
         for i in range (0,30):
 
             DerFdeX, FdeX = self.__DerLineCurve(PP_z2)
-
             PP_z2 = (PP_z2 - (FdeX / DerFdeX))
 
             if (np.abs((PP_z2 - P_z2)) > 1e-9):
@@ -241,13 +167,9 @@ class Hit_Solver():
             else:
                 break
 
-
-
         P_z2 = PP_z2
         P_x2 = (((P_z2 - self.NP_z1) * self.LN) + self.NP_x1)
         P_y2 = (((P_z2 - self.NP_z1) * self.MN) + self.NP_y1)
-
-        # self.SuTo.ErrSurfCase = 0
 
 
         if (len(self.SDT[j].Error_map) != 0):
@@ -272,4 +194,3 @@ class Hit_Solver():
 
 
         return (P_x2, P_y2, P_z2)
-

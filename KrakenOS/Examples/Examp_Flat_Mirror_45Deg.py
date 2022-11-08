@@ -70,6 +70,8 @@ Esp90.Name = "Espejo a 90 grados"
 Esp90.TiltX = 45.
 Esp90.AxisMove = 2.
 
+
+
 # ______________________________________#
 
 P_Ima = Kos.surf()
@@ -82,11 +84,14 @@ P_Ima.Name = "Plano imagen"
 # ______________________________________#
 
 A = [P_Obj, L1a, L1b, L1c, Esp90, P_Ima]
+
 config_1 = Kos.Setup()
 
 # ______________________________________#
 
 Doblete = Kos.system(A, config_1)
+
+
 Rayos1 = Kos.raykeeper(Doblete)
 Rayos2 = Kos.raykeeper(Doblete)
 Rayos3 = Kos.raykeeper(Doblete)
@@ -121,7 +126,11 @@ for j in range(-tam, tam + 1):
 
 # ______________________________________#
 
-Kos.display3d(Doblete, RayosT, 2)
+# Kos.display3d(Doblete, RayosT, 2)
+
+system = [Doblete, Doblete2]
+Kos.display2dPlus(system, RayosT, 0)
+
 
 # # ______________________________________#
 

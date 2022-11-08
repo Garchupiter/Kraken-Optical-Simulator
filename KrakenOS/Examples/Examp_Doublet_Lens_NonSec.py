@@ -23,7 +23,7 @@ import KrakenOS as Kos
 
 P_Obj = Kos.surf()
 P_Obj.Rc = 0.0
-P_Obj.Thickness = 0
+P_Obj.Thickness = 1
 P_Obj.Glass = "AIR"
 P_Obj.Diameter = 30.0
 

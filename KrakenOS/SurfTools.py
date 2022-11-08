@@ -4,8 +4,6 @@ import numpy as np
 class surface_tools():
     """surface_tools.
     """
-
-
     def __init__(self, SurfData):
         """__init__.
 
@@ -31,7 +29,6 @@ class surface_tools():
             j
         """
         if (j != self.Surface_Flattener):
-            # self.Surface_Flattener
             TOTAL_SURF_SHAPE = self.SDT[j].sigma_z(x, y, self.ErrSurfCase)
         else:
             TOTAL_SURF_SHAPE = 0.0*np.copy(x)

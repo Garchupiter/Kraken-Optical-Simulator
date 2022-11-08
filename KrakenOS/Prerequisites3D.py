@@ -6,10 +6,6 @@ class Prerequisites():
     """Prerequisites.
     """
 
-
-# self.SubAperture[0]
-
-
     def __init__(self, SurfData, SUTO):
         """__init__.
 
@@ -95,8 +91,6 @@ class Prerequisites():
         plane_objectAy = np.asarray(plane_objectAy)
         plane_objectAz = np.asarray(plane_objectAz)
 
-
-
         plane_objectAx = plane_objectAx + self.SDT[j].SubAperture[2]
         plane_objectAy = plane_objectAy + self.SDT[j].SubAperture[1]
 
@@ -132,7 +126,12 @@ class Prerequisites():
             else:
                 L_te_h = L_te_h.delaunay_2d()
         else:
-            L_te_h = pv.read(self.SDT[j].Solid_3d_stl)
+            aaa = isinstance(self.SDT[j].Solid_3d_stl, pv.core.pointset.PolyData)
+            if aaa == False:
+                L_te_h = pv.read(self.SDT[j].Solid_3d_stl)
+            else:
+                L_te_h = self.SDT[j].Solid_3d_stl
+
             L_te_h.compute_normals(cell_normals=True, point_normals=True, split_vertices=True, flip_normals=False, consistent_normals=True, auto_orient_normals=False, non_manifold_traversal=True, feature_angle=30.0, inplace = False)
         L_te_h = self.GeometricRotatAndTran(L_te_h, j)
         MASK = self.SDT[j].Mask_Shape
@@ -142,7 +141,6 @@ class Prerequisites():
             Mask_poly = self.GeometricRotatAndTran(Mask_poly, j)
             OBJECT_MASK.append(Mask_poly)
 
-        # L_te_h = L_te_h.scale([0.1, 0.1, 0.1], inplace=False)
         return (L_te_h, OBJECT_MASK)
 
     def SidePerim(self, j):
@@ -208,11 +206,6 @@ class Prerequisites():
         x2 = np.roll(x2, ag)
         y2 = np.roll(y2, ag)
         z2 = np.roll(z2, ag)
-
-
-
-
-
 
         P = []
         F = []

@@ -21,26 +21,14 @@ def RMS_Fitting_Error(SA, X, Y, Z, Zern_pol, z_pow):
     """
     NZ = []
     SE = np.copy(SA)
-    # SE[0] = 0
-    # SE[1] = 0
-    # SE[2] = 0
-    #for i in range(np.shape(X)[0]):
     NZ = Wavefront_Phase(X, Y, SE, Zern_pol, z_pow)
     NZ = np.asarray(NZ)
 
-    # SE[0] = 0
-    # SE[1] = 0
-    # SE[2] = 0
-    # NZZ = Wavefront_Phase(X, Y, SE, Zern_pol, z_pow)
-    # print("p2v ", np.abs(np.min(NZZ)-np.max(NZZ)))
     g = (NZ - Z)
     g = (g * g)
     g = np.mean(g)
     error = np.sqrt(g)
-    # gg = NZZ-np.mean(NZZ)
-    # gg = (gg * gg)
-    # gg = np.mean(gg)
-    # RMS = np.sqrt(gg)
+
     return (error)
 
 def Zernike_Fitting(x1, y1, Z1, Arr, minimum=0.000000001):
@@ -60,8 +48,6 @@ def Zernike_Fitting(x1, y1, Z1, Arr, minimum=0.000000001):
         minimum
     """
 
-    # Z1=Z1-np.mean(Z1)
-
     NC = len(Arr)
     (Zern_pol, z_pow) = zernike_expand(NC)
     for i in range(0, 2):
@@ -77,8 +63,6 @@ def Zernike_Fitting(x1, y1, Z1, Arr, minimum=0.000000001):
         NA = Arr.shape[0]
         MA = np.asarray(np.matmul(ZTZ_1_ZT, D))
 
-
-
         p = 2.5
         A=Zi
         x=MA
@@ -90,32 +74,7 @@ def Zernike_Fitting(x1, y1, Z1, Arr, minimum=0.000000001):
         Inv_A_T_A_A_T = np.matmul(Inv_A_T_A, A_T)
         x=np.matmul(Inv_A_T_A_A_T, b)
 
-
-        # for s in range(0,15):
-        #     E=np.abs(np.matmul(A,x)-D)
-        #     #print(np.sum(np.abs(E)))
-        #     E=np.resize(E,(np.shape(E)[0]))
-        #     e = np.diag(E)
-
-        #     W=np.power(e, ((p-2.0)/2.0))
-        #     WA=np.matmul(W,A)
-
-        #     WAT=WA.T
-        #     WATxWA=np.matmul(WAT,WA)
-        #     InvWATxWA=np.linalg.inv(WATxWA)
-        #     WATW=np.matmul(WAT,W)
-        #     f1=np.matmul(InvWATxWA,WATW)
-        #     x=np.matmul(f1,D)
-
-        #     print(np.sum(np.abs(E)), " Error")
-
         MA=x
-        # print("-------------")
-
-
-
-
-
 
         cont = 0
         ZZ = []
@@ -134,18 +93,14 @@ def Zernike_Fitting(x1, y1, Z1, Arr, minimum=0.000000001):
         AA[Zeros] = 1
         Arr = AA
     FITTINGERROR= RMS_Fitting_Error(SA, x1, y1, Z1, Zern_pol, z_pow)
-    # print("(RMS) Fitting error: ", FITTINGERROR)
 
     SE=np.copy(SA)
     SE[0]=0
     RMS2Chief=np.sqrt(np.sum(SE**2.0))
-    # print(RMS2Chief, "RMS(to chief) From fitted coefficents")
 
     SE[1]=0
     SE[2]=0
     RMS2Centroid=np.sqrt(np.sum(SE**2.0))
-    # print(RMS2Centroid, "RMS(to centroid) From fitted coefficents")
-
 
     return (SA, ZZ, RMS2Chief, RMS2Centroid, FITTINGERROR)
 

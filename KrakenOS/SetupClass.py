@@ -3,10 +3,6 @@ from .SystemTools import *
 RUTE=inspect.getmodule(load_Catalog).__file__
 rute=RUTE[:-15]+ "/Cat/"
 
-
-
-
-
 class Setup():
 
     def __init__(self):
@@ -25,11 +21,8 @@ class Setup():
     def Load(self, GL):
 
         print("Glass catalog loaded")
-
-
         utilities = (rute + 'UTILIDADES.AGF')
         GL.append(utilities)
-
 
         [self.CAT, self.NAMES, self.NM, self.ED, self.CD, self.TD, self.OD, self.LD, self.IT] = load_Catalog(GL)
         file = (rute + 'Alum.csv')

@@ -26,7 +26,7 @@ P_Obj.Drawing = 0
 # ______________________________________#
 
 M1 = Kos.surf()
-M1.Rc = -2000.0
+M1.Rc = -2 * P_Obj.Thickness
 M1.Thickness = M1.Rc / 2
 M1.k = -1.0
 M1.Glass = "MIRROR"
@@ -72,3 +72,20 @@ for i in range(-tam, tam + 1):
 # ______________________________________#
 
 Kos.display2d(Espejo, Rayos, 0)
+
+
+
+def R_RMS_delta(Z1, L, M, N, X0, Y0):
+    X1 = ((L / N) * Z1) + X0
+    Y1 = ((M / N) * Z1) + Y0
+    cenX = np.mean(X1)
+    cenY = np.mean(Y1)
+    x1 = (X1 - cenX)
+    y1 = (Y1 - cenY)
+    R2 = ((x1 * x1) + (y1 * y1))
+    R_RMS = np.sqrt(np.mean(R2))
+    return R_RMS
+
+x,y,z,l,m,n = Rayos.pick(-1, coordinates="local")
+
+print(R_RMS_delta(z, l, m, n, x, y))

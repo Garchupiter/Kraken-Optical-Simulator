@@ -95,7 +95,40 @@ Rang= 0.01
 DW = np.arange(-Rang,Rang+delta,delta)
 for dw in DW:
     Kos.TraceLoop(x, y, z, L, M, N, W + dw, Rays, clean = 0)
-Kos.display3d(ZernTurn, Rays, 0)
+
+
+
+
+W =0.35
+Rays2 = Kos.raykeeper(ZernTurn)
+
+Surf, W, AperVal, AperType = 1, W, OAP1.Diameter, "EPD"
+P = Kos.PupilCalc(ZernTurn, Surf, W, AperType, AperVal)
+P.Samp, P.Ptype, P.FieldX, P.FieldType = 4, "fany", 0, "height"
+x, y, z, L, M, N = P.Pattern2Field()
+
+delta=0.001
+Rang= 0.01
+DW = np.arange(-Rang,Rang+delta,delta)
+for dw in DW:
+    Kos.TraceLoop(x, y, z, L, M, N, W + dw, Rays2, clean = 0)
+
+
+
+
+# Kos.display3d(ZernTurn, Rays, 0)
+
+
+P3D = Kos.display3d_OB()
+
+P3D.SYSTEM = ZernTurn
+P3D.RAYS = Rays
+P3D.plot()
+
+
+
+P3D.RAYS = Rays2
+P3D.plot()
 
 
 # d=1

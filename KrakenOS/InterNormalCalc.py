@@ -3,12 +3,9 @@ import numpy as np
 import math
 from .SurfTools import surface_tools as SUT
 
-
-
 class InterNormalCalc():
     """InterNormalCalc.
     """
-
 
     def __init__(self, SurfData, TypTot, PR3D, HS):
         """__init__.
@@ -58,12 +55,6 @@ class InterNormalCalc():
         j :
             j
         """
-        # if (len(np.shape(PP_start)) != 1):
-        #     PP_stop_zyx = np.rot90(PP_stop)
-        #     PP_start_zyx = np.rot90(PP_start)
-        #     StopPoint = np.array([PP_stop_zyx[2], PP_stop_zyx[1], PP_stop_zyx[0], 1.0])
-        #     StarPoint = np.array([PP_start_zyx[2], PP_start_zyx[1], PP_start_zyx[0], 1.0])
-        # else:
 
         StopPoint = np.array([PP_stop[0], PP_stop[1], PP_stop[2], 1.0])
         StarPoint = np.array([PP_start[0], PP_start[1], PP_start[2], 1.0])
@@ -114,6 +105,8 @@ class InterNormalCalc():
             D0 = (2.0 * ASD)
             DiamInf = ((self.SDT[j].InDiameter * self.SDT[j].SubAperture[0]) * self.Disable_Inner)
             DiamSup = ((self.SDT[j].Diameter * self.SDT[j].SubAperture[0]) + (10000.0 * self.ExtraDiameter))
+
+
             if ((D0 > DiamSup) or (D0 < DiamInf)):
                 SurfHit = 0
                 P_x2 = 0
@@ -140,7 +133,6 @@ class InterNormalCalc():
         else:
             ASD=np.sqrt(((Px1 - self.SDT[j].SubAperture[2])**2) + ((Py1 - self.SDT[j].SubAperture[1])**2))
             D0 = (2.0 * ASD)*0.999999
-            #0.9999 to avoid kill the rays in the edge
 
             if ((D0 > self.SDT[j].Diameter * self.SDT[j].SubAperture[0]) or (D0 < self.SDT[j].InDiameter * self.SDT[j].SubAperture[0] )):
                 SurfHit = 0
@@ -196,7 +188,6 @@ class InterNormalCalc():
             P_y2 = 0
             P_z2 = 0
 
-
         return (SurfHit, P_x2, P_y2, P_z2, Px1, Py1, Pz1)
 
     def __ParaxCalcObjOut2OrigSpace(self, Px2, Py2, Pz2, Px1, Py1, Pz1, j):
@@ -243,10 +234,7 @@ class InterNormalCalc():
         j :
             j
         """
-
-
         (New_L, New_M, New_N) = self.HS.SurfDer(P_x2, P_y2, P_z2)
-
 
         Pz1z2 = (self.P_z1 - P_z2)
 
@@ -321,32 +309,19 @@ class InterNormalCalc():
         j :
             j
         """
-
-
-
-        # self.P1[0], self.P1[1], self.P1[2] = 0, 0, 0
-        # self.P2[0], self.P2[1], self.P2[2] = np.sin(np.deg2rad(self.SDT[j].Grating_Angle)), np.cos(np.deg2rad(self.SDT[j].Grating_Angle)), 0
-
         self.P1[0], self.P1[1], self.P1[2] = 0, 0, 0
         self.P2[0], self.P2[1], self.P2[2] = -np.cos(np.deg2rad(self.SDT[j].Grating_Angle)), -np.sin(np.deg2rad(self.SDT[j].Grating_Angle)),0
 
         NP1 = self.TRANS_2A[j].dot(self.P1)
         NP2 = self.TRANS_2A[j].dot(self.P2)
 
-
         self.Pn[0] = - (NP1[(0, 0)] - NP2[(0, 0)])
         self.Pn[1] = - (NP1[(0, 1)] - NP2[(0, 1)])
         self.Pn[2] = - (NP1[(0, 2)] - NP2[(0, 2)])
 
-
         LNOR=np.sqrt((self.Pn[0]**2.)+(self.Pn[1]**2.)+(self.Pn[2]**2.))
 
         Pg_v = (self.Pn / LNOR)
-
-
-
-
-
         return Pg_v
 
     def InterNormal(self, PP_start, PP_stop, j, jj):
@@ -385,9 +360,6 @@ class InterNormalCalc():
                 LMN_exit_Object_Space = [L, M, N]
 
                 if (self.SDT[j].Thin_Lens == 0):
-
-
-
                     (norm, PTO_exit, PTO_exit_Object_Space) = self.__SigmaOutOrigSpace(Px2, Py2, Pz2, j)
 
                 else:
@@ -395,42 +367,6 @@ class InterNormalCalc():
         else:
             (SurfHit, norm, PTO_exit, Pgn) = self.__InterNormalSolidObject(jj, PP_start, PP_stop)
         return (SurfHit, np.asarray(norm), np.asarray(PTO_exit), np.asarray(Pgn), np.asarray(PTO_exit_Object_Space), np.asarray(LMN_exit_Object_Space), j)
-
-
-
-    def InterNormalFast(self, PP_start, PP_stop, j):
-# Sin solid objects, sin mascaras ni paraxial, no tilts, no inner or out
-        """InterNormal.
-
-        Parameters
-        ----------
-        PP_start :
-            PP_start
-        PP_stop :
-            PP_stop
-        j :
-            j
-        jj :
-            jj
-        """
-        PTO_exit = [0, 0, 0]
-        PTO_exit_Object_Space = [0, 0, 0]
-        norm = [0, 0, 1]
-        SurfHit = 1
-
-        if (self.SDT[j].Diff_Ord == 0):
-            Pgn = [0, 1, 0]
-        else:
-            Pgn = self.__GrooveDirectionVector(j)
-
-        (SurfHit, Px2, Py2, Pz2, Px1, Py1, Pz1) = self.__SigmaHitTransfSpaceFast(PP_start, PP_stop, j)
-
-        if (SurfHit != 0):
-            (norm, PTO_exit, PTO_exit_Object_Space) = self.__SigmaOutOrigSpace(Px2, Py2, Pz2, j)
-
-        return (SurfHit, np.asarray(norm), np.asarray(PTO_exit), np.asarray(Pgn), np.asarray(PTO_exit_Object_Space), j)
-
-
 
     def __InterNormalSolidObject(self, jj, PP_start, PP_stop):
         """__InterNormalSolidObject.
@@ -465,4 +401,3 @@ class InterNormalCalc():
             norm = NOR[ind[index]]
             Pgn = np.asarray([0, 0, 1])
         return (SurfHit, norm, PTO_exit, Pgn)
-

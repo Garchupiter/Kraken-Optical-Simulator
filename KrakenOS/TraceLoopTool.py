@@ -1,5 +1,3 @@
-
-
 def TraceLoop(x, y, z, L, M, N, W, Container, clean = 1):
     """TraceLoop.
 

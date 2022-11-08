@@ -1,10 +1,5 @@
-#from numba import jit
-
-
 import numpy as np
 
-
-# @jit(forceobj=True)
 def FresnelEnergy(vidrio, NP, NC, ImpVec, SurfNorm, ResVec, SETUP, Wave):
     """FresnelEnergy.
 
@@ -35,13 +30,8 @@ def FresnelEnergy(vidrio, NP, NC, ImpVec, SurfNorm, ResVec, SETUP, Wave):
         k_complex = np.interp(Wave, SETUP.W_alum, SETUP.K_alum)
         (Rp, Rs, Tp, Ts) = fresnel_metal(NP, n_metal, k_complex, ImpVec, SurfNorm)
 
-
-
-    # print(self.SDT[j].Coating, ang)
     return (Rp, Rs, Tp, Ts)
 
-
-# @jit(forceobj=True)
 def fresnel_dielectric(NP, NC, LMN_Inc, LMN_nor_surf, LMN_result):
     """fresnel_dielectric.
 
@@ -74,10 +64,6 @@ def fresnel_dielectric(NP, NC, LMN_Inc, LMN_nor_surf, LMN_result):
 
     return (Rp, Rs, Tp, Ts)
 
-
-
-
-# @jit(forceobj=True)
 def fresnel_metal(NP, n_metal, k_complex, LMN_Inc, LMN_nor_surf):
     """fresnel_metal.
 
@@ -110,8 +96,6 @@ def fresnel_metal(NP, n_metal, k_complex, LMN_Inc, LMN_nor_surf):
     Ts = (1 - Rs)
     return (Rp, Rs, Tp, Ts)
 
-
-# @jit(forceobj=True)
 def n_wave_dispersion(krakenSetup, GLSS, Wave):
     """n_wave_dispersion.
 
@@ -239,14 +223,9 @@ def n_wave_dispersion(krakenSetup, GLSS, Wave):
 
                 n = np.sqrt(GLSN)
 
-
-
             [Wa, Tr, Th] = IT[r]
             TR = np.interp(Wave, np.asarray(Wa), np.asarray(Tr))
             Alpha = ((- np.log(TR)) / Th[0])
-
-
-
 
     else:
         n = float(GLSS[4:])
@@ -254,9 +233,6 @@ def n_wave_dispersion(krakenSetup, GLSS, Wave):
 
     return (n, Alpha)
 
-
-
-# @jit(forceobj=True)
 def ParaxCalc(N_Prec, SDT, SuTo, n, Gl):
     """ParaxCalc.
 

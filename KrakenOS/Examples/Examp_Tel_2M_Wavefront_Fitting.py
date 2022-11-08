@@ -60,7 +60,7 @@ M2.Glass = "MIRROR"
 M2.Diameter = 336.5 * 2.0
 M2.TiltY = 0.0
 M2.TiltX = 0.0
-M2.DespY = 0.0
+M2.DespY = 1.0
 """ Se inclina el secundario """
 M2.DespX = 1.0
 M2.AxisMove = 0
@@ -149,7 +149,7 @@ print("Peak to valley: ", P2V)
 
 
 """Indicamos el grado de expanción para los polinomios de Zernike"""
-NC = 35
+NC = 15
 
 """Generamos un arreglo numpy conlas mismas dimensiones de la expanción definida"""
 A = np.ones(NC)

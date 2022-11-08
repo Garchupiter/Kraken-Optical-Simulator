@@ -71,14 +71,14 @@ Solid2.Thickness = 40
 
 P_Ima = Kos.surf()
 P_Ima.Glass = "AIR"
-P_Ima.Diameter = 5
+P_Ima.Diameter = 7
 P_Ima.Drawing = 1
 
 A = [P_Obj, P, Solid, P2, Solid2, P_Ima]
 configuracion_1 = Kos.Setup()
 SOLID = Kos.system(A, configuracion_1)
 Rays = Kos.raykeeper(SOLID)
-SOLID.energy_probability = 1
+SOLID.energy_probability = 0
 
 
 
@@ -95,6 +95,8 @@ Surf, W, AperVal, AperType = 1, W, P.Diameter, "EPD"
 P = Kos.PupilCalc(SOLID2, Surf, W, AperType, AperVal)
 P.Samp, P.Ptype, P.FieldX, P.FieldType = 5, "fany", 0, "angle"
 x, y, z, L, M, N = P.Pattern2Field()
+
+
 Kos.NsTraceLoop(x, y, z, L, M, N, W, Rays, clean = 1)
 
 Kos.display2d(SOLID, Rays, 0, arrow = 1)

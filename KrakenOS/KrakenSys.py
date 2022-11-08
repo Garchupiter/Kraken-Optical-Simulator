@@ -1,23 +1,14 @@
-# from numba import jit
-
 import numpy as np
 import os
 import sys
 import random
 import inspect
-
 from .SurfTools import surface_tools as SUT
 from .Prerequisites3D import *
-
 from .Physics import *
 from .HitOnSurf import *
 from .InterNormalCalc import *
-
 import timeit
-
-
-
-# from .__init__ import RUTE as ModRute
 
 def prob(pro):
     """prob.
@@ -34,9 +25,6 @@ def prob(pro):
     return random_number
 
 class system():
-
-
-    # print(ModRute)
 
     """system.
             SYSTEM CLASS ATRIBUTES AND IMPLEMENTATIONS:
@@ -242,9 +230,6 @@ class system():
         self.NsLimit = 200
         self.ang = 0
 
-
-        # (ResVec, CurrN, sign ,ang) = self.SDT[2].PHYSICS.calculate([-0.01295049, 0.14862896 ,0.98880823], [-0., -0., -1.], 1.0, 1.0, [0., 1. ,0.], 0.0, 0.0, 0.6, 0.)
-
     def __SurFuncSuscrip(self):
         """__SurFuncSuscrip.
         """
@@ -259,7 +244,6 @@ class system():
         for i in range(0, self.n):
             if (type(self.SDT[i].Glass) == type(1.0)):
                 self.SDT[i].Glass = ('AIR_' + str(self.SDT[i].Glass))
-                # print(self.SDT[i].Glass)
             self.Glass.append(self.SDT[i].Glass.replace(' ', ''))
             self.GlobGlass.append(self.SDT[i].Glass.replace(' ', ''))
             if ((self.GlobGlass[i] == 'NULL') or (self.GlobGlass[i] == 'ABSORB')):
@@ -410,8 +394,6 @@ class system():
         """
         [Glass, alpha, RayOrig, pTarget, HitObjSpace, LMNObjSpace, SurfNorm, ImpVec, ResVec, PrevN, CurrN, WaveLength, D, Ord, GrSpa, Name, j, RayTraceType] = ValToSav
 
-
-
         self.SURFACE.append(j)
         self.NAME.append(Name)
         self.GLASS.append(Glass)
@@ -421,9 +403,6 @@ class system():
         self.XYZ.append(pTarget)
         self.OST_XYZ.append(HitObjSpace)
         self.OST_LMN.append(LMNObjSpace)
-
-
-
 
         p = (np.asarray(RayOrig) - np.asarray(pTarget))
         dist = np.linalg.norm(p)
@@ -448,8 +427,6 @@ class system():
             (Rp, Rs, Tp, Ts) = FresnelEnergy(Glass, PrevN, CurrN, ImpVec, SurfNorm, ResVec, self.SETUP, self.Wave)
             if V == 1:
                 Rp, Rs, Tp, Ts = Rp2, Rs2, Tp2, Ts2
-
-
         else:
             (Rp, Rs, Tp, Ts) = (0, 0, 0, 0)
         self.RP.append(Rp)
@@ -468,8 +445,6 @@ class system():
         else:
             self.tt = 1.0
 
-
-        # si self.tt está vacio entonces es cero #
         if not self.tt:
             self.tt=0
 
@@ -483,9 +458,7 @@ class system():
         A = np.asarray(TRA[1])
         W = np.asarray(TRA[2])
         THETA = np.asarray(TRA[3])
-
         T = 1-R-A
-
         if len(THETA) == 0:
             V = 0
             Rp, Rs, Tp, Ts = 0, 0, 0, 0
@@ -497,7 +470,6 @@ class system():
             T = T[idx_theta]
             R = R[idx_theta]
             A = A[idx_theta]
-
 
             T = T[idx_w]
             R = R[idx_w]
@@ -622,7 +594,6 @@ class system():
         if (Prep != 0):
             self.Pr3D.Prerequisites3DSolids()
 
-
     def Trace(self, pS, dC, WaveLength):
         """Trace.
 
@@ -656,21 +627,7 @@ class system():
             if (self.Glass[j] != 'NULL'):
                 Proto_pTarget = (np.asarray(RayOrig) + ((np.asarray(ResVec) * 999999999.9) * SIGN))
 
-
-                # start = timeit.default_timer()
-
                 Output = self.INORM.InterNormal(RayOrig, Proto_pTarget, j, j)
-
-                # stop = timeit.default_timer()
-                # execution_time = stop - start
-                # self.ExectTime.append(execution_time)
-
-
-
-
-
-
-
 
                 (SurfHit, SurfNorm, pTarget, GooveVect, HitObjSpace, LMNObjSpace, j) = Output
 
@@ -686,14 +643,10 @@ class system():
                 D = GooveVect
 
                 Ord = self.SDT[j].Diff_Ord
-                # print(Ord)
-
                 GrSpa = self.SDT[j].Grating_D
                 Secuent = 0
 
                 (ResVec, CurrN, sign ,self.ang) = self.SDT[j].PHYSICS.calculate(S, R, N, Np, D, Ord, GrSpa, self.Wave, Secuent)
-
-
                 SIGN = (SIGN * sign)
                 Name = self.SDT[j].Name
                 RayTraceType = 0
@@ -712,13 +665,6 @@ class system():
             if self.Glass[j] == 'ABSORB':
                 break
 
-
-
-
-
-
-
-
             j = (j + 1)
 
         if (len(self.GLASS) == 0):
@@ -732,13 +678,6 @@ class system():
         self.Hit_x = AT[0]
         self.Hit_y = AT[1]
         self.Hit_z = AT[2]
-
-
-
-        # execution_time=np.mean(np.asarray(self.ExectTime))
-        # print(str(execution_time)," Segmentos")
-
-
         self.ExectTime=[]
 
     def NsTrace(self, pS, dC, WaveLength):
@@ -771,41 +710,10 @@ class system():
         j = 0
         SIGN = 1
 
-        # if len(GUIDE)!=0:
-
-        #     self.aaaa = np.asarray(GUIDE)
-        #     self.bbbb = np.roll(self.aaaa, -1)
-        #     self.bbbb[-1] = self.aaaa[1]
-        #     self.cccc = np.roll(self.bbbb, -1)
-        #     self.cccc[-1] = self.aaaa[1]
-        #     mp = np.argmax(self.cccc)
-        #     self.cccc[mp + 1] = self.aaaa[1]
-        #     self.dddd = np.ones_like(self.cccc)
-
-        # else:
-        #     self.aaaa = []
-        #     self.bbbb = []
-        #     self.cccc = []
-        #     self.dddd = []
-
         while True:
             if (j == self.Targ_Surf):
                 break
             (a, b, c, PreSurfHit) = self.__NonSequentialChooser(SIGN, RayOrig, ResVec, j)
-
-
-            # if len(GUIDE)==0:
-            #     (a, b, c, PreSurfHit) = self.__NonSequentialChooser(SIGN, RayOrig, ResVec, j)
-            #     self.aaaa.append(a)
-            #     self.bbbb.append(b)
-            #     self.cccc.append(c)
-            #     self.dddd.append(PreSurfHit)
-
-            # else:
-            #     a = self.aaaa[j]
-            #     b = self.bbbb[j]
-            #     c = self.cccc[j]
-            #     PreSurfHit = self.dddd[j]
 
             if (PreSurfHit == 0):
                 break
@@ -848,8 +756,6 @@ class system():
                 D = GooveVect
 
                 Ord = self.SDT[j].Diff_Ord
-                # print(Ord)
-                # Ord = self.SDT[j].Diff_Ord
                 GrSpa = self.SDT[j].Grating_D
                 Secuent = 0
                 ResVec_N, R_N, N_N, Np_N = ResVec, R, N, Np
@@ -861,9 +767,6 @@ class system():
                 if V == 1:
                     Rp0, Rs0, Tp0, Ts0 = Rp2, Rs2, Tp2, Ts2
 
-                    # print(V, Rp0, Rs0, Tp0, Ts0, j)
-
-
                 self.tt = 1.0
                 if (self.Glass[j] != 'MIRROR'):
                     self.tt = ((Tp0 + Ts0) / 2.0)
@@ -871,7 +774,6 @@ class system():
 
                 if self.energy_probability==1:
                     PROB = prob(self.tt)[0]
-                    # print(PROB)
 
                     if (PROB > 0):
                         Secuent = 1
@@ -894,11 +796,6 @@ class system():
 
                 self.RAY.append(RayOrig)
 
-
-
-
-
-
             if self.Glass[j] == 'NULL':
                 ang = 0
                 ValToSav = [Glass, alpha, RayOrig, pTarget, HitObjSpace, SurfNorm, ImpVec, ResVec, PrevN, CurrN, WaveLength, D, Ord, GrSpa, Name, j, RayTraceType, ang]
@@ -906,11 +803,6 @@ class system():
 
             if self.Glass[j] == 'ABSORB':
                 break
-
-
-
-
-
 
             count = (count + 1)
         if (len(self.GLASS) == 0):
@@ -923,74 +815,3 @@ class system():
         self.Hit_y = AT[1]
         self.Hit_z = AT[2]
 
-    def FastTrace(self, pS, dC, WaveLength):
-        """Trace.
-
-        Parameters
-        ----------
-        pS :
-            pS
-        dC :
-            dC
-        WaveLength :
-            WaveLength
-        """
-        self.__CollectDataInit()
-        ResVec = np.asarray(dC)
-        RayOrig = np.asarray(pS)
-        self.RAY = []
-        self.Wave = WaveLength
-        self.RAY.append(RayOrig)
-        self.__WavePrecalc()
-        j = 0
-        Glass = self.GlobGlass[j]
-        PrevN = self.N_Prec[j]
-        j = 1
-        SIGN = np.ones_like(ResVec)
-
-        while True:
-            if (j == self.Targ_Surf):
-                break
-
-            j_gg = j
-            Glass = self.GlobGlass[j_gg]
-
-            if ((self.Glass[j] != 'NULL') and (self.Glass[j] != 'ABSORB')):
-                Proto_pTarget = (np.asarray(RayOrig) + ((ResVec * 999999999.9) * SIGN))
-
-                Output = self.INORM.InterNormalFast(RayOrig, Proto_pTarget, j)
-
-                (SurfHit, SurfNorm, pTarget, GooveVect, HitObjSpace, j) = Output
-
-                if (SurfHit != 0):
-
-                    ImpVec = ResVec
-                    CurrN = self.N_Prec[j_gg]
-                    S = ImpVec
-                    R = SurfNorm
-                    N = PrevN
-                    Np = CurrN
-                    D = GooveVect
-
-                    Ord = self.SDT[j].Diff_Ord
-                    GrSpa = self.SDT[j].Grating_D
-
-                    (ResVec, CurrN, sign ,ang) = self.SDT[j].PHYSICS.calculate(S, R, N, Np, D, Ord, GrSpa, self.Wave, 0)
-
-                    SIGN = (SIGN * sign)
-
-                    PrevN = CurrN
-                    RayOrig = pTarget
-                    self.RAY.append(RayOrig)
-
-                else:
-                    break
-
-            j = (j + 1)
-
-
-
-        self.ray_SurfHits = np.asarray(self.RAY)
-
-
-        self.ExectTime=[]

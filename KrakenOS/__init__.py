@@ -286,16 +286,3 @@ from .PhaseCalc import *
 from .WavePlot import *
 from .KrakenSys import *
 from .PSFCalc import *
-
-
-
-
-# RUTE=inspect.getmodule(SUT)
-# print("-------------- rute ------------")
-# print(RUTE)
-
-
-# RUTE=inspect.getmodule(SUT).__file__
-# RUTE=RUTE[:-12]
-
-# print (RUTE)

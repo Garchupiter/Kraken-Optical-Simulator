@@ -72,7 +72,7 @@ T = 0 # Prism rotation
 ZenitDist = 55.0
 
 
-A = 1.55/2
+A = 1.55/2 *0
 P_Obj = Kos.surf(Thickness = 4452.2, Glass = "AIR", Diameter = 2118.0)
 P_Obj.Drawing = 0
 

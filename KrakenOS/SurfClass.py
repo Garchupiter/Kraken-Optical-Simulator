@@ -170,9 +170,7 @@ class surf():
         ,Surface_type = 0.0\
         ,SURF_FUNC = [conic__surf(0.0, 0.0, 1.0)]\
         ,SPECIAL_SURF_FUNC = []\
-        ,SubAperture = [1,0,0], Coating = [[],[],[],[]]):
-
-        # coating = [[R],[A],[W],[THETA]]
+        ,SubAperture = [1,0,0], Coating = [[],[],[],[]], NumLabel = 1):
 
         """__init__.
         """
@@ -220,6 +218,7 @@ class surf():
         self.General_Status = self.update()
         self.SubAperture = SubAperture
         self.Coating = Coating
+        self.NumLabel = NumLabel
 
     def RestoreVTK(self):
         Objeto_3D = pv.Disc(center=[0.0, 0.0, 0.0], inner=0, outer=0.001, normal=(0, 0, 1), r_res=3, c_res=3)
@@ -230,8 +229,6 @@ class surf():
     def EraseVTK(self):
 
         self.Mask_Shape = "None"
-
-
 
     def warning(self):
         """warning.
@@ -319,7 +316,7 @@ class surf():
         """
         x = (x + self.ShiftX)
         y = (y + self.ShiftY)
-        # Z = 0.0 * np.copy(x)
+
         con = -1
         N_FUNC = len(self.SURF_FUNC)
 

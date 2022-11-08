@@ -46,9 +46,6 @@ def psf(COEF, Focal, Diameter, Wave, pixels=600, PupilSample=4,  plot=0, sqr=0):
     #Longitud de Onda [m]
     wvl=Wave*1e-6 # Cambiando wave a metros
 
-
-
-
     TamImag = int(N)
     r = (TamImag / (Q*2.0))
 
@@ -58,7 +55,6 @@ def psf(COEF, Focal, Diameter, Wave, pixels=600, PupilSample=4,  plot=0, sqr=0):
     x = ((X - center) / r)
     y = ((Y - center) / r)
     R=np.sqrt((x**2)+(y**2))
-
 
     W = Wavefront_Zernike_Phase(x, y, COEF)
 
@@ -104,14 +100,13 @@ def psf(COEF, Focal, Diameter, Wave, pixels=600, PupilSample=4,  plot=0, sqr=0):
     #Coordenadas del Plano de Imagen
     #Tamaño del paso en frecuencia [m^-1]
     f=1/L
-    #Vector de Coordenadas fx y fy
+    # Vector de Coordenadas fx y fy
     fx=f*vx
     fy=f*vy
 
-    #Vector de Coordenadas x y y
+    # Vector de Coordenadas x y y
     u=fx*wvl*FocalD
     v=fy*wvl*FocalD
-
 
     umx=u[N-1]*1e6
     umn=u[0]*1e6
@@ -119,10 +114,7 @@ def psf(COEF, Focal, Diameter, Wave, pixels=600, PupilSample=4,  plot=0, sqr=0):
     vmn=v[0]*1e6
 
     I = np.rot90(I)
-    #Saturando la Imagen
-
-
-
+    # Saturando la Imagen
 
     if plot !=0:
         plt.figure(1)
@@ -151,7 +143,6 @@ def psf(COEF, Focal, Diameter, Wave, pixels=600, PupilSample=4,  plot=0, sqr=0):
             plt.ylabel('V[μm]')
             plt.xlabel('U[μm]')
             plt.title('Fraunhofer Prop - PSF ( note: sqrt(I) )')
-
 
     return I
 
