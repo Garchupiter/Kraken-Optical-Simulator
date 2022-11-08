@@ -8,7 +8,7 @@
 Email: joel@astro.unam.mx
 
 #### Collaborators:
-Carlos Guerrero P., Morgan Rhaí Najera Roa, Anais Sotelo B., Ilse Plauchu F.
+Carlos Guerrero P., Morgan Rhaí Najera Roa, Anais Sotelo B., Ilse Plauchu F., José A. Araiza
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5501376.svg)](https://doi.org/10.5281/zenodo.5501376)
 
@@ -59,7 +59,8 @@ pip install csv342
 pip = False
 ```
 
-> **⚠ WARNING: The before mentioned modification is not required in last version, the file /KrakenOS/SetupClass.py do not have the option pip = True.**  
+> **⚠ WARNING: The before mentioned modification is not required in last version, the file /KrakenOS/SetupClass.py do not have the option pip = True.**  
+
 ## Surfaces and the optical system
 The library has been simplified to the point of having only two classes of objects for the definition of a system, these are surf and system.
 The surf object contains all the relevant information of every optical interface, in this way, every optical interface is an object of the surf class, all interfaces, from the object plane to the image plane, contain attributes of size, shape, material or orientation.
