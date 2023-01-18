@@ -1,4 +1,5 @@
 import inspect
+import os
 from .SystemTools import *
 RUTE=inspect.getmodule(load_Catalog).__file__
 rute=RUTE[:-15]+ "/Cat/"
@@ -8,13 +9,14 @@ class Setup():
     def __init__(self):
         """Kraken_setup.
         """
-        print("Catalog dir: ", rute)
-        cat1 = (rute + 'SCHOTT.AGF')
-        cat2 = (rute + 'infrared.agf')
+        print("Default catalog is loaded from: ", rute)
 
-        self.GlassCat =[]
-        self.GlassCat.append(cat1)
-        self.GlassCat.append(cat2)
+        # cat1 = (rute + 'SCHOTT.AGF')
+        # cat2 = (rute + 'infrared.agf')
+
+        self.GlassCat =[rute + cat for cat in os.listdir(rute) if cat.endswith(('.AGF', '.agf'))]
+        # self.GlassCat.append(cat1)
+        # self.GlassCat.append(cat2)
 
         self.Load(self.GlassCat)
 

@@ -224,7 +224,8 @@ def n_wave_dispersion(krakenSetup, GLSS, Wave):
         except:
             raise f'This material({GLSS}) not in the database'
 
-        [Dispersion_Formula, MIL, Nd, Vd, Exclude_sub, Status] = NM[r]
+        # [Dispersion_Formula, MIL, Nd, Vd, Exclude_sub, Status] = NM[r]
+        [Dispersion_Formula, MIL, Nd, Vd, *_] = NM[r]
         C = CD[r]
         lam2 = Wave **2.
 
