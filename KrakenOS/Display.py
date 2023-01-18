@@ -6,6 +6,19 @@ plt.rcParams["font.family"] = "Times New Roman"
 import sys
 from matplotlib import rc
 
+def rgba2rgb(rgba, background=[255, 255, 255]):
+    return (
+        ((1 - rgba[3]) * background[0]) + (rgba[3] * rgba[0]),
+        ((1 - rgba[3]) * background[1]) + (rgba[3] * rgba[1]),
+        ((1 - rgba[3]) * background[2]) + (rgba[3] * rgba[2]),
+    )
+
+def get_cmap(n, name='hot', show_colors=False):
+    '''Returns a function that maps each index in 0, 1, ..., n-1 to a distinct
+    RGB color; the keyword argument name must be a standard mpl colormap name.'''
+    if show_colors:
+        print(plt.cm.datad.keys())
+    return plt.cm.get_cmap(name, n)
 
 def add_arrow(line, position=None, direction='right', size=15, color=None):
     """
@@ -390,7 +403,7 @@ def plot3d(SYSTEM, view, p, OPA):
     return 0
 
 ###############################################################################
-def display2d(SYSTEM, RAYS, view=0, arrow=0, nrays = 0):
+def display2d(SYSTEM, RAYS, figsize=(10, 4), view=0, arrow=0, nrays = 0, fs: int=11):
     """display2d.
 
     Parameters
@@ -404,7 +417,9 @@ def display2d(SYSTEM, RAYS, view=0, arrow=0, nrays = 0):
     """
 
 
-    fig, ax1 = plt.subplots()
+    fs=fs # font size
+    fig = plt.figure(figsize=figsize)  
+    ax1 = fig.add_subplot(111)
 
     INST = isinstance(SYSTEM, list)
     if INST == True:
