@@ -172,12 +172,65 @@ def zmf_parsing(data: str):
         else:
             pass
     return lens_info    
+    
+def surflist2dict(surflist: List) -> Dict:
+    '''
+    Convert surface list to dictionary form
 
+    Parameters
+    ----------
+    surflist : List
+        surface list
 
-def cat2surf(cat_dict: DICT, Thickness: float=0, Glass: str='AIR', isreverse: bool=False,
+    Returns
+    -------
+    Dict
+        surface list in dictionary form
+    '''
+    surfdict = {}
+
+    for idx, surf in enumerate(surflist):
+        surfdict[f'SUFR {idx}'] = {'Rc' : surf.__dict__.get('Rc', 0),
+                                    'Thickness' : surf.__dict__.get('Thickness', 0),
+                                    'Glass' : surf.__dict__.get('Glass', 'AIR'),
+                                    'Diameter' : surf.__dict__.get('Diameter', 0),
+                                    'conic' : surf.__dict__.get('k', 0),
+                                    'aspherics' : surf.__dict__.get('AspherData', [0]*200)}
+    return surfdict
+
+def cat2surf(cat_dict: DICT, Thickness: float=0, Glass: str='AIR', inverse: bool=False,
             DespX=0.0, DespY=0.0, DespZ=0.0, 
             TiltX=0.0, TiltY=0.0, TiltZ=0.0, AxisMove=0.0):
+    '''
+    Convert lens catalog dict to surface list
 
+    Parameters
+    ----------
+    cat_dict : DICT
+        Parsed lens catalog dict
+    Thickness : float, optional
+        Last thickness which is space before next surface, by default 0
+    Glass : str, optional
+        refractive index or glass type of last spacinc, by default 'AIR'
+    inverse : bool, optional
+        determine whether reverse or not a lens block, by default False
+    Desp[X, Y, Z] : float, optional
+        Displacement in [X, Y, Z] axis, respectively, by default 0.0
+    Tilt[X, Y, Z] : float, optional
+        Tiliting in [X, Y, Z] axis, respectively, by default 0.0
+    AxisMove : float, optional
+        Defines what will happen to the optical axis after a coordinate transformation. 
+        If the value is 0, the transformation is only carried out to the surface in question. 
+        If the value is 1 then the transformation also affects the optical axis. 
+        Therefore, the other surfaces will follow the transformation. 
+        If the value is different, for example 2, then the optical axis will be affected twice. 
+        , by default 0.0
+
+    Returns
+    -------
+    _type_
+        surface list
+    '''
     # get surface
     surf_name = [surface for surface in cat_dict.keys() if ('SUFR' in surface)]
 
@@ -188,7 +241,7 @@ def cat2surf(cat_dict: DICT, Thickness: float=0, Glass: str='AIR', isreverse: bo
     surf_name = [surface for surface in surf_name if cat_dict[surface].get('Diameter') not in [None, 0]]
 
     surf_list = []
-    if isreverse:
+    if inverse:
         surf_name = surf_name[::-1]
         
         for idx, surface in enumerate(surf_name):
