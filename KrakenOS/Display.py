@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 plt.rcParams["font.family"] = "Times New Roman"
 import sys
 from matplotlib import rc
+from typing import Tuple
 
 def rgba2rgb(rgba, background=[255, 255, 255]):
     return (
@@ -403,7 +404,7 @@ def plot3d(SYSTEM, view, p, OPA):
     return 0
 
 ###############################################################################
-def display2d(SYSTEM, RAYS, figsize=(10, 4), view=0, arrow=0, nrays = 0, fs: int=11):
+def display2d(SYSTEM, RAYS, figsize: Tuple=(10, 4), view=0, arrow=0, nrays = 0, fs: int=11):
     """display2d.
 
     Parameters
