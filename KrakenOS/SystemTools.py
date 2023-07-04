@@ -1,6 +1,8 @@
 import csv
 import numpy as np
 
+
+
 def load_alluminum_complex(file):
     """load_alluminum_complex.
 
@@ -12,7 +14,7 @@ def load_alluminum_complex(file):
     w = []
     n = []
     k = []
-    with open(file, 'rt') as f:
+    with open(file, 'rt', encoding='utf-8') as f:
         csv_reader = csv.reader(f, delimiter=';')
         next(csv_reader)
         for line in csv_reader:

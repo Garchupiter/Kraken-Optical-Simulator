@@ -16,13 +16,26 @@ class Seidel():
         """
         self.PUPIL = PUPIL
         self.SYSTEM = self.PUPIL.SYSTEM
+
+        self.Wd = 0.5876
+        self.Wf = 0.4861
+        self.Wc = 0.6563
+
+
         self.calculate()
+
+
 
     def calculate(self):
         """calculate.
         """
         sup = self.PUPIL.Surf
-        W = self.PUPIL.W
+
+        if self.Wd == 0:
+            W = self.PUPIL.W
+        else:
+            W = self.Wd
+
         ApType = self.PUPIL.ApertureType
         ApVal = self.PUPIL.ApertureValue
         fx = self.PUPIL.FieldX
@@ -30,16 +43,63 @@ class Seidel():
         field = np.sqrt(((fx ** 2) + (fy ** 2)))
         fieldType = self.PUPIL.FieldType
         Pup = PupilCalc(self.SYSTEM, sup, W, ApType, ApVal)
+
         Prx = self.SYSTEM.Parax(W)
         (SistemMatrix, S_Matrix, N_Matrix, a, b, c, d, EFFL, PPA, PPP, C, NN, d) = Prx
         n_1 = np.asarray(NN)
         n_sign = np.sign(NN)
         n_abs = np.abs(NN)
+
+        if self.Wf !=0:
+            Prx_f = self.SYSTEM.Parax(self.Wf)
+            (SistemMatrix_f, S_Matrix_f, N_Matrix_f, a_f, b_f, c_f, d_f, EFFL_f, PPA_f, PPP_f, C_f, NN_f, d_f) = Prx_f
+            n_1_f = np.asarray(NN_f)
+            n_sign_f = np.sign(NN_f)
+            n_abs_f = np.abs(NN_f)
+
+            n_1_f = np.copy(n_abs_f)
+            n_2_f = np.copy(n_abs_f)
+            n_1_f = np.insert(n_1_f, 0, n_1_f[0])
+
+
+
+        if self.Wc !=0:
+            Prx_c = self.SYSTEM.Parax(self.Wc)
+            (SistemMatrix_c, S_Matrix_c, N_Matrix_c, a_c, b_c, c_c, d_c, EFFL_c, PPA_c, PPP_c, C_c, NN_c, d_c) = Prx_c
+            n_1_c = np.asarray(NN_c)
+            n_sign_c = np.sign(NN_c)
+            n_abs_c = np.abs(NN_c)
+
+            n_1_c = np.copy(n_abs_c)
+            n_2_c = np.copy(n_abs_c)
+            n_1_c = np.insert(n_1_c, 0, n_1_c[0])
+
+
+            dif_n_1 = n_1_f - n_1_c
+            dif_n_2 = n_2_f - n_2_c
+
+        else:
+            dif_n_1 = np.zeros_like(n_abs)
+            dif_n_2 = np.zeros_like(n_abs)
+
+
+
+
+
+
+
+
+
+
+
+
         for si in range(0, len(n_sign)):
             n_abs[si:] = (n_sign[si] * n_abs[si:])
+
         n_1 = np.copy(n_abs)
         n_2 = np.copy(n_abs)
         n_1 = np.insert(n_1, 0, n_1[0])
+
         n_elements = self.SYSTEM.n
         c = []
         d = []
@@ -97,6 +157,10 @@ class Seidel():
         sIII_k = []
         sIV_k = []
         sV_k = []
+        self.CL = []
+        self.CT = []
+        Delta_Ncrom=[]
+
         if (fieldType == 'angle'):
             Theta_marg = 0
             Theta_bar = (- np.deg2rad(field))
@@ -112,6 +176,12 @@ class Seidel():
         for k in range(0, (len(c) - 1)):
             nk = n_1[k]
             nkm1 = n_2[k]
+
+
+            Delta_Ncrom.append(((dif_n_2[k] / n_2[k]) - (dif_n_1[k] / n_1[k])))
+
+
+
             u.append((((nk * u[k]) - ((h[k] * c[k]) * (nkm1 - nk))) / nkm1))
             h.append((h[k] + (u[(k + 1)] * d[(k + 1)])))
             u_bar.append((((nk * u_bar[k]) - ((h_bar[k] * c[k]) * (nkm1 - nk))) / nkm1))
@@ -125,12 +195,18 @@ class Seidel():
             A.append((nk * ((h[k] * c[k]) + u[k])))
         Abar = (1.0 * ((h_bar[0] * c[0]) + u_bar[0]))
         H = ((A[0] * h_bar[0]) - (Abar * h[0]))
+
+
         for k in range(0, (len(c) - 1)):
             A_bar.append(((H / h[k]) * (((A[k] * h[k]) * E[k]) - 1)))
             sI.append((((A[k] ** 2.0) * h[k]) * Delta_unn[k]))
             sII.append((((A[k] * A_bar[k]) * h[k]) * Delta_unn[k]))
             sIII.append((((A_bar[k] ** 2.0) * h[k]) * Delta_unn[k]))
             sIV.append((((H ** 2.0) * c[k]) * Delta_nn[k]))
+
+            self.CL.append(((A[k] * h[k]) * Delta_Ncrom[k]))
+            self.CT.append(((A_bar[k] * h[k]) * Delta_Ncrom[k]))
+
             if (A[k] != 0):
                 P = (c[k] * Delta_nn[k])
                 p1 = ((H ** 2.0) * P)
@@ -144,6 +220,7 @@ class Seidel():
             sIII_k.append(((a * Delta_n[k]) * ((h_bar[k] / h[k]) ** 2)))
             sIV_k.append((a * 0.0))
             sV_k.append(((a * Delta_n[k]) * ((h_bar[k] / h[k]) ** 3)))
+
         sI_a = []
         sII_a = []
         sIII_a = []
@@ -171,6 +248,9 @@ class Seidel():
         sI_a = np.asarray(sI_a)
         sII_a = np.asarray(sII_a)
         sIII_a = np.asarray(sIII_a)
+
+        # self.CL = np.sum(self.CL)
+        # self.CT = np.sum(self.CT)
 
         self.si = ((sI - sI_k) - sI_a)
         self.sii = ((sII - sII_k) - sII_a)

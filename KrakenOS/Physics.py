@@ -102,7 +102,7 @@ def fresnel_metal(NP, n_metal, k_complex, LMN_Inc, LMN_nor_surf):
         LMN_nor_surf
     """
     n1 = NP
-    n2 = np.complex(n_metal, k_complex)
+    n2 = complex(n_metal, k_complex)
     CosTheta0 = np.abs(np.dot(LMN_Inc, LMN_nor_surf))
     if CosTheta0> 1.0:
 
@@ -143,8 +143,8 @@ def Abbe_refractive_correction(n: float, v: float, wave: float):
         lambda_short = fraunhofer["F"]*10**9
         lambda_long = fraunhofer["C"]*10**9
 
-        n_corrected = (n + (wave - lambda_ref) / 
-        (lambda_long - lambda_short) * 
+        n_corrected = (n + (wave - lambda_ref) /
+        (lambda_long - lambda_short) *
         (1 - n)/v)
         return n_corrected
     else:
@@ -170,7 +170,7 @@ def n_wave_dispersion(krakenSetup, GLSS, Wave):
     if GLSS.split(',')[0]=='manual_n':
         n = float(GLSS.split(',')[1])
         Alpha = 0.0
-    
+
     elif (GLSS == 'MIRROR'):
         n = (- 1.0)
         Alpha = 0.0
@@ -186,11 +186,11 @@ def n_wave_dispersion(krakenSetup, GLSS, Wave):
         # https://github.com/quartiq/rayopt/blob/master/rayopt/material.py
 
         # reference for the zemax glass data format
-        # https://github.com/nzhagen/zemaxglass/blob/master/ZemaxGlass_user_manual.pdf        
-        # NM <glass_name> <dispersion_formula_number> <MIL> <N(d)> <V(d)> <Exclude_sub> <status> <melf_freq> 
+        # https://github.com/nzhagen/zemaxglass/blob/master/ZemaxGlass_user_manual.pdf
+        # NM <glass_name> <dispersion_formula_number> <MIL> <N(d)> <V(d)> <Exclude_sub> <status> <melf_freq>
         # format
-        # '___BLANK 1 0 <refractive index> <Abbe number> 0 0 0 0 0 0' 
-        # ex) '___BLANK 1 0 1.52216 5.88E+1 0 0 0 0 0 0' 
+        # '___BLANK 1 0 <refractive index> <Abbe number> 0 0 0 0 0 0'
+        # ex) '___BLANK 1 0 1.52216 5.88E+1 0 0 0 0 0 0'
         GLSS_parm = GLSS.split(',')
         n = float(GLSS_parm[3])
         Abbe_num = float(GLSS_parm[4])
@@ -199,13 +199,13 @@ def n_wave_dispersion(krakenSetup, GLSS, Wave):
 
     elif (GLSS.split(',')[0]=='nvk'):
         # format
-        # 'nvk <refractive index> <Abbe number> <Alpha>' 
+        # 'nvk <refractive index> <Abbe number> <Alpha>'
         # ex) 'nvk 1.0 0 0'
         GLSS_parm = GLSS.split(',')
         n = float(GLSS_parm[1])
         Abbe_num = float(GLSS_parm[2])
         Alpha = float(GLSS_parm[3])
-        
+
         n = Abbe_refractive_correction(n, Abbe_num, Wave)
 
     else:

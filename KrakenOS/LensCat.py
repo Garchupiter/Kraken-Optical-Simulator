@@ -12,7 +12,7 @@ from .SurfClass import surf
 from .SurfTools import *
 import re
 
-# below parameters are unknown or not essential 
+# below parameters are unknown or not essential
 zmf_category = ["GCAT",  # glass catalog names
                 "OPDX",  # opd
                 "RAIM",  # ray aiming
@@ -45,7 +45,7 @@ zmf_category = ["GCAT",  # glass catalog names
 
 def zmf2dict(file_list: List[str]) -> Dict:
     '''
-    parsing .zmf data 
+    parsing .zmf data
     Función que lee una librería de Zemax (archivo con terminación zmf), y genera un diccionario con las descripciones
     de cada componente. La llave es la referencia de cada componente
 
@@ -59,8 +59,11 @@ def zmf2dict(file_list: List[str]) -> Dict:
     cat_data : Dict
         catalog data
     '''
+
     cat_data = {}
-    for fn in file_list:    
+
+    for fn in file_list:
+        print(fn)
         f = open(fn, "rb")
         head = Struct("<I")
         lens = Struct("<100sIIIIIIIdd")
@@ -68,6 +71,7 @@ def zmf2dict(file_list: List[str]) -> Dict:
         (version,) = head.unpack(f.read(head.size))
         assert version in (1001,)
         while True:
+
             li = f.read(lens.size)
             if len(li) != lens.size:
                 if len(li) > 0:
@@ -128,10 +132,10 @@ def zmf_parsing(data: str):
                 # for unknown material
                 # reference for the zemax glass data format
                 # https://github.com/nzhagen/zemaxglass/blob/master/ZemaxGlass_user_manual.pdf
-                # NM <glass_name> <dispersion_formula_number> <MIL> <N(d)> <V(d)> <Exclude_sub> <status> <melf_freq> 
+                # NM <glass_name> <dispersion_formula_number> <MIL> <N(d)> <V(d)> <Exclude_sub> <status> <melf_freq>
                 # format
-                # ___BLANK 1 0 <refractive index> <Abbe number> 0 0 0 0 0 0 
-                # ex) ___BLANK 1 0 1.52216 5.88E+1 0 0 0 0 0 0 
+                # ___BLANK 1 0 <refractive index> <Abbe number> 0 0 0 0 0 0
+                # ex) ___BLANK 1 0 1.52216 5.88E+1 0 0 0 0 0 0
                 args = args.replace(' ', ',')
                 lens_info[current_surf]['Glass'] = args
                 args = args.split(',')
@@ -167,12 +171,13 @@ def zmf_parsing(data: str):
                 lens_info[current_surf]['aspherics'] = []
             while len(lens_info[current_surf]['aspherics']) <= i:
                 lens_info[current_surf]['aspherics'].append(0.)
-            
+
             lens_info[current_surf]['aspherics'][i] = j
         else:
             pass
-    return lens_info    
-    
+
+    return lens_info
+
 def surflist2dict(surflist: List) -> Dict:
     '''
     Convert surface list to dictionary form
@@ -199,7 +204,7 @@ def surflist2dict(surflist: List) -> Dict:
     return surfdict
 
 def cat2surf(cat_dict: DICT, Thickness: float=0, Glass: str='AIR', inverse: bool=False,
-            DespX=0.0, DespY=0.0, DespZ=0.0, 
+            DespX=0.0, DespY=0.0, DespZ=0.0,
             TiltX=0.0, TiltY=0.0, TiltZ=0.0, AxisMove=0.0):
     '''
     Convert lens catalog dict to surface list
@@ -219,11 +224,11 @@ def cat2surf(cat_dict: DICT, Thickness: float=0, Glass: str='AIR', inverse: bool
     Tilt[X, Y, Z] : float, optional
         Tiliting in [X, Y, Z] axis, respectively, by default 0.0
     AxisMove : float, optional
-        Defines what will happen to the optical axis after a coordinate transformation. 
-        If the value is 0, the transformation is only carried out to the surface in question. 
-        If the value is 1 then the transformation also affects the optical axis. 
-        Therefore, the other surfaces will follow the transformation. 
-        If the value is different, for example 2, then the optical axis will be affected twice. 
+        Defines what will happen to the optical axis after a coordinate transformation.
+        If the value is 0, the transformation is only carried out to the surface in question.
+        If the value is 1 then the transformation also affects the optical axis.
+        Therefore, the other surfaces will follow the transformation.
+        If the value is different, for example 2, then the optical axis will be affected twice.
         , by default 0.0
 
     Returns
@@ -231,6 +236,7 @@ def cat2surf(cat_dict: DICT, Thickness: float=0, Glass: str='AIR', inverse: bool
     _type_
         surface list
     '''
+
     # get surface
     surf_name = [surface for surface in cat_dict.keys() if ('SUFR' in surface)]
 
@@ -243,7 +249,7 @@ def cat2surf(cat_dict: DICT, Thickness: float=0, Glass: str='AIR', inverse: bool
     surf_list = []
     if inverse:
         surf_name = surf_name[::-1]
-        
+
         for idx, surface in enumerate(surf_name):
             if int(AxisMove)==0:
                 sf = surf(DespX=DespX, DespY=DespY, DespZ=DespZ, AxisMove=AxisMove)
@@ -256,13 +262,13 @@ def cat2surf(cat_dict: DICT, Thickness: float=0, Glass: str='AIR', inverse: bool
                     sf = surf()
 
             current_surf = cat_dict[surface]
-            
+
             # current value => surface properties
             sf.Rc = -current_surf.get('Rc', 0)
             sf.Diameter = current_surf.get('Diameter', max_diameter) # default 25 mm
             sf.k = current_surf.get('conic', 0)
             sf.AspherData = -1*np.array(current_surf.get('aspherics', [0]*200))
-            
+
             # next value => properties of material
             if idx!=len(surf_name)-1:
                 next_surf = cat_dict[surf_name[idx+1]]
@@ -273,9 +279,10 @@ def cat2surf(cat_dict: DICT, Thickness: float=0, Glass: str='AIR', inverse: bool
                 sf.Thickness = 0
                 sf.Glass = Glass
             surf_list.append(sf)
-            
+
     else:
         for idx, surface in enumerate(surf_name):
+            print(surf_name)
             if int(AxisMove)==0:
                 sf = surf(DespX=DespX, DespY=DespY, DespZ=DespZ, AxisMove=AxisMove)
             elif int(AxisMove)==1:
@@ -295,11 +302,11 @@ def cat2surf(cat_dict: DICT, Thickness: float=0, Glass: str='AIR', inverse: bool
             sf.AspherData = np.array(current_surf.get('aspherics', [0]*200))
 
             sf.Glass = current_surf.get('Glass', 'AIR')
-            
+
             if idx==len(surf_name)-1:
                 sf.Thickness = 0
                 sf.Glass = Glass
-                
+
             surf_list.append(sf)
 
     if int(AxisMove)!=0:
@@ -308,56 +315,13 @@ def cat2surf(cat_dict: DICT, Thickness: float=0, Glass: str='AIR', inverse: bool
     return surf_list
 
 
-# def zmx_parse(data):
-#     """Función que lee e interpreta un archivo zmx de zemax.
-#     - Solo funciona para lentes esfericas y dobletes.
-#     - No tiene ne cuenta recubrimientos antireflectivos
-#     - Asume que las medidas están en milimetros. Hay que arreglar esto
-#     """
+# Read Zemax file using the same keywords that catalogs:
 
-#     lines = data.splitlines()
 
-#     # Interpretar el encabezado
-#     while True:
-#         line = lines.pop(0)
+def zmx_read(fn):
 
-#         if lines[0].startswith("SURF"):
-#             break
+    with open(fn, 'r', encoding='utf16') as f:
+        data = f.read()
+    return zmf_parsing(data)
 
-#     # Separar las superficies en una lista de diccionarios
-#     surflist = []
-#     for line in lines:
-#         if line.startswith("SURF"):
-#             surflist.append(dict())
-#             continue
-#         line = line.lstrip()
-#         code = line[:4]
-#         data = line[5:].split()
-#         data = [convert(d) for d in data]
-#         surflist[-1][code] = data
 
-#     # Eliminar el plano objeto y el plano imagen
-
-#     surflist.pop(0)
-#     surflist.pop()
-
-#     # Identificar el tipo de lentes a partir de el numero de superficies
-#     # validas
-
-#     ns = len(surflist)
-#     return surflist
-
-# def convert(d):
-#     try:
-#         return int(d)
-#     except ValueError:
-#         try:
-#             return float(d)
-#         except ValueError:
-#             return d
-
-# def zmx_read(fn):
-
-#     with open(fn, 'r', encoding='utf16') as f:
-#         data = f.read()
-#     return zmx_parse(data)

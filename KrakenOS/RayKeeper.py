@@ -36,7 +36,10 @@ class raykeeper():
             self.invalid_S_XYZ.append(np.asarray(self.SYSTEM.S_XYZ))
             self.invalid_T_XYZ.append(np.asarray(self.SYSTEM.T_XYZ))
             self.invalid_XYZ.append(np.asarray(self.SYSTEM.XYZ))
-            self.invalid_OST_XYZ.append(np.asarray(self.SYSTEM.OST_XYZ))
+
+            lst = self.SYSTEM.OST_XYZ
+            ll = filter(None, lst)
+            self.invalid_OST_XYZ.append(np.asarray(ll))
             self.invalid_OST_LMN.append(np.asarray(self.SYSTEM.OST_LMN))
             self.invalid_S_LMN.append(np.asarray(self.SYSTEM.S_LMN))
             self.invalid_LMN.append(np.asarray(self.SYSTEM.LMN))
@@ -51,7 +54,9 @@ class raykeeper():
             self.invalid_OP.append(np.asarray(self.SYSTEM.OP))
             self.invalid_TOP_S.append(np.asarray(self.SYSTEM.TOP_S))
             self.invalid_TOP.append(np.asarray(self.SYSTEM.TOP))
-            self.invalid_ALPHA.append(np.asarray(self.SYSTEM.ALPHA))
+            lst = self.SYSTEM.ALPHA
+            ll = filter(None, lst)
+            self.invalid_ALPHA.append(np.asarray(ll))
             self.invalid_BULK_TRANS.append(np.asarray(self.SYSTEM.BULK_TRANS))
             self.invalid_RP.append(np.asarray(self.SYSTEM.RP))
             self.invalid_RS.append(np.asarray(self.SYSTEM.RS))
@@ -105,7 +110,10 @@ class raykeeper():
         self.S_XYZ.append(np.asarray(self.SYSTEM.S_XYZ))
         self.T_XYZ.append(np.asarray(self.SYSTEM.T_XYZ))
         self.XYZ.append(np.asarray(self.SYSTEM.XYZ))
-        self.OST_XYZ.append(np.asarray(self.SYSTEM.OST_XYZ))
+
+        lst = self.SYSTEM.OST_XYZ
+        ll = filter(None, lst)
+        self.OST_XYZ.append(np.asarray(ll))
         self.OST_LMN.append(np.asarray(self.SYSTEM.OST_LMN))
         self.S_LMN.append(np.asarray(self.SYSTEM.S_LMN))
         self.LMN.append(np.asarray(self.SYSTEM.LMN))
@@ -120,7 +128,9 @@ class raykeeper():
         self.OP.append(np.asarray(self.SYSTEM.OP))
         self.TOP_S.append(np.asarray(self.SYSTEM.TOP_S))
         self.TOP.append(np.asarray(self.SYSTEM.TOP))
-        self.ALPHA.append(np.asarray(self.SYSTEM.ALPHA))
+        lst = self.SYSTEM.ALPHA
+        ll = filter(None, lst)
+        self.ALPHA.append(np.asarray(ll))
         self.BULK_TRANS.append(np.asarray(self.SYSTEM.BULK_TRANS))
         self.RP.append(np.asarray(self.SYSTEM.RP))
         self.RS.append(np.asarray(self.SYSTEM.RS))
@@ -257,14 +267,15 @@ class raykeeper():
             N_ELEMENT = self.numsup
         else:
             N_ELEMENT = N_ELEMENT
-        AA = []
+        # AA = []
         BB = []
         for k in self.s:
             aa = np.argwhere((k == N_ELEMENT))
             aa = np.squeeze(aa)
-            AA.append(aa)
+            # print(aa)
+            # AA.append(aa)
             BB.append(np.size(aa))
-        AA = np.asarray(AA)
+        # AA = np.asarray(AA)
         BB = np.asarray(BB)
         if (N_ELEMENT != 0):
             BB = np.argwhere((BB == 1))

@@ -68,11 +68,21 @@ def BestRMS(system,raykeeper):
     return rms
 # _________________________________________________________________#
 
+# 4 examples for book pg.121
 T = 0 # Prism rotation
 ZenitDist = 55.0
 
+T = -49.5 # Prism rotation
+ZenitDist = 51.25
 
-A = 1.55/2 *0
+T = -67.5 # Prism rotation
+ZenitDist = 27.5
+
+T = -90 # Prism rotation
+ZenitDist = 0
+
+
+A = 1.55/2
 P_Obj = Kos.surf(Thickness = 4452.2, Glass = "AIR", Diameter = 2118.0)
 P_Obj.Drawing = 0
 

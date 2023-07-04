@@ -286,3 +286,5 @@ from .PhaseCalc import *
 from .WavePlot import *
 from .KrakenSys import *
 from .PSFCalc import *
+from .LensCat import *
+from .SurfBlockClass import *

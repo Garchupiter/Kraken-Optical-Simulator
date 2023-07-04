@@ -7,6 +7,42 @@ import sys
 from matplotlib import rc
 from typing import Tuple
 
+
+
+
+# def make_points():
+#     """Helper to make XYZ points"""
+#     theta = np.linspace(-4 * np.pi, 4 * np.pi, 100)
+#     z = np.linspace(-2, 2, 100)
+#     r = z**2 + 1
+#     x = r * np.sin(theta)
+#     y = r * np.cos(theta)
+#     return np.column_stack((x, y, z))
+
+# def lines_from_points(points):
+#     """Given an array of points, make a line set"""
+#     poly = pv.PolyData()
+#     poly.points = points
+#     cells = np.full((len(points) - 1, 3), 2, dtype=np.int_)
+#     cells[:, 1] = np.arange(0, len(points) - 1, dtype=np.int_)
+#     cells[:, 2] = np.arange(1, len(points), dtype=np.int_)
+#     poly.lines = cells
+#     return poly
+
+
+
+# def polyline_from_points(points):
+#     poly = pv.PolyData()
+#     poly.points = points
+#     the_cell = np.arange(0, len(points), dtype=np.int_)
+#     the_cell = np.insert(the_cell, 0, len(points))
+#     poly.lines = the_cell
+#     return poly
+
+
+
+
+
 def rgba2rgb(rgba, background=[255, 255, 255]):
     return (
         ((1 - rgba[3]) * background[0]) + (rgba[3] * rgba[0]),
@@ -143,7 +179,7 @@ def display3d_old(SYSTEM, RAYS, view=0, inline=False,     BackgCol= 'white', Bac
     recorte = view
     NN = SYSTEM.AAA.n_blocks
     if (SYSTEM.SDT[0].Drawing == 0):
-        points2 = np.c_[(0, 0, 0)]
+        points2 = np.c_[0.0, 0.0, 0.0]
         c = pv.PolyData(points2)
         cc = pv.PolyData(points2)
     if (SYSTEM.SDT[0].Drawing == 1):
@@ -184,7 +220,7 @@ def display3d_old(SYSTEM, RAYS, view=0, inline=False,     BackgCol= 'white', Bac
                     print(" ") # No edges
                 else:
                     p.add_mesh(edges, 'red')
-                points2 = np.c_[(0, 0, 0)]
+                points2 = np.c_[0.0, 0.0, 0.0]
                 c = pv.PolyData(points2)
     p.add_mesh(SYSTEM.DDD, color=[0.5, 0.5, 0.5], opacity=OPA, show_edges=None)
     NN = SYSTEM.AAA.n_blocks
@@ -280,6 +316,7 @@ def display3d(SYSTEM, RAYS, view=0, inline=False,     BackgCol= 'white', BackgCo
         plot3d(system, view, p, OPA)
     for rays in RAYS:
         rayplot3d(rays, view, p, OPA, nrays)
+
     p.add_axes(line_width=4)
 
     [cx,cy,cz]=p.center
@@ -296,13 +333,20 @@ def display3d(SYSTEM, RAYS, view=0, inline=False,     BackgCol= 'white', BackgCo
     p.show(auto_close=False, interactive=True, interactive_update=False)
     [cpx,cpy,cpz]=p.camera_position
 
+    return
+
+
+
 ###############################################################################
 
-def rayplot3d(RAYS, view, p, OPA, nrays):
+def rayplot3d(RAYS, view, p, OPA, nrays ):
     CCC = pv.MultiBlock()
     for rays in RAYS.CC:
         RAY_VTK_OBJ = pv.lines_from_points(rays)
+        # RAY_VTK_OBJ = lines_from_points(rays)
+
         CCC.append(RAY_VTK_OBJ)
+
 
     if (len(RAYS.RayWave) != 0):
         RW = np.asarray(RAYS.RayWave)
@@ -314,12 +358,15 @@ def rayplot3d(RAYS, view, p, OPA, nrays):
         for i in range(0, NR):
             RGB = wavelength_to_rgb((RW[i] * 1000.0))
             p.add_mesh(CCC[i], color=RGB, opacity=OPA, smooth_shading=True, line_width=1.0, show_edges=None)
-    return 0
+            #TTT.append(CCC[i])
+    return #TTT
 
 ###############################################################################
 
 
 def plot3d(SYSTEM, view, p, OPA):
+   # TTT = pv.MultiBlock()
+
 
     Absorb_color = np.array([(10 / 256), (23 / 256), (24 / 256)])
     Mirror_color = np.array([(189 / 256), (189 / 256), (189 / 256)])
@@ -327,13 +374,12 @@ def plot3d(SYSTEM, view, p, OPA):
     recorte = view
     NN = SYSTEM.AAA.n_blocks
     if (SYSTEM.SDT[0].Drawing == 0):
-        points2 = np.c_[(0, 0, 0)]
+        points2 = np.c_[0.0, 0.0, 0.0]
         c = pv.PolyData(points2)
         cc = pv.PolyData(points2)
     if (SYSTEM.SDT[0].Drawing == 1):
         c = SYSTEM.AAA[0]
         cc = SYSTEM.AAA[0]
-
     for n in range(1, NN):
         if (SYSTEM.SDT[n].Drawing == 1):
             AAAA = SYSTEM.AAA[n]
@@ -347,6 +393,7 @@ def plot3d(SYSTEM, view, p, OPA):
                         color = Absorb_color
                 else:
                     color = SYSTEM.SDT[n].Color
+
 
                 cc = cc.merge(AAAA)
                 if (recorte == 1):
@@ -367,15 +414,18 @@ def plot3d(SYSTEM, view, p, OPA):
                     c = c.merge(clippedx)
                 p.add_mesh(c, color, opacity=OPA, specular=1, specular_power=15, smooth_shading=True, show_edges=False)
                 edges = c.extract_feature_edges(feature_angle=10, boundary_edges=True, feature_edges=False, manifold_edges=False)
+
+               # TTT.append(c)
                 if SYSTEM.SDT[n].Solid_3d_stl != "None" and recorte ==0:
                     print(" ") # No edges
                 else:
                     p.add_mesh(edges, 'red')
-                points2 = np.c_[(0, 0, 0)]
+                points2 = np.c_[0.0, 0.0, 0.0]
                 c = pv.PolyData(points2)
     p.add_mesh(SYSTEM.DDD, color=[0.5, 0.5, 0.5], opacity=OPA, show_edges=None)
     NN = SYSTEM.AAA.n_blocks
     n = 0
+
     for g in SYSTEM.side_number:
         if (SYSTEM.SDT[g].Drawing == 1):
             if (SYSTEM.SDT[g].Color == [0, 0, 0]):
@@ -393,18 +443,25 @@ def plot3d(SYSTEM, view, p, OPA):
                 p.add_mesh(clippedx, color ,opacity=OPA, smooth_shading=True, show_edges=None)
                 clippedy = SYSTEM.BBB[n].clip('-y', invert=False)
                 p.add_mesh(clippedy, color,opacity=OPA, smooth_shading=True, show_edges=None)
+                #TTT.append(clippedx)
+                #TTT.append(clippedy)
+
             if (recorte == 0):
                 No_clipped = SYSTEM.BBB[n]
                 p.add_mesh(No_clipped, color,opacity=OPA, smooth_shading=False, show_edges=None)
+                #TTT.append(No_clipped)
             if (recorte == 2):
                 BBBB = SYSTEM.BBB[n]
                 clippedx = BBBB.clip((1, 0, 0), invert=False)
                 p.add_mesh(clippedx, color,opacity=OPA, smooth_shading=True, show_edges=None)
+                #TTT.append(clippedx)
         n = (n + 1)
-    return 0
+
+
+    return #TTT
 
 ###############################################################################
-def display2d(SYSTEM, RAYS, figsize: Tuple=(10, 4), view=0, arrow=0, nrays = 0, fs: int=11):
+def display2d(SYSTEM, RAYS, view=0, arrow=0, nrays = 0, figsize: Tuple=(10, 4), fs: int=11):
     """display2d.
 
     Parameters
@@ -419,7 +476,7 @@ def display2d(SYSTEM, RAYS, figsize: Tuple=(10, 4), view=0, arrow=0, nrays = 0, 
 
 
     fs=fs # font size
-    fig = plt.figure(figsize=figsize)  
+    fig = plt.figure(figsize=figsize)
     ax1 = fig.add_subplot(111)
 
     INST = isinstance(SYSTEM, list)
@@ -452,7 +509,7 @@ def Plot2DSurf(SYSTEM, view, ax1):
     fs = 11
     NN = SYSTEM.AAA.n_blocks
     if (SYSTEM.SDT[0].Drawing == 0):
-        points2 = np.c_[(0.0, 0.0, 0.0)]
+        points2 = np.c_[0.0, 0.0, 0.0]
         c = pv.PolyData(points2, force_float=False)
     if (SYSTEM.SDT[0].Drawing == 1):
         c = SYSTEM.AAA[0]
@@ -498,6 +555,7 @@ def Plot2DSurf(SYSTEM, view, ax1):
                         ax1.arrow((np.max(az) + PosX), (np.max(ay) + PosY), (- PosX)*0, (- PosY)/2.0, head_width=0.1, head_length=0.0, fc='k', ec='k', length_includes_head=True)
 
                 if (view == 1):
+
                     LT = ''
                     (ax, ay, az) = edge_3d(AAAA, 0, 1, 0, solid)
                     (az, ax) = filter_face_2dplot(az, ax, solid)
@@ -559,6 +617,7 @@ def Plot2DRays(RAYS, view, arrow, ax1, nrays):
     CCC = pv.MultiBlock()
     for rays in RAYS.CC:
         RAY_VTK_OBJ = pv.lines_from_points(rays)
+        # RAY_VTK_OBJ = pv.Spline(rays, 400)
         CCC.append(RAY_VTK_OBJ)
 
     if (len(RAYS.RayWave) != 0):
@@ -739,7 +798,7 @@ def display3d_4OB(SYSTEM, RAYS, view, inline, BackgCol, BackgColTop, GridCol, p)
     recorte = view
     NN = SYSTEM.AAA.n_blocks
     if (SYSTEM.SDT[0].Drawing == 0):
-        points2 = np.c_[(0, 0, 0)]
+        points2 = np.c_[0.0, 0.0, 0.0]
         c = pv.PolyData(points2)
         cc = pv.PolyData(points2)
     if (SYSTEM.SDT[0].Drawing == 1):
@@ -783,7 +842,7 @@ def display3d_4OB(SYSTEM, RAYS, view, inline, BackgCol, BackgColTop, GridCol, p)
                     print(" ") # No edges
                 else:
                     p.add_mesh(edges, 'red')
-                points2 = np.c_[(0, 0, 0)]
+                points2 = np.c_[0.0, 0.0, 0.0]
                 c = pv.PolyData(points2)
     p.add_mesh(SYSTEM.DDD, color=[0.5, 0.5, 0.5], opacity=OPA, show_edges=None)
     NN = SYSTEM.AAA.n_blocks

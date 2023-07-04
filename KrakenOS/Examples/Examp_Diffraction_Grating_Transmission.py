@@ -33,9 +33,9 @@ Dif_Obj_c1.Rc = 0.0
 Dif_Obj_c1.Thickness = 1
 Dif_Obj_c1.Glass = "BK7"
 Dif_Obj_c1.Diameter = 30.0
-# Dif_Obj_c1.Grating_D = 1.0
-# Dif_Obj_c1.Diff_Ord = 1.
-# Dif_Obj_c1.Grating_Angle = 45.
+Dif_Obj_c1.Grating_D = 1.0
+Dif_Obj_c1.Diff_Ord = 1.
+Dif_Obj_c1.Grating_Angle = 45.
 
 # _________________________________________#
 

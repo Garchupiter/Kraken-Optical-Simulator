@@ -112,15 +112,15 @@ for j in range(-tam, tam + 1):
             pSource_0 = [x_0, y_0, 0.0]
             dCos = [0.0, np.sin(np.deg2rad(tet)), np.cos(np.deg2rad(tet))]
             W = 0.4
-            Doblete.FastTrace(pSource_0, dCos, W)
+            Doblete.Trace(pSource_0, dCos, W)
             Rayos1.push()
             RayosT.push()
             W = 0.5
-            Doblete.FastTrace(pSource_0, dCos, W)
+            Doblete.Trace(pSource_0, dCos, W)
             Rayos2.push()
             RayosT.push()
             W = 0.6
-            Doblete.FastTrace(pSource_0, dCos, W)
+            Doblete.Trace(pSource_0, dCos, W)
             Rayos3.push()
             RayosT.push()
 
@@ -128,20 +128,20 @@ for j in range(-tam, tam + 1):
 
 # Kos.display3d(Doblete, RayosT, 2)
 
-system = [Doblete, Doblete2]
-Kos.display2dPlus(system, RayosT, 0)
+system = Doblete
+Kos.display2d(system, RayosT, 0)
 
 
 # # ______________________________________#
 
-# X, Y, Z, L, M, N = Rayos1.pick(-1)
-# plt.plot(X, Z, 'x')
-# X, Y, Z, L, M, N = Rayos2.pick(-1)
-# plt.plot(X, Z, 'x')
-# X, Y, Z, L, M, N = Rayos3.pick(-1)
-# plt.plot(X, Z, 'x')
-# plt.xlabel('X')
-# plt.ylabel('Y')
-# plt.title('Spot Diagram')
-# plt.axis('square')
-# plt.show()
+X, Y, Z, L, M, N = Rayos1.pick(-1)
+plt.plot(X, Z, 'x')
+X, Y, Z, L, M, N = Rayos2.pick(-1)
+plt.plot(X, Z, 'x')
+X, Y, Z, L, M, N = Rayos3.pick(-1)
+plt.plot(X, Z, 'x')
+plt.xlabel('X')
+plt.ylabel('Y')
+plt.title('Spot Diagram')
+plt.axis('square')
+plt.show()

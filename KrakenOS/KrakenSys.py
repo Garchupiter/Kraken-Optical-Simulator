@@ -216,6 +216,7 @@ class system():
         self.DDD = self.Pr3D.DDD
         self.EEE = self.Pr3D.EEE
         self.GlassOnSide = self.Pr3D.GlassOnSide
+
         self.side_number = self.Pr3D.side_number
         self.TypeTotal = self.Pr3D.TypeTotal
         self.TRANS_1A = self.Pr3D.TRANS_1A
@@ -224,7 +225,7 @@ class system():
         self.INORM = InterNormalCalc(self.SDT, self.TypeTotal, self.Pr3D, self.HS)
         self.INORM.Disable_Inner = 1
         self.Pr3D.Disable_Inner = 1
-        (self.c_p, self.n_p, self.d_p) = (0, 0, 0)
+        (self.c_p, self.n_p, self.d_p) = (0.0, 0.0, 0.0)
         self.tt=1.
         self.energy_probability = 0
         self.NsLimit = 200
@@ -243,7 +244,7 @@ class system():
         self.GlobGlass = []
         for i in range(0, self.n):
             if (type(self.SDT[i].Glass)!=str) and (type(self.SDT[i].Glass) in [float, int]):
-                # refractive index is manually entered 
+                # refractive index is manually entered
                 self.SDT[i].Glass = ('manual_n,' + str(self.SDT[i].Glass))
 
             self.Glass.append(self.SDT[i].Glass.replace(' ', ','))
@@ -325,10 +326,10 @@ class system():
         self.S_XYZ = []
         self.T_XYZ = []
         self.XYZ = []
-        self.XYZ.append([0, 0, 0])
+        self.XYZ.append([0.0,  0.0 , 0.0])
 
         self.OST_XYZ = []
-        self.OST_XYZ.append([0, 0, 0])
+        self.OST_XYZ.append([0.0,  0.0 , 0.0])
         self.OST_LMN = []
 
         self.S_LMN = []
@@ -344,7 +345,7 @@ class system():
         self.OP = []
         self.TOP_S = []
         self.TOP = 0
-        self.ALPHA = [0.0]
+        self.ALPHA = [0.0, 0.0]
         self.BULK_TRANS = []
         self.RP = []
         self.RS = []

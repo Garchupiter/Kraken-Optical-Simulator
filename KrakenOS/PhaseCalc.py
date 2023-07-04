@@ -1,19 +1,21 @@
+## File corrected as a result of Jianhua Jiang's comments about the consistency of the results in the article
 
 import numpy as np
 import KrakenOS as Kos
-# import scipy
+import scipy
 import copy
 
-def Phase(PUPIL):
-    """Phase.
 
-    Parameters
-    ----------
-    PUPIL :
-        PUPIL
-    """
+def Phase(PUPIL):
 #############################################################
     """ Crea una pupila con las propiedades pasadas como parámetro"""
+
+
+    # alpha = abcd[0]
+    # betha = abcd[1]
+    # gamma = abcd[2]
+    # ro = abcd[3]
+
 
     SYSTEM = PUPIL.SYSTEM
     sup = PUPIL.Surf
@@ -73,6 +75,11 @@ def Phase(PUPIL):
 
 # - - - - - - - - - - - - - - - - - - - - - -
     """ No mover """
+    SS[0].Thickness = 0.0
+    SS[-1].Thickness = np.sign(POZ)*np.abs(resf_out) #+ gamma
+
+# - - - - - - - - - - - - - - - - - - - - - -
+
     """ No mover """
     INP_P = Kos.surf()
     INP_P.Rc = 0
@@ -89,28 +96,28 @@ def Phase(PUPIL):
 # - - - - - - - - - - - - - - - - - - - - - -
 
     OUT_P = Kos.surf()
-    OUT_P.Rc = -np.sign(POZ)*np.abs(resf_out) #+ro
+    OUT_P.Rc = -np.sign(POZ)*np.abs(resf_out) #+ ro
     OUT_P.Thickness = 0
     OUT_P.Diameter = PUPIL.RadPupOut * 3
     OUT_P.Glass = 'AIR'
-    OUT_P.DespX = POX
-    OUT_P.DespY = POY
+    OUT_P.DespX = Xcc #+ alpha
+    OUT_P.DespY = Ycc #+ betha
     OUT_P.AxisMove = 0
     OUT_P.Order = 1
-
-    OUT_P.TiltX = np.rad2deg(np.arcsin((- Mcc)))
-    OUT_P.TiltY = np.rad2deg(np.arcsin((Lcc / np.cos(np.arcsin((- Mcc))))))
 
     Test = Kos.surf()
     Test.Diameter = PUPIL.RadPupOut * 3
 
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 
+
+
+
     SS.insert(1, INP_P)
     SS.append(OUT_P)
 
-    SS[0].Thickness = 0.0
-    SS[-2].Thickness = POZ #+ gamma
+
+
 
     SYSTEM = Kos.system(SS, configuracion_1)
 
@@ -140,9 +147,8 @@ def Phase(PUPIL):
     All_Rays = np.asarray(RR.OP)
 
     axis = 1
+    AR = (np.sum(All_Rays,axis) - All_Rays[:,0]) - All_Rays[:,-1]*2
 
-
-    AR = np.sum(All_Rays,axis) - All_Rays[:,0] - (All_Rays[:,-1]*2.)
 
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -152,12 +158,11 @@ def Phase(PUPIL):
 
     Chief = np.asarray(SYSTEM.OP)
 
-    CH = np.sum(Chief) - Chief[0] - (Chief[-1]*2.)
+    CH = (np.sum(Chief) - Chief[0]) - Chief[-1]*2
 
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 
-    Wi = (CH - AR )
-
+    Wi = CH - AR
 
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -167,14 +172,18 @@ def Phase(PUPIL):
 
     x0, y0, z0, k0, l0, mi = RR.pick(1)
     xi, yi, zi, ki, li, mi = RR.pick(-1)
-# -------------------------------------------------
+
 
     Wi = ((Wi * 1000.0) / W)
 
-    P2V = (np.max(Wi) - np.min(Wi))
 
+
+
+    P2V = (np.max(Wi) - np.min(Wi))
 
     RR.clean()
     RR.push()
 
     return ((YPUP / Pup.RadPupInp), (XPUP / Pup.RadPupInp), Wi, np.abs(P2V))
+
+
