@@ -38,14 +38,30 @@ def load_Catalog(FileCat):
     ARR_OD = []
     ARR_LD = []
     ARR_IT = []
-    print('Processing glass catalog:')
+
+    print('Loading glass calatogs:')
     for file in FileCat:
         ARR_CAT.append(file)
-        f = open(file, 'r')
-        for x in f:
+        try:
+            f = open(file, 'r', encoding='UTF8')
+            for x in f:
+                if not x.isspace():
+                     cat.append(x)
+        except:
+            f = open(file, 'r', encoding='UTF16')
+            for x in f:
+                if not x.isspace():
+                     cat.append(x)
 
-            if not x.isspace():
-                 cat.append(x)
+        # f = open(file, 'r')
+        # for x in f:
+
+        #     if not x.isspace():
+        #          cat.append(x)
+
+            # cat.append(x)
+
+
     con = 0
     coords = []
     names = []

@@ -1,5 +1,26 @@
 import numpy as np
 
+'''
+I modified the code that is copied from below
+https://github.com/quartiq/rayopt/blob/master/rayopt/material.py
+'''
+fraunhofer = dict(   # http://en.wikipedia.org/wiki/Abbe_number
+    i  =  365.01e-9, # Hg UV
+    h  =  404.66e-9, # Hg violet
+    g  =  435.84e-9, # Hg blue
+    Fp =  479.99e-9, # Cd blue
+    F  =  486.13e-9, # H  blue
+    e  =  546.07e-9, # Hg green
+    d  =  587.56e-9, # He yellow
+    D  =  589.30e-9, # Na yellow
+    Cp =  643.85e-9, # Cd red
+    C  =  656.27e-9, # H  red
+    r  =  706.52e-9, # He red
+    Ap =  768.20e-9, # K  IR
+    s  =  852.11e-9, # Cs IR
+    t  = 1013.98e-9, # Hg IR
+)
+
 def FresnelEnergy(vidrio, NP, NC, ImpVec, SurfNorm, ResVec, SETUP, Wave):
     """FresnelEnergy.
 
@@ -96,8 +117,46 @@ def fresnel_metal(NP, n_metal, k_complex, LMN_Inc, LMN_nor_surf):
     Ts = (1 - Rs)
     return (Rp, Rs, Tp, Ts)
 
+def Abbe_refractive_correction(n: float, v: float, wave: float):
+    '''
+    estimate refractive index at some wavelength when Abbe number is given
+
+    I refered below repository
+    https://github.com/quartiq/rayopt/blob/master/rayopt/material.py
+
+    Parameters
+    ----------
+    n : float
+        refractive index at Fraunhofer D1 spectral line (589.3 nm)
+    v : float
+        Abbe number v(d)
+    wave : float
+        wavelength
+
+    Returns
+    -------
+    float
+        corrected refractive index
+    '''
+    if v!= 0:
+        lambda_ref = fraunhofer["d"]*10**9
+        lambda_short = fraunhofer["F"]*10**9
+        lambda_long = fraunhofer["C"]*10**9
+
+        n_corrected = (n + (wave - lambda_ref) / 
+        (lambda_long - lambda_short) * 
+        (1 - n)/v)
+        return n_corrected
+    else:
+        return n
+
 def n_wave_dispersion(krakenSetup, GLSS, Wave):
-    """n_wave_dispersion.
+    """
+    n_wave_dispersion.
+
+    reference for the zemax glass data format
+    https://github.com/nzhagen/zemaxglass/blob/master/ZemaxGlass_user_manual.pdf
+    NM <glass_name> <dispersion_formula_number> <MIL> <N(d)> <V(d)> <Exclude_sub> <status> <melf_freq>
 
     Parameters
     ----------
@@ -108,7 +167,48 @@ def n_wave_dispersion(krakenSetup, GLSS, Wave):
     Wave :
         Wave
     """
-    if (GLSS[0:4] != 'AIR_'):
+    if GLSS.split(',')[0]=='manual_n':
+        n = float(GLSS.split(',')[1])
+        Alpha = 0.0
+    
+    elif (GLSS == 'MIRROR'):
+        n = (- 1.0)
+        Alpha = 0.0
+
+    elif (GLSS == 'AIR'):
+        n = 1.0
+        Alpha = 0.0
+
+    elif (GLSS.split(',')[0]=='___BLANK'):
+        # for unknown glass '___BLANK'
+        # AbbeMaterial
+        # I copied the code for dispersion correction from
+        # https://github.com/quartiq/rayopt/blob/master/rayopt/material.py
+
+        # reference for the zemax glass data format
+        # https://github.com/nzhagen/zemaxglass/blob/master/ZemaxGlass_user_manual.pdf        
+        # NM <glass_name> <dispersion_formula_number> <MIL> <N(d)> <V(d)> <Exclude_sub> <status> <melf_freq> 
+        # format
+        # '___BLANK 1 0 <refractive index> <Abbe number> 0 0 0 0 0 0' 
+        # ex) '___BLANK 1 0 1.52216 5.88E+1 0 0 0 0 0 0' 
+        GLSS_parm = GLSS.split(',')
+        n = float(GLSS_parm[3])
+        Abbe_num = float(GLSS_parm[4])
+        Alpha = 0
+        n = Abbe_refractive_correction(n, Abbe_num, Wave)
+
+    elif (GLSS.split(',')[0]=='nvk'):
+        # format
+        # 'nvk <refractive index> <Abbe number> <Alpha>' 
+        # ex) 'nvk 1.0 0 0'
+        GLSS_parm = GLSS.split(',')
+        n = float(GLSS_parm[1])
+        Abbe_num = float(GLSS_parm[2])
+        Alpha = float(GLSS_parm[3])
+        
+        n = Abbe_refractive_correction(n, Abbe_num, Wave)
+
+    else:
         CAT = krakenSetup.CAT
         NAMES = krakenSetup.NAMES
         NM = krakenSetup.NM
@@ -118,118 +218,111 @@ def n_wave_dispersion(krakenSetup, GLSS, Wave):
         OD = krakenSetup.OD
         LD = krakenSetup.LD
         IT = krakenSetup.IT
-        if (GLSS == 'MIRROR'):
-            n = (- 1.0)
-            Alpha = 0.0
 
-        if (GLSS == 'AIR'):
-            n = 1.0
-            Alpha = 0.0
-        if ((GLSS != 'MIRROR') and (GLSS != 'AIR')):
-            # print(GLSS)
+        try:
             r = np.argwhere((NAMES == GLSS))[0][0]
-            [Dispersion_Formula, MIL, Nd, Vd, Exclude_sub, Status] = NM[r]
-            C = CD[r]
-            lam2 = Wave **2.
+        except:
+            raise f'This material({GLSS}) not in the database'
 
-            if (Dispersion_Formula == 1):
-                """ Schott """
-                (a0, a1, a2, a3, a4, a5) = (C[0], C[1], C[2], C[3], C[4], C[5])
-                lam4 = Wave **4.
-                lam6 = Wave **6.
-                lam8 = Wave **8.
-                n2 = (((((a0 + (a1 * lam2)) + (a2 / lam2)) + (a3 / lam4)) + (a4 / lam6)) + (a5 / lam8))
-                n = np.sqrt(n2)
+        # [Dispersion_Formula, MIL, Nd, Vd, Exclude_sub, Status] = NM[r]
+        [Dispersion_Formula, MIL, Nd, Vd, *_] = NM[r]
+        C = CD[r]
+        lam2 = Wave **2.
 
-            if (Dispersion_Formula == 2):
-                """ Sellmeier1 """
-                (K1, L1, K2, L2, K3, L3) = (C[0], C[1], C[2], C[3], C[4], C[5])
-                p1 = ((K1 * lam2) / (lam2 - L1))
-                p2 = ((K2 * lam2) / (lam2 - L2))
-                p3 = ((K3 * lam2) / (lam2 - L3))
-                n = np.sqrt((((p1 + p2) + p3) + 1.0))
+        if (Dispersion_Formula == 1):
+            """ Schott """
+            (a0, a1, a2, a3, a4, a5) = (C[0], C[1], C[2], C[3], C[4], C[5])
+            lam4 = Wave **4.
+            lam6 = Wave **6.
+            lam8 = Wave **8.
+            n2 = (((((a0 + (a1 * lam2)) + (a2 / lam2)) + (a3 / lam4)) + (a4 / lam6)) + (a5 / lam8))
+            n = np.sqrt(n2)
 
-            if (Dispersion_Formula == 3):
-                """Herzberger"""
-                CA = C[0]
-                CB = C[1]
-                CC = C[2]
-                CD = C[3]
-                CE = C[4]
-                CF = C[5]
-                CL = (1.0 / ((Wave * 2.0) - 0.028))
-                n = (((((CA + (CB * CL)) + (CC * (CL ** 2.0))) + (CD * (Wave ** 2.0))) + (CE * (Wave ** 4.0))) + (CF * (Wave ** 6.0)))
-            if (Dispersion_Formula == 4):
-                """Sellmeier 2"""
-                GLSN = C[0] + (C[1] * Wave**2 / (Wave**2 - (C[2])**2)) + (C[3] * Wave**2 / (Wave**2 - (C[4])**2))
-                n = np.sqrt(GLSN + 1.0)
+        if (Dispersion_Formula == 2):
+            """ Sellmeier1 """
+            (K1, L1, K2, L2, K3, L3) = (C[0], C[1], C[2], C[3], C[4], C[5])
+            p1 = ((K1 * lam2) / (lam2 - L1))
+            p2 = ((K2 * lam2) / (lam2 - L2))
+            p3 = ((K3 * lam2) / (lam2 - L3))
+            n = np.sqrt((((p1 + p2) + p3) + 1.0))
 
-            if (Dispersion_Formula == 5):
-                """Conrady"""
-                n = C[0] + (C[1] / Wave) + (C[2] / Wave**3.5)
+        if (Dispersion_Formula == 3):
+            """Herzberger"""
+            CA = C[0]
+            CB = C[1]
+            CC = C[2]
+            CD = C[3]
+            CE = C[4]
+            CF = C[5]
+            CL = (1.0 / ((Wave * 2.0) - 0.028))
+            n = (((((CA + (CB * CL)) + (CC * (CL ** 2.0))) + (CD * (Wave ** 2.0))) + (CE * (Wave ** 4.0))) + (CF * (Wave ** 6.0)))
+        if (Dispersion_Formula == 4):
+            """Sellmeier 2"""
+            GLSN = C[0] + (C[1] * Wave**2 / (Wave**2 - (C[2])**2)) + (C[3] * Wave**2 / (Wave**2 - (C[4])**2))
+            n = np.sqrt(GLSN + 1.0)
 
-            if (Dispersion_Formula == 6):
-                """Sellmeier 3"""
-                GLSN = (C[0] * Wave**2 / (Wave**2 - C[1])) + (C[2] * Wave**2 / (Wave**2 - C[3])) + (C[4] * Wave**2 / (Wave**2 - C[5])) + (C[6] * Wave**2 / (Wave**2 - C[7]))
-                n = np.sqrt(GLSN + 1.0)
+        if (Dispersion_Formula == 5):
+            """Conrady"""
+            n = C[0] + (C[1] / Wave) + (C[2] / Wave**3.5)
 
-            if (Dispersion_Formula == 7):
-                """Hanbook of Optics 1"""
-                GLSN = C[0] + (C[1] / (Wave**2 - C[2])) - (C[3] * Wave**2)
-                n = np.sqrt(GLSN)
+        if (Dispersion_Formula == 6):
+            """Sellmeier 3"""
+            GLSN = (C[0] * Wave**2 / (Wave**2 - C[1])) + (C[2] * Wave**2 / (Wave**2 - C[3])) + (C[4] * Wave**2 / (Wave**2 - C[5])) + (C[6] * Wave**2 / (Wave**2 - C[7]))
+            n = np.sqrt(GLSN + 1.0)
 
-            if (Dispersion_Formula == 8):
-                """Hanbook of Optics 2"""
-                GLSN = C[0] + (C[1] * Wave**2 / (Wave**2 - C[2])) - (C[3] * Wave**2)
-                n = np.sqrt(GLSN)
+        if (Dispersion_Formula == 7):
+            """Hanbook of Optics 1"""
+            GLSN = C[0] + (C[1] / (Wave**2 - C[2])) - (C[3] * Wave**2)
+            n = np.sqrt(GLSN)
 
-            if (Dispersion_Formula == 9):
-                """Sellmeier 4"""
-                GLSN = C[0] + (C[1] * Wave**2 / (Wave**2 - C[2])) + (C[3] * Wave**2 / (Wave**2 - C[4]))
-                n = np.sqrt(GLSN)
+        if (Dispersion_Formula == 8):
+            """Hanbook of Optics 2"""
+            GLSN = C[0] + (C[1] * Wave**2 / (Wave**2 - C[2])) - (C[3] * Wave**2)
+            n = np.sqrt(GLSN)
 
-            if (Dispersion_Formula == 10):
-                """Extended"""
-                GLSN = C[0] + (C[1] * Wave**2) + (C[2] * Wave**-2) + (C[3] * Wave**-4) + (C[4] * Wave**-6) + \
-                              (C[5] * Wave**-8) + (C[6] * Wave**-10) + (C[7] * Wave**-12)
-                n = np.sqrt(GLSN)
+        if (Dispersion_Formula == 9):
+            """Sellmeier 4"""
+            GLSN = C[0] + (C[1] * Wave**2 / (Wave**2 - C[2])) + (C[3] * Wave**2 / (Wave**2 - C[4]))
+            n = np.sqrt(GLSN)
 
-            if (Dispersion_Formula == 11):
-                """Sellmeier 5"""
-                GLSN = (C[0] * Wave**2 / (Wave**2 - C[1])) + (C[2] * Wave**2 / (Wave**2 - C[3])) + (C[4] * Wave**2 / (Wave**2 - C[5])) + (C[6] * Wave**2 / (Wave**2 - C[7])) + (C[8] * Wave**2 / (Wave**2 - C[9]))
-                n = np.sqrt(GLSN + 1.0)
+        if (Dispersion_Formula == 10):
+            """Extended"""
+            GLSN = C[0] + (C[1] * Wave**2) + (C[2] * Wave**-2) + (C[3] * Wave**-4) + (C[4] * Wave**-6) + \
+                            (C[5] * Wave**-8) + (C[6] * Wave**-10) + (C[7] * Wave**-12)
+            n = np.sqrt(GLSN)
 
-
-            if (Dispersion_Formula == 12):
-                """Extended 2"""
-                GLSN = C[0] + (C[1] * Wave**2) + (C[2] * Wave**-2) + (C[3] * Wave**-4) + (C[4] * Wave**-6) + (C[5] * Wave**-8) + (C[6] * Wave**4) + (C[7] * Wave**6)
-                n = np.sqrt(GLSN)
+        if (Dispersion_Formula == 11):
+            """Sellmeier 5"""
+            GLSN = (C[0] * Wave**2 / (Wave**2 - C[1])) + (C[2] * Wave**2 / (Wave**2 - C[3])) + (C[4] * Wave**2 / (Wave**2 - C[5])) + (C[6] * Wave**2 / (Wave**2 - C[7])) + (C[8] * Wave**2 / (Wave**2 - C[9]))
+            n = np.sqrt(GLSN + 1.0)
 
 
-            if (Dispersion_Formula == 13):
-                """HIKARI Catalog"""
-                GLSN0 = C[0]
-                GLSN1 =(C[1] * Wave**2)
-                GLSN2 =(C[2] * Wave**4)
-                GLSN3 =(C[3] * Wave**-2)
-                GLSN4 =(C[4] * Wave**-4)
-                GLSN5 =(C[5] * Wave**-6)
-                GLSN6 =(C[6] * Wave**-8)
-                GLSN7 =(C[7] * Wave**-10)
-                GLSN8 =(C[8] * Wave**-12)
-                GLSN = GLSN0 + GLSN1 + GLSN2 + GLSN3 + GLSN4 + GLSN5 + GLSN6 + GLSN7 + GLSN8
+        if (Dispersion_Formula == 12):
+            """Extended 2"""
+            GLSN = C[0] + (C[1] * Wave**2) + (C[2] * Wave**-2) + (C[3] * Wave**-4) + (C[4] * Wave**-6) + (C[5] * Wave**-8) + (C[6] * Wave**4) + (C[7] * Wave**6)
+            n = np.sqrt(GLSN)
 
-                """ n(W)2 = A0 + A1*W**2 + A2*W**4 + A3*W**−2 + A4*W**−4 + A5*W**−6 + A6*W**−8 + A7*W**−10 + A8*W**−12"""
 
-                n = np.sqrt(GLSN)
+        if (Dispersion_Formula == 13):
+            """HIKARI Catalog"""
+            GLSN0 = C[0]
+            GLSN1 =(C[1] * Wave**2)
+            GLSN2 =(C[2] * Wave**4)
+            GLSN3 =(C[3] * Wave**-2)
+            GLSN4 =(C[4] * Wave**-4)
+            GLSN5 =(C[5] * Wave**-6)
+            GLSN6 =(C[6] * Wave**-8)
+            GLSN7 =(C[7] * Wave**-10)
+            GLSN8 =(C[8] * Wave**-12)
+            GLSN = GLSN0 + GLSN1 + GLSN2 + GLSN3 + GLSN4 + GLSN5 + GLSN6 + GLSN7 + GLSN8
 
-            [Wa, Tr, Th] = IT[r]
-            TR = np.interp(Wave, np.asarray(Wa), np.asarray(Tr))
-            Alpha = ((- np.log(TR)) / Th[0])
+            """ n(W)2 = A0 + A1*W**2 + A2*W**4 + A3*W**−2 + A4*W**−4 + A5*W**−6 + A6*W**−8 + A7*W**−10 + A8*W**−12"""
 
-    else:
-        n = float(GLSS[4:])
-        Alpha = 0.0
+            n = np.sqrt(GLSN)
+
+        [Wa, Tr, Th] = IT[r]
+        TR = np.interp(Wave, np.asarray(Wa), np.asarray(Tr))
+        Alpha = ((- np.log(TR)) / Th[0])
 
     return (n, Alpha)
 
