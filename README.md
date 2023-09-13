@@ -15,7 +15,12 @@ Carlos Guerrero P., Morgan Rhaí Najera Roa, Anais Sotelo B., Ilse Plauchu F., J
 
 ## 
 
-It would be appreciated if a reference to the following work, for which this package was originally build, is included whenever this code is used for a publication: (Autors for the moment, a paper is in progres)
+It would be appreciated if a reference to the following work, for which this package was originally build, is included whenever this code is used for a publication: (https://www.spiedigitallibrary.org/journals/optical-engineering/volume-61/issue-1/015101/KrakenOS-Python-based-general-exact-ray-tracing-library/10.1117/1.OE.61.1.015101.short)
+
+And the Book: 
+(https://www.spiedigitallibrary.org/journals/optical-engineering/volume-61/issue-1/015101/KrakenOS-Python-based-general-exact-ray-tracing-library/10.1117/1.OE.61.1.015101.short)
+
+
 
 KrakenOS (Kraken - Optical Simulator) is a python library based in Numpy, Matplotlib, PyVTK and PyVista libraries, it provides a three-dimensional optical systems visualization and ray tracing. This tool has been programed on the object-oriented paradigm. KrakenOS focuses on performing sequential and non-sequential exact ray tracing, it permits to define all the parameters of the optical elements or even the mathematical function to describe their shape, it also allows adding optical properties to 3D solid elements in STL format and use glass catalogs. The library permit to control and modifying the position of the surfaces in a three-dimensional space, this allows generating off-axis systems. It also has several tools such as the calculation of wavefront aberrations in terms of Zernike polynomials, Seidel sums, Entrance and exit pupil calculation and paraxial optics.
 
