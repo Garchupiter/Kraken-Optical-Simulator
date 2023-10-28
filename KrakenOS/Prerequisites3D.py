@@ -1,6 +1,59 @@
 
 import numpy as np
 import pyvista as pv
+from .UDA import *
+
+
+
+
+
+def interpolate_coordinates(x, y, num_points=362):
+    # Asegurarse de que las listas tengan el mismo número de elementos
+    if len(x) != len(y):
+        raise ValueError("Las listas de coordenadas x e y deben tener la misma longitud.")
+
+    # Calcular la longitud total de la trayectoria cerrada
+    total_length = 0
+    for i in range(len(x) - 1):
+        dx = x[i + 1] - x[i]
+        dy = y[i + 1] - y[i]
+        total_length += np.sqrt(dx**2 + dy**2)
+
+    # Calcular la distancia entre los puntos equidistantes
+    step_size = total_length / num_points
+
+    # Crear listas para las coordenadas equidistantes
+    interpolated_x = []
+    interpolated_y = []
+
+    # Iniciar desde el primer punto
+    current_x = x[0]
+    current_y = y[0]
+    remaining_distance = 0
+
+    # Iterar a lo largo de la trayectoria
+    for i in range(len(x) - 1):
+        dx = x[i + 1] - x[i]
+        dy = y[i + 1] - y[i]
+        segment_length = np.sqrt(dx**2 + dy**2)
+
+        # Avanzar a lo largo del segmento actual
+        while remaining_distance + step_size <= segment_length:
+            ratio = (remaining_distance + step_size) / segment_length
+            interpolated_x.append(current_x + dx * ratio)
+            interpolated_y.append(current_y + dy * ratio)
+            remaining_distance += step_size
+
+        # Mover al siguiente segmento
+        remaining_distance -= segment_length
+        current_x = x[i + 1]
+        current_y = y[i + 1]
+
+    return np.asarray(interpolated_x), np.asarray(interpolated_y)
+
+
+
+
 
 class Prerequisites():
     """Prerequisites.
@@ -107,24 +160,34 @@ class Prerequisites():
         j :
             j
         """
+
+
         if self.SDT[j].Mask_Shape == "None":
             self.SDT[j].RestoreVTK()
 
 
         if (self.SDT[j].Solid_3d_stl == 'None'):
-            RES = (47 * self.SDT[j].Res)
-            con = (((self.SDT[j].Diameter *self.SDT[j].SubAperture[0]) - (self.SDT[j].InDiameter * self.Disable_Inner)) / (self.SDT[j].Diameter *self.SDT[j].SubAperture[0]))
-            if (con == 0):
-                con = 1
-            r_RES = int((RES * con))
-            INNER = ((self.SDT[j].InDiameter * self.Disable_Inner) / 2.0)
-            OUTER = ((self.SDT[j].Diameter *self.SDT[j].SubAperture[0]) / 2.0)
-            disc = pv.Disc(center=[0.0, 0.0, 0.0], inner=INNER, outer=OUTER, normal=(0, 0, 1), r_res=r_RES, c_res=(RES * 2))
-            L_te_h = self.Flat2SigmaSurface(disc, j)
-            if (self.SDT[j].InDiameter > 0):
-                L_te_h = L_te_h.delaunay_2d().edge_source = L_te_h
+            if (self.SDT[j].UDA == 'None'):
+                RES = (47 * self.SDT[j].Res)
+                con = (((self.SDT[j].Diameter *self.SDT[j].SubAperture[0]) - (self.SDT[j].InDiameter * self.Disable_Inner)) / (self.SDT[j].Diameter *self.SDT[j].SubAperture[0]))
+                if (con == 0):
+                    con = 1
+                r_RES = int((RES * con))
+                INNER = ((self.SDT[j].InDiameter * self.Disable_Inner) / 2.0)
+                OUTER = ((self.SDT[j].Diameter *self.SDT[j].SubAperture[0]) / 2.0)
+                disc = pv.Disc(center=[0.0, 0.0, 0.0], inner=INNER, outer=OUTER, normal=(0, 0, 1), r_res=r_RES, c_res=(RES * 2))
+                L_te_h = self.Flat2SigmaSurface(disc, j)
+                if (self.SDT[j].InDiameter > 0):
+                    L_te_h = L_te_h.delaunay_2d().edge_source = L_te_h
+                else:
+                    L_te_h = L_te_h.delaunay_2d()
             else:
-                L_te_h = L_te_h.delaunay_2d()
+                udashape =self.SDT[j].UDA_Obj.UDA_Surf
+                L_te_h = self.Flat2SigmaSurface(udashape, j)
+
+
+
+
         else:
             aaa = isinstance(self.SDT[j].Solid_3d_stl, pv.core.pointset.PolyData)
             if aaa == False:
@@ -151,19 +214,29 @@ class Prerequisites():
         j :
             j
         """
-        rad2 = ((self.SDT[j].Diameter *self.SDT[j].SubAperture[0]) / 2.0)
 
-        x2 = rad2 * np.cos(self.ANG_Rad)
-        y2 = rad2 * np.sin(self.ANG_Rad)
+
+        if self.SDT[j].UDA == "None":
+            rad2 = ((self.SDT[j].Diameter *self.SDT[j].SubAperture[0]) / 2.0)
+            x2 = rad2 * np.cos(self.ANG_Rad)
+            y2 = rad2 * np.sin(self.ANG_Rad)
+
+        else:
+            px = self.SDT[j].UDA[0]
+            py = self.SDT[j].UDA[1]
+            x2, y2 = interpolate_coordinates(px, py, num_points=362)
+
         z2 = np.zeros_like(x2)
         x2 = x2 + self.SDT[j].SubAperture[2]
         y2 = y2 + self.SDT[j].SubAperture[1]
 
         points2 = np.c_[(x2, y2, z2)]
         L_te = pv.PolyData(points2, force_float=False)
+
         x2 = L_te.points[:, 0]
         y2 = L_te.points[:, 1]
         z2 = self.SuTo.SurfaceShape(x2, y2, j)
+
         points2 = np.c_[(x2, y2, z2)]
         L_te = pv.PolyData(points2, force_float=False)
         L_te = self.GeometricRotatAndTran(L_te, j)
@@ -246,7 +319,16 @@ class Prerequisites():
         self.counter = []
         self.side_number = []
         for j in range(0, self.n):
+            if (self.SDT[j].UDA != 'None'):
+                px = self.SDT[j].UDA[0]
+                py = self.SDT[j].UDA[1]
+                self.SDT[j].UDA_Obj = UDA(px, py)
+
             (lens, masked) = self.Face3D(j)
+
+
+
+
             self.AAA.append(lens)
             if (self.SDT[j].Solid_3d_stl == 'None'):
                 self.TypeTotal.append(0)

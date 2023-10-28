@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 
 P_Obj = Kos.surf()
 P_Obj.Rc = 0.0
-P_Obj.Thickness = 10
+P_Obj.Thickness = 40
 P_Obj.Glass = "AIR"
 P_Obj.Diameter = 30.0
 
@@ -35,15 +35,30 @@ L1a.Diameter = 30.0
 
 
 
+radio = 15
+
+px = [radio * np.cos(np.radians(0)),
+     radio * np.cos(np.radians(72)),
+     radio * np.cos(np.radians(144)),
+     radio * np.cos(np.radians(216)),
+     radio * np.cos(np.radians(288)),
+     radio * np.cos(np.radians(0))]
+
+py = [radio * np.sin(np.radians(0)),
+     radio * np.sin(np.radians(72)),
+     radio * np.sin(np.radians(144)),
+     radio * np.sin(np.radians(216)),
+     radio * np.sin(np.radians(288)),
+     radio * np.sin(np.radians(0))]
+
+
+L1a.UDA = [px, py]
 # ______________________________________#
 
 L1c = Kos.surf()
-L1c.Thickness = 40
+L1c.Thickness = 200
 L1c.Glass = "AIR"
 L1c.Diameter = 30
-
-
-# ______________________________________#
 
 def f(x, y, E):
     r = np.sqrt((x * x) + (y * y * 0))
@@ -55,11 +70,13 @@ def f(x, y, E):
     return zx + zy
 
 
-# ______________________________________#
-
 coef = [10.0, 1.]
 L1c.ExtraData = [f, coef]
+
+
 L1c.Res = 1
+
+L1c.UDA = [px, py]
 
 
 # ______________________________________#
@@ -68,7 +85,7 @@ P_Ima = Kos.surf()
 P_Ima.Rc = 0.0
 P_Ima.Thickness = 0.0
 P_Ima.Glass = "AIR"
-P_Ima.Diameter = 300.0
+P_Ima.Diameter = 200.0
 P_Ima.Name = "Image plane"
 
 # ______________________________________#
@@ -93,4 +110,4 @@ for i in range(-100, 100 + 1):
 # ______________________________________#
 
 Kos.display3d(Lens, Rays, 0)
-Kos.display2d(Lens, Rays, 0)
+# Kos.display2d(Lens, Rays, 0)

@@ -38,6 +38,8 @@ class Hit_Solver():
         self.vyi = [0.0, self.delta, 0.0, 0.0, - self.delta, 0.0]
         self.vzi = [0.0, 0.0, self.delta, 0.0, 0.0, - self.delta]
 
+
+
     def SurfDer(self, x, y, z):
         #http://www2.math.umd.edu/~dlevy/classes/amsc466/lecture-notes/differentiation-chap.pdf
         """SurfDer.
@@ -77,30 +79,30 @@ class Hit_Solver():
         Dr = np.sqrt((((Dx ** 2.) + (Dy ** 2.)) + (Dz ** 2.)))
         return ((Dx / Dr), (Dy / Dr), (Dz / Dr))
 
-    def __surface_Derivative(self,x,y,z,j):
-        #http://www2.math.umd.edu/~dlevy/classes/amsc466/lecture-notes/differentiation-chap.pdf
-        delta=0.000001
-        # more precision but slower execution
-        AX1=-(self.__xyzF(x+(2*delta),y,z,j))
-        AX2=8.0*(self.__xyzF(x+delta,y,z,j))
-        AX3=-8.0*(self.__xyzF(x-delta,y,z,j))
-        AX4=(self.__xyzF(x-(2*delta),y,z,j) )
-        Dx=(AX1+AX2+AX3+AX4)/(12*delta)
+    # def __surface_Derivative(self,x,y,z,j):
+    #     #http://www2.math.umd.edu/~dlevy/classes/amsc466/lecture-notes/differentiation-chap.pdf
+    #     delta=0.000001
+    #     # more precision but slower execution
+    #     AX1=-(self.__xyzF(x+(2*delta),y,z,j))
+    #     AX2=8.0*(self.__xyzF(x+delta,y,z,j))
+    #     AX3=-8.0*(self.__xyzF(x-delta,y,z,j))
+    #     AX4=(self.__xyzF(x-(2*delta),y,z,j) )
+    #     Dx=(AX1+AX2+AX3+AX4)/(12*delta)
 
-        AY1=-(self.__xyzF(x,y+2*delta,z,j))
-        AY2=8.0*(self.__xyzF(x, y+delta,z,j))
-        AY3=-8.0*(self.__xyzF(x,y-delta,z,j))
-        AY4=(self.__xyzF(x, y-2*delta,z,j)  )
-        Dy=(AY1+AY2+AY3+AY4)/(12*delta)
+    #     AY1=-(self.__xyzF(x,y+2*delta,z,j))
+    #     AY2=8.0*(self.__xyzF(x, y+delta,z,j))
+    #     AY3=-8.0*(self.__xyzF(x,y-delta,z,j))
+    #     AY4=(self.__xyzF(x, y-2*delta,z,j)  )
+    #     Dy=(AY1+AY2+AY3+AY4)/(12*delta)
 
-        AZ1=-(self.__xyzF(x,y,z+2*delta,j))
-        AZ2=8.0*(self.__xyzF(x,y, z+delta,j))
-        AZ3=-8.0*(self.__xyzF(x,y,z-delta,j))
-        AZ4=(self.__xyzF(x, y, z-2*delta,j) )
-        Dz=(AZ1+AZ2+AZ3+AZ4)/(12*delta)
+    #     AZ1=-(self.__xyzF(x,y,z+2*delta,j))
+    #     AZ2=8.0*(self.__xyzF(x,y, z+delta,j))
+    #     AZ3=-8.0*(self.__xyzF(x,y,z-delta,j))
+    #     AZ4=(self.__xyzF(x, y, z-2*delta,j) )
+    #     Dz=(AZ1+AZ2+AZ3+AZ4)/(12*delta)
 
-        Dr=np.sqrt((Dx*Dx)+(Dy*Dy)+(Dz*Dz))
-        return Dx/Dr,Dy/Dr,Dz/Dr
+    #     Dr=np.sqrt((Dx*Dx)+(Dy*Dy)+(Dz*Dz))
+    #     return Dx/Dr,Dy/Dr,Dz/Dr
 
     def __DerLineCurve(self, gf):
         """__DerLineCurve.

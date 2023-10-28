@@ -30,13 +30,15 @@ P_Obj.Diameter = 30.0
 # _________________________________________#
 
 L1a = Kos.surf()
-L1a.Rc = 9.284706570002484E+001
+L1a.Rc = 9.28E+001
 L1a.Thickness = 6.0
 L1a.Glass = "BK7"
 L1a.Diameter = 30.0
 L1a.AxisMove = 1
 L1a.TiltX = 13.0
 L1a.DespZ = 5.0
+
+# _________________________________________#
 
 # reflectivity
 R = [[0.5, 0.5, 0.5],
@@ -50,19 +52,13 @@ W = [0.35, 0.45, 0.55]
 THETA = [0, 45]
 # anti reflection coating
 L1a.Coating =[R, A, W, THETA]
-"""Note: this cannot change the total internal reflection """
-
-# _________________________________________#
 
 L1b = Kos.surf()
-L1b.Rc = (-3.071608670000159E+001)
+L1b.Rc = (-3.0E+001)
 L1b.Thickness = 3.0
 L1b.Glass = "F2"
 L1b.Diameter = 30
-
-
 THETA = [0, 45]
-
 L1b.Coating =[R, A, W, THETA]
 
 # _________________________________________#

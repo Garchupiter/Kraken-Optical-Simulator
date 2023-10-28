@@ -152,6 +152,7 @@ class surf():
         ,ShiftX = 0.0\
         ,ShiftY = 0.0\
         ,Mask_Type = 0.0\
+        ,UDA = 'None'
 
         ,Mask_Shape = "None"\
         ,Solid_3d_stl = "None"\
@@ -170,11 +171,12 @@ class surf():
         ,Surface_type = 0.0\
         ,SURF_FUNC = [conic__surf(0.0, 0.0, 1.0)]\
         ,SPECIAL_SURF_FUNC = []\
-        ,SubAperture = [1,0,0], Coating = [[],[],[],[]], NumLabel = 1):
+        ,SubAperture = [1,0,0], Coating = [[],[],[],[]], CoatingMet = 0, NumLabel = 1, ):
 
         """__init__.
         """
         pass
+        self.Var = ["Enpty"]
         self.Rc = Rc
         self.Thickness = Thickness
         self.Diameter = Diameter
@@ -197,7 +199,8 @@ class surf():
         self.ShiftX = ShiftX
         self.ShiftY = ShiftY
         self.Mask_Type = Mask_Type
-
+        self.UDA = UDA
+        self.UDA_Obj = "None"
         self.Mask_Shape = Mask_Shape
         self.Solid_3d_stl = Solid_3d_stl
         self.Cylinder_Rxy_Ratio = Cylinder_Rxy_Ratio
@@ -218,6 +221,7 @@ class surf():
         self.General_Status = self.update()
         self.SubAperture = SubAperture
         self.Coating = Coating
+        self.CoatingMet = CoatingMet
         self.NumLabel = NumLabel
 
     def RestoreVTK(self):

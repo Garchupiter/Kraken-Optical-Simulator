@@ -3,8 +3,8 @@ import numpy as np
 
 
 
-def load_alluminum_complex(file):
-    """load_alluminum_complex.
+def load_metal_complex(file):
+    """load_metal_complex.
 
     Parameters
     ----------

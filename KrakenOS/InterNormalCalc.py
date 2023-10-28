@@ -106,8 +106,13 @@ class InterNormalCalc():
             DiamInf = ((self.SDT[j].InDiameter * self.SDT[j].SubAperture[0]) * self.Disable_Inner)
             DiamSup = ((self.SDT[j].Diameter * self.SDT[j].SubAperture[0]) + (10000.0 * self.ExtraDiameter))
 
+            if self.SDT[j].UDA_Obj != "None":
+                InsOut = self.SDT[j].UDA_Obj.Hit(Px1, Py1)
+            else:
+                InsOut = True
 
-            if ((D0 > DiamSup) or (D0 < DiamInf)):
+
+            if ((D0 > DiamSup) or (D0 < DiamInf) or InsOut == False):
                 SurfHit = 0
                 P_x2 = 0
                 P_y2 = 0
@@ -147,48 +152,7 @@ class InterNormalCalc():
 
         return (SurfHit, P_x2, P_y2, P_z2, Px1, Py1, Pz1, L, M, N)
 
-    def __SigmaHitTransfSpaceFast(self, PP_start, PP_stop, j):
 
-        StopPoint = np.array([PP_stop[0], PP_stop[1], PP_stop[2], 1.0])
-        StarPoint = np.array([PP_start[0], PP_start[1], PP_start[2], 1.0])
-
-        SurfHit = 1
-        P_SurfHit = self.Pr3D.TRANS_1A[j].dot(StopPoint)
-        Px1 = P_SurfHit[(0, 0)]
-        Py1 = P_SurfHit[(0, 1)]
-        Pz1 = P_SurfHit[(0, 2)]
-
-        P_start = self.Pr3D.TRANS_1A[j].dot(StarPoint)
-        P_x1 = P_start[(0, 0)]
-        P_y1 = P_start[(0, 1)]
-        P_z1 = P_start[(0, 2)]
-
-        P12 = [(Px1 - P_x1), (Py1 - P_y1), (Pz1 - P_z1)]
-        [L, M, N] = (P12 / np.linalg.norm(P12))
-
-        Px1 = (((L / N) * (- P_z1)) + P_x1)
-        Py1 = (((M / N) * (- P_z1)) + P_y1)
-
-        Pz1 = 0
-        SurfHit = 1
-
-        P_x2 = 0
-        P_y2 = 0
-        P_z2 = 0
-
-
-        (P_x2, P_y2, P_z2) = self.HS.SolveHit(Px1, Py1, Pz1, L, M, N, j)
-        if (not math.isnan(P_z2)):
-            P_x2 = self.HS.vevaX
-            P_y2 = self.HS.vevaY
-
-        else:
-            SurfHit = 0
-            P_x2 = 0
-            P_y2 = 0
-            P_z2 = 0
-
-        return (SurfHit, P_x2, P_y2, P_z2, Px1, Py1, Pz1)
 
     def __ParaxCalcObjOut2OrigSpace(self, Px2, Py2, Pz2, Px1, Py1, Pz1, j):
         """__ParaxCalcObjOut2OrigSpace.

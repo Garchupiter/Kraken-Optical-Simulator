@@ -186,6 +186,8 @@ class system():
         KN_Setup :
             KN_Setup
         """
+
+        self.Next = 1.0 #Air Refraction index
         self.ExectTime=[]
 
         self.SDT = SurfData
@@ -427,7 +429,8 @@ class system():
         if (self.val == 1):
             # Coating
             Rp2, Rs2, Tp2, Ts2, V  = self.CoatingFun(self.SDT[j].Coating, self.ang, self.Wave)
-            (Rp, Rs, Tp, Ts) = FresnelEnergy(Glass, PrevN, CurrN, ImpVec, SurfNorm, ResVec, self.SETUP, self.Wave)
+            mtl = self.SDT[j].CoatingMet
+            (Rp, Rs, Tp, Ts) = FresnelEnergy(Glass, PrevN, CurrN, ImpVec, SurfNorm, ResVec, self.SETUP, self.Wave, mtl)
             if V == 1:
                 Rp, Rs, Tp, Ts = Rp2, Rs2, Tp2, Ts2
         else:
@@ -746,6 +749,11 @@ class system():
                     break
                 ImpVec = np.asarray(ResVec)
                 (CurrN, alpha) = (self.N_Prec[j_gg], self.AlphaPrecal[j_gg])
+
+                # Alternative refraction index for air medium
+                if CurrN == 1.0:
+                    CurrN = self.Next
+
                 S = np.asarray(ImpVec)
                 R = np.asarray(SurfNorm)
                 N = PrevN
@@ -817,4 +825,55 @@ class system():
         self.Hit_x = AT[0]
         self.Hit_y = AT[1]
         self.Hit_z = AT[2]
+
+    def FastTrace(self, pS, dC, WaveLength):
+        """Trace.
+
+        Parameters
+        ----------
+        pS :
+            pS
+        dC :
+            dC
+        WaveLength :
+            WaveLength
+        """
+        self.__CollectDataInit()
+        ResVec = np.asarray(dC)
+        RayOrig = np.asarray(pS)
+        self.CORD = RayOrig
+        self.Wave = WaveLength
+        self.RAY.append(RayOrig)
+        self.__WavePrecalc()
+        (PrevN, alpha) = (self.N_Prec[0], self.AlphaPrecal[0])
+        j = 1
+        SIGN = np.ones_like(ResVec)
+        while True:
+
+
+            if j == self.Targ_Surf or self.Glass[j] == 'ABSORB' or self.Glass[j] == 'NULL':
+                break
+
+            Proto_pTarget = (np.asarray(RayOrig) + ((np.asarray(ResVec) * 999999999.9) * SIGN))
+            SurfHit, SurfNorm, RayOrig, GooveVect, HitObjSpace, LMNObjSpace, j = self.INORM.InterNormal(RayOrig, Proto_pTarget, j, j)
+
+
+            if (SurfHit == 0):
+                break
+
+            (CurrN, alpha) = (self.N_Prec[j], self.AlphaPrecal[j])
+            Ord = self.SDT[j].Diff_Ord
+            GrSpa = self.SDT[j].Grating_D
+
+            (ResVec, PrevN, sign ,self.ang) = self.SDT[j].PHYSICS.calculate(ResVec, SurfNorm, PrevN, CurrN, GooveVect, Ord, GrSpa, self.Wave, 0)
+            SIGN = (SIGN * sign)
+
+            j = (j + 1)
+
+
+        if (len(self.GLASS) == 0):
+            self.val = 0
+            self.__EmptyCollect(RayOrig, ResVec, WaveLength, j)
+
+        self.CORD = RayOrig
 

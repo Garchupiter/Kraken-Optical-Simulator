@@ -21,7 +21,7 @@ fraunhofer = dict(   # http://en.wikipedia.org/wiki/Abbe_number
     t  = 1013.98e-9, # Hg IR
 )
 
-def FresnelEnergy(vidrio, NP, NC, ImpVec, SurfNorm, ResVec, SETUP, Wave):
+def FresnelEnergy(vidrio, NP, NC, ImpVec, SurfNorm, ResVec, SETUP, Wave, s):
     """FresnelEnergy.
 
     Parameters
@@ -47,8 +47,8 @@ def FresnelEnergy(vidrio, NP, NC, ImpVec, SurfNorm, ResVec, SETUP, Wave):
     if (vidrio != 'MIRROR'):
         (Rp, Rs, Tp, Ts) = fresnel_dielectric(NP, NC, ImpVec, SurfNorm, ResVec)
     if (vidrio == 'MIRROR'):
-        n_metal = np.interp(Wave, SETUP.W_alum, SETUP.N_alum)
-        k_complex = np.interp(Wave, SETUP.W_alum, SETUP.K_alum)
+        n_metal = np.interp(Wave, SETUP.W_met[s], SETUP.N_met[s])
+        k_complex = np.interp(Wave, SETUP.W_met[s], SETUP.K_met[s])
         (Rp, Rs, Tp, Ts) = fresnel_metal(NP, n_metal, k_complex, ImpVec, SurfNorm)
 
     return (Rp, Rs, Tp, Ts)

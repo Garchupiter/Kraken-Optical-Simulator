@@ -73,7 +73,7 @@ if A1 == 0:
     # Gaussian
     def f(x):
         x = np.rad2deg(x)
-        seing = 1.2 / 3600.0
+        seing = 2 * 1.2 / 3600.0
         sigma = seing / 2.3548
         mean = 0
         standard_deviation = sigma
@@ -86,62 +86,47 @@ if A1 == 0:
     Sun.field = 4 * 1.2 / (2.0 * 3600.0)
     Sun.fun = f
     Sun.dim = 2100
-    Sun.num = 100000
+    Sun.num = 300000
     L, M, N, X, Y, Z = Sun.rays()
 
-    Xr = np.zeros_like(L)
-    Yr = np.zeros_like(L)
-    Zr = np.zeros_like(L)
+    Xr = []
+    Yr = []
+    Zr = []
 
-    Lr = np.zeros_like(L)
-    Mr = np.zeros_like(L)
-    Nr = np.zeros_like(L)
+    Lr = []
+    Mr = []
+    Nr = []
 
-    NM = np.zeros_like(L)
 
-    con = 0
-    con2 = 0
     W = 0.6
 
     for i in range(0, Sun.num):
-        if con2 == 10:
-            print(100. * i / Sun.num)
-            con2 = 0
 
         pSource_0 = [X[i], Y[i], Z[i]]
         dCos = [L[i], M[i], N[i]]
         Telescopio.Trace(pSource_0, dCos, W)
 
-        x, y, z = Telescopio.XYZ[-1]
-        l, m, n = Telescopio.LMN[-1]
-        Xr[con] = x
-        Yr[con] = y
-        Zr[con] = z
-        Lr[con] = l
-        Mr[con] = m
-        Nr[con] = n
-
         if Telescopio.NAME[-1] == "Image plane Tel":
-            NM[con] = i
-        else:
-            NM[con] = -1
+            x, y, z = Telescopio.XYZ[-1]
+            l, m, n = Telescopio.LMN[-1]
+            Xr.append(x)
+            Yr.append(y)
+            Zr.append(z)
+            Lr.append(l)
+            Mr.append(m)
+            Nr.append(n)
 
-        con = con + 1
-        con2 = con2 + 1
-        # Rayos.push()
 
-    args = np.argwhere(NM != -1)
+    Xr = np.asarray(Xr)
+    Yr = np.asarray(Yr)
+    Zr = np.asarray(Zr)
+    Lr = np.asarray(Lr)
+    Mr = np.asarray(Mr)
+    Nr = np.asarray(Nr)
 
-    X = Xr[args]
-    Y = Yr[args]
-    Z = Zr[args]
+    W = W * np.ones_like(Nr)
 
-    L = Lr[args]
-    M = Mr[args]
-    N = Nr[args]
-    W = W * np.ones_like(N)
-
-    Rays = np.hstack((X, Y, Z, L, M, N, W))
+    Rays = np.vstack((Xr, Yr, Zr, Lr, Mr, Nr, W))
     outfile = "savedRays.npy"
     np.save(outfile, Rays)
 
@@ -156,6 +141,7 @@ if A1 == 0:
 ################################################################
 
 else:
+
     P_Obj = Kos.surf()
     P_Obj.Rc = 0
     P_Obj.Thickness = 100. + 0.5
@@ -169,11 +155,18 @@ else:
     P_ImageSlicer.Glass = "BK7"
     P_ImageSlicer.Name = "Image slicer"
     P_ImageSlicer.Solid_3d_stl = direc
-    P_ImageSlicer.Thickness = 13
+    P_ImageSlicer.Thickness = 100
     P_ImageSlicer.TiltX = 180.0
     P_ImageSlicer.DespX = -0.55
-    P_ImageSlicer.DespY = -0.03
+    P_ImageSlicer.DespY = -0.12
     P_ImageSlicer.AxisMove = 0
+
+
+    PerfLen = Kos.surf()
+    PerfLen.Diameter = 30.0
+    PerfLen.Thin_Lens = 50
+    PerfLen.Thickness = 100+10-7.19
+
 
     P_Ima = Kos.surf()
     P_Ima.Diameter = 10.0
@@ -182,15 +175,16 @@ else:
 
     # _________________________________________________________________#
 
-    A = [P_Obj, P_ImageSlicer, P_Ima]
+    A = [P_Obj, P_ImageSlicer, PerfLen, P_Ima]
     configuracion_1 = Kos.Setup()
     ImageSlicer = Kos.system(A, configuracion_1)
     Rayos = Kos.raykeeper(ImageSlicer)
 
     outfile = "savedRays.npy"
     R = np.load(outfile)
+
     print(np.shape(R))
-    X, Y, Z, L, M, N, W = R[:, 0], R[:, 1], R[:, 2], R[:, 3], R[:, 4], R[:, 5], R[:, 6]
+    X, Y, Z, L, M, N, W = R[0, :], R[1, :], R[2, :], R[3, :], R[4, :], R[5, :], R[6, :]
 
     nrays = 2000
     Xr = np.zeros(nrays)

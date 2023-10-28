@@ -99,4 +99,4 @@ for i in range(-tam, tam + 1):
 
 # _________________________________________#
 
-Kos.display3d(Doblete, Rayos, 1)
+Kos.display3d(Doblete, Rayos, 1,BackgCol="Blue")

@@ -113,6 +113,27 @@ print(AB.LAC_AN)
 print(AB.LAC_NM)
 print(AB.LAC_TOTAL)
 print("--------------------------------------")
+print("Chromatic aberration")
+print(AB.CL)
+print(AB.CT)
+
+print("--------------------------------------")
+
+print("Where the Fraunhofer spectral lines are Wd (587.6 nm), Wf (486.1 nm), and Wc (656.3 nm)")
+
+
+AB.Wc = 0.6563
+AB.Wd = 0.5876
+AB.Wf = 0.4861
+
+print("If the wavelength is changed, the aberrations must be recalculated")
+AB.calculate()
+
+print("Chromatic aberration")
+print(AB.CL)
+print(AB.CT)
+
+
 
 # print( AB[0][0])
 # print(np.sum(AB[1][0]), np.sum(AB[1][1]), np.sum(AB[1][2]), np.sum(AB[1][3]), np.sum(AB[1][4]))

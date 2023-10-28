@@ -36,6 +36,46 @@ M1.ShiftY = 200
 aa = 100
 bb = 100
 
+
+radio = 150
+
+px = [radio * np.cos(np.radians(0)),
+     radio * np.cos(np.radians(72)),
+     radio * np.cos(np.radians(144)),
+     radio * np.cos(np.radians(216)),
+     radio * np.cos(np.radians(288)),
+     radio * np.cos(np.radians(0))]
+
+py = [radio * np.sin(np.radians(0)),
+     radio * np.sin(np.radians(72)),
+     radio * np.sin(np.radians(144)),
+     radio * np.sin(np.radians(216)),
+     radio * np.sin(np.radians(288)),
+     radio * np.sin(np.radians(0))]
+
+radio = 50
+
+px1 = [radio * np.cos(np.radians(0)),
+     radio * np.cos(np.radians(72)),
+     radio * np.cos(np.radians(144)),
+     radio * np.cos(np.radians(216)),
+     radio * np.cos(np.radians(288)),
+     radio * np.cos(np.radians(0))]
+
+py1 = [radio * np.sin(np.radians(0)),
+     radio * np.sin(np.radians(72)),
+     radio * np.sin(np.radians(144)),
+     radio * np.sin(np.radians(216)),
+     radio * np.sin(np.radians(288)),
+     radio * np.sin(np.radians(0))]
+
+px.extend(px1)
+py.extend(py1)
+
+
+
+M1.UDA = [px, py]
+
 # ______________________________________#
 
 P_Ima = Kos.surf()
@@ -56,21 +96,29 @@ Rayos = Kos.raykeeper(Espejo)
 
 # ______________________________________#
 
-tam = 15
-rad = 150.0
-tsis = len(A) - 1
-for i in range(-tam, tam + 1):
-    for j in range(-tam, tam + 1):
-        x_0 = (i / tam) * rad
-        y_0 = (j / tam) * rad
-        r = np.sqrt((x_0 * x_0) + (y_0 * y_0))
-        if r < rad:
-            tet = 0.0
-            pSource_0 = [x_0, y_0, 0.0]
-            dCos = [0.0, np.sin(np.deg2rad(tet)), np.cos(np.deg2rad(tet))]
-            W = 0.4
-            Espejo.Trace(pSource_0, dCos, W)
-            Rayos.push()
+
+
+diametro = 300
+num_puntos_lado = 10
+
+x = np.linspace(-diametro/2, diametro/2, num_puntos_lado)
+y = np.linspace(-diametro/2, diametro/2, num_puntos_lado)
+
+X, Y = np.meshgrid(x, y)
+X = X.ravel()
+Y = Y.ravel()
+
+for i in range(0,len(X)):
+    x_0 = X[i]
+    y_0 = Y[i]
+    r = np.sqrt((x_0 * x_0) + (y_0 * y_0))
+    if r < diametro / 2.0:
+        tet = 0.0
+        pSource_0 = [x_0, y_0, 0.0]
+        dCos = [0.0, np.sin(np.deg2rad(tet)), np.cos(np.deg2rad(tet))]
+        W = 0.4
+        Espejo.Trace(pSource_0, dCos, W)
+        Rayos.push()
 
 # ______________________________________#
 

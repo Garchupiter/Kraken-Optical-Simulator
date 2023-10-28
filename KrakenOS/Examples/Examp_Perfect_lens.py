@@ -33,8 +33,8 @@ P_Obj.Diameter = 30.0
 # ______________________________________#
 
 L1a = Kos.surf()
-L1a.Thin_Lens = 100.
-L1a.Thickness = (100 + 50)
+L1a.Thin_Lens = 100
+L1a.Thickness = 150
 L1a.Rc = 0.0
 L1a.Glass = "AIR"
 L1a.Diameter = 30.0
