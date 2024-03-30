@@ -114,7 +114,7 @@ if examp == 4:
 
 Sun.fun = f
 Sun.dim = 3000
-Sun.num = 100000
+Sun.num = 10000
 L, M, N, X, Y, Z = Sun.rays()
 
 Xr = np.zeros_like(L)

@@ -59,6 +59,7 @@ L1c = Kos.surf()
 L1c.Thickness = 200
 L1c.Glass = "AIR"
 L1c.Diameter = 30
+L1c.TiltZ = 20
 
 def f(x, y, E):
     r = np.sqrt((x * x) + (y * y * 0))

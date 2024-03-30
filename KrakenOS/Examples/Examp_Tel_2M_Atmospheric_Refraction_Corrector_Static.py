@@ -89,7 +89,7 @@ sup = 1  # Difining M1 as enter pupil diameter
 AperVal = 2000
 AperType = "EPD"  # "STOP"
 Pup = Kos.PupilCalc(Telescopio, sup, W, AperType, AperVal)
-Pup.Samp = 5
+Pup.Samp = 6
 Pup.FieldType = "angle"
 
 Pup.AtmosRef = 1

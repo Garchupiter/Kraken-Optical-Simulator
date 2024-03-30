@@ -51,10 +51,16 @@ for A in range(-n, n + 1):
         Tx = -0.5 * np.rad2deg(np.arctan2(B * Ly, focal))
 
 
+        try:
+            element1.rotate_x(Tx, inplace = True)
+            element1.rotate_y(Ty, inplace = True)
+            element1.translate(v, inplace = True)
+        except:
 
-        element1.rotate_x(Tx, inplace = True)
-        element1.rotate_y(Ty, inplace = True)
-        element1.translate(v, inplace = True)
+            element1.rotate_x(Tx)
+            element1.rotate_y(Ty)
+            element1.translate(v)
+
 
         element0 = element0 + element1
 

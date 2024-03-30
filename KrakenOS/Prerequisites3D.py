@@ -113,17 +113,48 @@ class Prerequisites():
             if (np.abs(np.cos(np.deg2rad(sty))) < Tol_Err):
                 ty = (ty + Tol_Err)
             if (self.SDT[n].Order == 0):
-                L_te_h.rotate_x(tx, inplace=True)
-                L_te_h.rotate_y(ty, inplace=True)
-                L_te_h.rotate_z(-tz, inplace=True)
-                L_te_h.translate([dx, dy, dz],inplace=True)
-                L_te_h.translate([0, 0, self.SDT[(n - 1)].Thickness],inplace=True)
+                try:
+                    L_te_h.rotate_x(tx, inplace = True)
+                except:
+                    L_te_h.rotate_x(tx)
+                try:    
+                    L_te_h.rotate_y(ty, inplace=True)
+                except:
+                    L_te_h.rotate_y(ty) # Para Windows
+                try:
+                    L_te_h.rotate_z(-tz, inplace=True)
+                except:
+                    L_te_h.rotate_z(-tz)
+                try:
+                    L_te_h.translate([dx, dy, dz],inplace=True)
+                except:
+                    L_te_h.translate([dx, dy, dz])
+                try:
+                    L_te_h.translate([0, 0, self.SDT[(n - 1)].Thickness],inplace=True)
+                except:
+                    L_te_h.translate([0, 0, self.SDT[(n - 1)].Thickness])
             else:
-                L_te_h.translate([dx, dy, dz],inplace=True)
-                L_te_h.rotate_z(-tz,inplace=True)
-                L_te_h.rotate_y(ty,inplace=True)
-                L_te_h.rotate_x(tx,inplace=True)
-                L_te_h.translate([0, 0, self.SDT[(n - 1)].Thickness],inplace=True)
+                try:
+                    L_te_h.translate([dx, dy, dz],inplace=True)
+                except:
+                    L_te_h.translate([dx, dy, dz])
+                try:
+                    L_te_h.rotate_z(-tz,inplace=True)
+                except:
+                    L_te_h.rotate_z(-tz)
+                try:
+                    L_te_h.rotate_y(ty,inplace=True)
+                except:
+                    L_te_h.rotate_y(ty)
+                try:
+                    L_te_h.rotate_x(tx,inplace=True)
+                except:
+                    L_te_h.rotate_x(tx)
+                try:
+                    L_te_h.translate([0, 0, self.SDT[(n - 1)].Thickness],inplace=True)
+                except:
+                    L_te_h.translate([0, 0, self.SDT[(n - 1)].Thickness])
+                    
         return L_te_h
 
     def Flat2SigmaSurface(self, plane_object, j):

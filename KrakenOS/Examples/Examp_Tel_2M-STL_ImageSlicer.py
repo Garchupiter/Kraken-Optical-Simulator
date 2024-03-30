@@ -141,15 +141,29 @@ if A1 == 0:
 ################################################################
 
 else:
-
+    
     P_Obj = Kos.surf()
     P_Obj.Rc = 0
     P_Obj.Thickness = 100. + 0.5
     P_Obj.Glass = "AIR"
     P_Obj.Diameter = 10
 
-    currentDirectory = os.getcwd()
-    direc = r"Jherrera-ImageSlicerBW-00.stl"
+    # currentDirectory = os.getcwd()
+    ruta = os.getcwd()
+    
+    import os.path
+
+    ruta = ruta + "/Jherrera-ImageSlicerBW-00.stl"
+    existe = os.path.exists(ruta)
+    
+    if existe:
+        print("El archivo existe.")
+    else:
+        print("El archivo no existe.")
+    
+    
+
+    direc = ruta
     P_ImageSlicer = Kos.surf()
     P_ImageSlicer.Diameter = 10.0
     P_ImageSlicer.Glass = "BK7"

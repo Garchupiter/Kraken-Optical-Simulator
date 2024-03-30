@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Examp Multicore"""
+""" Just running in windows and macos"""
 
 import multiprocessing
 import time

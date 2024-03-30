@@ -374,8 +374,15 @@ def r_zern(m, n):
     pot = []
     a = []
     for s in range(0, (int(ls) + 1)):
-        V1 = (np.power((- 1), s) * np.math.factorial((n - s)))
-        V2 = ((np.math.factorial(s) * np.math.factorial((((n + m) / 2.0) - s))) * np.math.factorial((((n - m) / 2.0) - s)))
+        # print((n - s), int(n - s),"----", ((n + m) / 2.0) - s, (int(((n + m) / 2.0) - s)),"----" ,((((n - m) / 2.0) - s)), (int(((n - m) / 2.0) - s)))
+        # try:
+        #     V1 = (np.power((- 1), s) * np.math.factorial((n - s)))
+        #     V2 = ((np.math.factorial(s) * np.math.factorial((((n + m) / 2.0) - s))) * np.math.factorial((((n - m) / 2.0) - s)))
+            
+        # except:
+        V1 = (np.power((- 1), s) * np.math.factorial(int(n - s)))
+        V2 = ((np.math.factorial(s) * np.math.factorial(int(((n + m) / 2.0) - s))) * np.math.factorial(int(((n - m) / 2.0) - s)))
+            
         TC = (V1 / V2)
         potencia = (n - (2.0 * s))
         TCV.append(TC)

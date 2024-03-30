@@ -135,8 +135,21 @@ class UDA():
         N = malla.n_cells
         X = []
         Y = []
+                
+        # print("Atributos y métodos:", dir(malla))
+        
+        # # Obtener solo los atributos
+        # print("Atributos:", vars(malla))
+        
+        # Obtener solo los métodos
+        # metodos = [attr for attr in dir(malla) if callable(getattr(malla, attr))]
+        # print("Métodos:", metodos)
+        
         for i in range(N):
-            celda = malla.get_cell(i)
+            try:
+                celda = malla.get_cell(i)
+            except:
+                celda = malla.extract_cells(i)
             puntos_celda = celda.points
             [x,y,z] = calcular_centroide(puntos_celda)
             X.append(x)
@@ -155,7 +168,10 @@ class UDA():
 
         # Crea una nueva malla que contiene solo las celdas que deseas mantener
         malla_actualizada = malla.extract_cells(indices_celdas_a_mantener)
-        self.UDA_Surf = malla_actualizada.clean()
+        try:
+            self.UDA_Surf = malla_actualizada.clean()
+        except:
+            self.UDA_Surf = malla_actualizada
 
 
 

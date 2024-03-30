@@ -454,6 +454,9 @@ class system():
         if not self.tt:
             self.tt=0
 
+        if len(self.BULK_TRANS) == 0:
+            self.BULK_TRANS=[1]
+
         self.TTBE.append(self.tt*self.BULK_TRANS[-1])
         self.TT = (self.TT * self.tt*self.BULK_TRANS[-1])
 
@@ -773,7 +776,8 @@ class system():
                 (ResVec, CurrN, sign ,ang) = self.SDT[j].PHYSICS.calculate(ResVec_N, R_N, N_N, Np_N, D, Ord, GrSpa, self.Wave, Secuent)
 
                 # Coating
-                (Rp0, Rs0, Tp0, Ts0) = FresnelEnergy(self.Glass[j], N, Np, ResVec, R, ResVec, self.SETUP, self.Wave)
+                mtl = self.SDT[j].CoatingMet
+                (Rp0, Rs0, Tp0, Ts0) = FresnelEnergy(self.Glass[j], N, Np, ResVec, R, ResVec, self.SETUP, self.Wave, mtl)
                 Rp2, Rs2, Tp2, Ts2, V = self.CoatingFun(self.SDT[j].Coating, self.ang, self.Wave)
                 if V == 1:
                     Rp0, Rs0, Tp0, Ts0 = Rp2, Rs2, Tp2, Ts2
