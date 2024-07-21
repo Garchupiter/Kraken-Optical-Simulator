@@ -50,6 +50,7 @@ pip install numpy
 pip install scipy
 pip install matplotlib
 pip install csv342
+pip install pandas
 ```
 
 
@@ -108,6 +109,7 @@ L1c.Glass = "AIR"
 L1c.Diameter = 30
 
 # Creating a surface to exemplify a pupil
+pupila = Kos.surf()
 pupila.Rc = 30
 pupila.Thickness = 40.
 pupila.Glass = "AIR"
@@ -134,12 +136,12 @@ config_1 = Kos.Setup()
 
 ```python
 # Creating the system with previus information
-Doblete = Kos.system(A, config_1)
+Doublet = Kos.system(A, config_1)
 ```
 
 Creating a ray container
 ```python
-Rays = Kos.raykeeper(Doulet)
+Rays = Kos.raykeeper(Doublet)
 ```
 
 Defining parameters to configure pupil on surface 4 (Again.., see user manual)
@@ -167,7 +169,7 @@ x, y, z, L, M, N = Pup.Pattern2Field()
 for i in range(0, len(x)):
     pSource_0 = [x[i], y[i], z[i]]
     dCos = [L[i], M[i], N[i]]
-    Doblete.Trace(pSource_0, dCos, W)
+    Doublet.Trace(pSource_0, dCos, W)
     Rays.push()# Saving rays
 
 # Configuring (-field) and ray array type,.. etc
@@ -176,13 +178,13 @@ x, y, z, L, M, N = Pup.Pattern2Field()
 for i in range(0, len(x)):
     pSource_0 = [x[i], y[i], z[i]]
     dCos = [L[i], M[i], N[i]]
-    Doblete.Trace(pSource_0, dCos, W)
+    Doublet.Trace(pSource_0, dCos, W)
     Rays.push() # Saving rays
 ```
 
 3D plotting
 ```python
-Kos.display3d(Doblete, Rays,2)
+Kos.display3d(Doublet, Rays,2)
 ```
 
 ![GitHub Logo](/images/01.png)
@@ -192,7 +194,7 @@ Kos.display3d(Doblete, Rays,2)
 
 Or for 2D plotting
 ```python
-Kos.display2d(Doblete, Rays,0,1)
+Kos.display2d(Doublet, Rays,0,1)
 ```
 
 ![GitHub Logo](/images/03.png)
