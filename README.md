@@ -116,7 +116,7 @@ pupila.Glass = "AIR"
 pupila.Diameter = 5
 pupila.Name = "Pupil"
 pupila.DespY = 0.
-pupila.Nm_Poss=[-10,10]
+pupila.Nm_Pos=(-10,10)
 
 # Creating a surface for image plane
 P_Ima = Kos.surf()
@@ -125,7 +125,7 @@ P_Ima.Thickness = 0.0
 P_Ima.Glass = "AIR"
 P_Ima.Diameter = 20.0
 P_Ima.Name = "P_Ima"
-P_Ima.Nm_Poss=[-10,10]
+P_Ima.Nm_Pos=(-10,10)
 ```
 
 Creating a list with all the surfaces and loading the default grass catalogs (See user manual)
@@ -205,7 +205,7 @@ Kos.display2d(Doublet, Rays,0,1)
 | class Atribute                       | Short description                                                                                                 |
 | -------------------------------------| ----------------------------------------------------------------------------------------------------------------- |
 | surf.Name = ""                       | Name of the element.                                                                                              |
-| surf.NamePos = (0,0)                 | “Name” position in the 2D diagram.                                                                                |
+| surf.Nm_Pos = (0,0)                 | “Name” position in the 2D diagram.                                                                                |
 | surf.Note = "None"                   | Useful for adding user notes to a surface.                                                                        |
 | surf.Rc = 0                          | Paraxial radius of curvature in millimeters.                                                                      |
 | surf.Cylinder\_Rxy\_Ratio = 1        | Ratio between the axial and sagittal radius of curvature.                                                         |

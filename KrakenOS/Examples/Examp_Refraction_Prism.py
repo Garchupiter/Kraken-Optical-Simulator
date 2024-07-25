@@ -46,7 +46,7 @@ L1_fc = Kos.surf(Rc = -224.690, Thickness = 97.3787, Diameter = 30)
 
 P_Ima = Kos.surf()
 P_Ima.Name = "Image plane"
-P_Ima.Nm_Pos = [-20,10]
+P_Ima.Nm_Pos = (-20,10)
 P_Ima.Diameter = 30.0
 P_Ima.NumLabel = 0
 

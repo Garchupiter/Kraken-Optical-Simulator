@@ -29,7 +29,7 @@ SURF CLASS ATRIBUTES:
   surf.Name = ""
      Name of the element.
 
-  surf.NamePos = (0,0)
+  surf.Nm_Pos = (0,0)
      “Name” position in the 2D diagram.
 
   surf.Note = "None"
