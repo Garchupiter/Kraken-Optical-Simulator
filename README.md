@@ -17,8 +17,8 @@ Carlos Guerrero P., Morgan Rhaí Najera Roa, Anais Sotelo B., Ilse Plauchu F., J
 
 It would be appreciated if a reference to the following work, for which this package was originally build, is included whenever this code is used for a publication: (https://www.spiedigitallibrary.org/journals/optical-engineering/volume-61/issue-1/015101/KrakenOS-Python-based-general-exact-ray-tracing-library/10.1117/1.OE.61.1.015101.short)
 
-And the Book: 
-(https://www.spiedigitallibrary.org/journals/optical-engineering/volume-61/issue-1/015101/KrakenOS-Python-based-general-exact-ray-tracing-library/10.1117/1.OE.61.1.015101.short)
+And the Book "Optical Simulation Using Python and KrakenOS": 
+(https://spie.org/Publications/Book/2672426#_=_)
 
 
 
@@ -213,6 +213,7 @@ Kos.display2d(Doublet, Rays,0,1)
 | surf.Thickness = 0.0                 | Distance between this surface and the next surface.                                                               |
 | surf.Diameter = 1.0                  | Outside diameter of the surface.                                                                                  |
 | surf.InDiameter = 0.0                | Internal diameter of the surface.                                                                                 |
+| surf.Glass = "AIR"                   | String for the name of the glass. If a float is used instead of a string, that float will be the refractive index |
 | surf.k = 0.0                         | Conicity constant for classical conic surfaces, k = 0 for spherical, k = -1 for parabola, etc. Default value: 0.0 |
 |                                                                                                                                                          |
 | surf.DespX = 0.0                     | Displacement of the surface in the X, Y and Z axis                                                                |
