@@ -17,8 +17,8 @@ Carlos Guerrero P., Morgan Rhaí Najera Roa, Anais Sotelo B., Ilse Plauchu F., J
 
 It would be appreciated if a reference to the following work, for which this package was originally build, is included whenever this code is used for a publication: (https://www.spiedigitallibrary.org/journals/optical-engineering/volume-61/issue-1/015101/KrakenOS-Python-based-general-exact-ray-tracing-library/10.1117/1.OE.61.1.015101.short)
 
-And the Book: 
-(https://www.spiedigitallibrary.org/journals/optical-engineering/volume-61/issue-1/015101/KrakenOS-Python-based-general-exact-ray-tracing-library/10.1117/1.OE.61.1.015101.short)
+And the Book "Optical Simulation Using Python and KrakenOS": 
+(https://spie.org/Publications/Book/2672426#_=_)
 
 
 
@@ -50,6 +50,7 @@ pip install numpy
 pip install scipy
 pip install matplotlib
 pip install csv342
+pip install pandas
 ```
 
 
@@ -108,13 +109,14 @@ L1c.Glass = "AIR"
 L1c.Diameter = 30
 
 # Creating a surface to exemplify a pupil
+pupila = Kos.surf()
 pupila.Rc = 30
 pupila.Thickness = 40.
 pupila.Glass = "AIR"
 pupila.Diameter = 5
 pupila.Name = "Pupil"
 pupila.DespY = 0.
-pupila.Nm_Poss=[-10,10]
+pupila.Nm_Pos=(-10,10)
 
 # Creating a surface for image plane
 P_Ima = Kos.surf()
@@ -123,7 +125,7 @@ P_Ima.Thickness = 0.0
 P_Ima.Glass = "AIR"
 P_Ima.Diameter = 20.0
 P_Ima.Name = "P_Ima"
-P_Ima.Nm_Poss=[-10,10]
+P_Ima.Nm_Pos=(-10,10)
 ```
 
 Creating a list with all the surfaces and loading the default grass catalogs (See user manual)
@@ -134,12 +136,12 @@ config_1 = Kos.Setup()
 
 ```python
 # Creating the system with previus information
-Doblete = Kos.system(A, config_1)
+Doublet = Kos.system(A, config_1)
 ```
 
 Creating a ray container
 ```python
-Rays = Kos.raykeeper(Doulet)
+Rays = Kos.raykeeper(Doublet)
 ```
 
 Defining parameters to configure pupil on surface 4 (Again.., see user manual)
@@ -167,7 +169,7 @@ x, y, z, L, M, N = Pup.Pattern2Field()
 for i in range(0, len(x)):
     pSource_0 = [x[i], y[i], z[i]]
     dCos = [L[i], M[i], N[i]]
-    Doblete.Trace(pSource_0, dCos, W)
+    Doublet.Trace(pSource_0, dCos, W)
     Rays.push()# Saving rays
 
 # Configuring (-field) and ray array type,.. etc
@@ -176,13 +178,13 @@ x, y, z, L, M, N = Pup.Pattern2Field()
 for i in range(0, len(x)):
     pSource_0 = [x[i], y[i], z[i]]
     dCos = [L[i], M[i], N[i]]
-    Doblete.Trace(pSource_0, dCos, W)
+    Doublet.Trace(pSource_0, dCos, W)
     Rays.push() # Saving rays
 ```
 
 3D plotting
 ```python
-Kos.display3d(Doblete, Rays,2)
+Kos.display3d(Doublet, Rays,2)
 ```
 
 ![GitHub Logo](/images/01.png)
@@ -192,7 +194,7 @@ Kos.display3d(Doblete, Rays,2)
 
 Or for 2D plotting
 ```python
-Kos.display2d(Doblete, Rays,0,1)
+Kos.display2d(Doublet, Rays,0,1)
 ```
 
 ![GitHub Logo](/images/03.png)
@@ -203,7 +205,7 @@ Kos.display2d(Doblete, Rays,0,1)
 | class Atribute                       | Short description                                                                                                 |
 | -------------------------------------| ----------------------------------------------------------------------------------------------------------------- |
 | surf.Name = ""                       | Name of the element.                                                                                              |
-| surf.NamePos = (0,0)                 | “Name” position in the 2D diagram.                                                                                |
+| surf.Nm_Pos = (0,0)                 | “Name” position in the 2D diagram.                                                                                |
 | surf.Note = "None"                   | Useful for adding user notes to a surface.                                                                        |
 | surf.Rc = 0                          | Paraxial radius of curvature in millimeters.                                                                      |
 | surf.Cylinder\_Rxy\_Ratio = 1        | Ratio between the axial and sagittal radius of curvature.                                                         |
@@ -211,6 +213,7 @@ Kos.display2d(Doblete, Rays,0,1)
 | surf.Thickness = 0.0                 | Distance between this surface and the next surface.                                                               |
 | surf.Diameter = 1.0                  | Outside diameter of the surface.                                                                                  |
 | surf.InDiameter = 0.0                | Internal diameter of the surface.                                                                                 |
+| surf.Glass = "AIR"                   | String for the name of the glass. If a float is used instead of a string, that float will be the refractive index |
 | surf.k = 0.0                         | Conicity constant for classical conic surfaces, k = 0 for spherical, k = -1 for parabola, etc. Default value: 0.0 |
 |                                                                                                                                                          |
 | surf.DespX = 0.0                     | Displacement of the surface in the X, Y and Z axis                                                                |

@@ -58,7 +58,7 @@ pupila.Glass = "AIR"
 pupila.Diameter = 3
 pupila.Name = "Pupil"
 pupila.DespY = 0.
-pupila.Nm_Poss=[-10,10]
+pupila.Nm_Pos=(-10,10)
 
 # _________________________________________#
 
@@ -68,7 +68,7 @@ P_Ima.Thickness = 0.0
 P_Ima.Glass = "AIR"
 P_Ima.Diameter = 20.0
 P_Ima.Name = "P_Ima"
-P_Ima.Nm_Poss=[-10,10]
+P_Ima.Nm_Pos=(-10,10)
 
 # _________________________________________#
 

@@ -16,7 +16,7 @@ class surf():
              Name of the element.
 
 
-          surf.NamePos = (0,0)
+          surf.Nm_Pos = (0,0)
              “Name” position in the 2D diagram.
 
 
@@ -45,6 +45,10 @@ class surf():
           surf.Diameter = 1.0
              Outside diameter of the surface.
 
+          surf.Glass = "Glass_Name"
+          surf.Glass = 1.5678
+             "Glass_Name" is the name of the glass as a string
+             If a number is given, the refractive index will be that number 
 
           surf.InDiameter = 0.0
              Internal diameter of the surface.
