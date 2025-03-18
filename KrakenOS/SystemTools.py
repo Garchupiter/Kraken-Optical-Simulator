@@ -77,6 +77,12 @@ def load_Catalog(FileCat):
     names = np.asarray(names)
     for i in range(0, (len(coords) - 1)):
         ITT = []
+        NM = []
+        ED = []
+        CD = []
+        TD = []
+        OD = []
+        LD = []
         for j in range(coords[i], coords[(i + 1)]):
             cadena = cat[j].split()
             cad = cat[j][2:].split()
