@@ -60,7 +60,7 @@ class Setup():
         # cat1 = (rute + 'SCHOTT.AGF')
         # cat2 = (rute + 'infrared.agf')
 
-        self.GlassCat =[rute + cat for cat in os.listdir(rute) if cat.endswith(('.AGF', '.agf'))]
+        self.GlassCat = sorted([rute + cat for cat in os.listdir(rute) if cat.endswith(('.AGF', '.agf'))])
         # self.GlassCat.append(cat1)
         # self.GlassCat.append(cat2)
 
