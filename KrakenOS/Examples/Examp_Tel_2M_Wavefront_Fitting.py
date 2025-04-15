@@ -60,9 +60,9 @@ M2.Glass = "MIRROR"
 M2.Diameter = 336.5 * 2.0
 M2.TiltY = 0.0
 M2.TiltX = 0.0
-M2.DespY = 1.0
+M2.DespY = 0.0
 """ Se inclina el secundario """
-M2.DespX = 1.0
+M2.DespX = 0.0
 M2.AxisMove = 0
 
 # ______________________________________#
@@ -87,7 +87,7 @@ Surf = 1
 """Definimos la longitud de onda en micras"""
 W = 0.50169
 
-"""Dindicamos que la apertura del sistema definirá la pupila"""
+"""Indicamos que la apertura del sistema definirá la pupila"""
 AperType = "EPD"
 
 """ Definimos el Diametro de la apertura del sistema"""
@@ -136,7 +136,7 @@ Pupil.FieldType = "angle"
 """ Definimos que el campo es 0 en x y cero en y, es decir, está en el eje óptico"""
 
 
-Pupil.FieldX = 0.1
+Pupil.FieldX = 0.0
 Pupil.FieldY = 0.0
 
 
@@ -144,7 +144,7 @@ Pupil.FieldY = 0.0
 son las coordendas en la pupila, el valor de Z es la fase en cada punto X, Y y P2V
 es el valor pico a valle."""
 
-X, Y, Z, P2V = Kos.Phase(Pupil)
+X, Y, Z, P2V = Kos.Phase2(Pupil)
 print("Peak to valley: ", P2V)
 
 
@@ -177,93 +177,93 @@ COEF = Zcoef
 Focal = Pupil.EFFL
 Diameter = 2.0 * Pupil.RadPupInp
 Wave = W
-I= Kos.psf(COEF, Focal, Diameter, Wave,pixels=265, plot=1)
+I= Kos.psf(COEF, Focal, Diameter, Wave,pixels=265, plot=1, sqr = 1)
 
 
 
-"""Se genera un contenedor de rayos"""
+# """Se genera un contenedor de rayos"""
 
-RR = Kos.raykeeper(Telescopio)
+# RR = Kos.raykeeper(Telescopio)
 
-""" Se generan rayos que pasan por la pupila con la configuración realizada antes"""
-x, y, z, L, M, N = Pupil.Pattern2Field()
+# """ Se generan rayos que pasan por la pupila con la configuración realizada antes"""
+# x, y, z, L, M, N = Pupil.Pattern2Field()
 
-# ______________________________________#
+# # ______________________________________#
 
-""" Se trazan esos rayos y se almacenan"""
+# """ Se trazan esos rayos y se almacenan"""
 
-for i in range(0, len(x)):
-    pSource_0 = [x[i], y[i], z[i]]
-    dCos = [L[i], M[i], N[i]]
-    Telescopio.Trace(pSource_0, dCos, W)
-    RR.push()
+# for i in range(0, len(x)):
+#     pSource_0 = [x[i], y[i], z[i]]
+#     dCos = [L[i], M[i], N[i]]
+#     Telescopio.Trace(pSource_0, dCos, W)
+#     RR.push()
 
-# ______________________________________#
+# # ______________________________________#
 
-""" Se grafica el telescopio con los rayos almacenados"""
+# """ Se grafica el telescopio con los rayos almacenados"""
 
-Kos.display3d(Telescopio, RR, 1 )
-X, Y, Z, L, M, N = RR.pick(-1)
+# Kos.display3d(Telescopio, RR, 1 )
+# X, Y, Z, L, M, N = RR.pick(-1)
 
-# ______________________________________#
+# # ______________________________________#
 
-""" Se grafica el diagrama de manchas """
-plt.figure(2)
-plt.plot(X, Y, 'x')
-plt.xlabel('X')
-plt.ylabel('Y')
-plt.title('spot Diagram')
-plt.axis('square')
+# """ Se grafica el diagrama de manchas """
+# plt.figure(2)
+# plt.plot(X, Y, 'x')
+# plt.xlabel('X')
+# plt.ylabel('Y')
+# plt.title('spot Diagram')
+# plt.axis('square')
 
-K = .100
-Lx = np.mean(X)
-Ly = np.mean(Y)
-left = (-K) + Lx
-right = (K) + Lx
-up = (K) + Ly
-down = (-K) + Ly
+# K = .100
+# Lx = np.mean(X)
+# Ly = np.mean(Y)
+# left = (-K) + Lx
+# right = (K) + Lx
+# up = (K) + Ly
+# down = (-K) + Ly
 
-plt.xlim([left, right])
-plt.ylim([up, down])
-
-
-plt.show()
+# plt.xlim([left, right])
+# plt.ylim([up, down])
 
 
+# plt.show()
 
 
 
-X = X - np.mean(X)
-Y = Y - np.mean(Y)
-
-R=np.sqrt(X**2 + Y**2)
-RMS = np.sqrt(np.mean(R**2))
-print("RMS Radius(mm): ", RMS)
-
-""" Se prepara una imagen con los coeficientes de 400x400"""
-# Zcoef[0]=0.
-# Zcoef[1]=0.
-# Zcoef[2]=0.
-ima = Kos.WavefrontData2Image(Zcoef, 400)
-
-print("Peak 2 valley. ", np.max(ima)-np.min(ima))
 
 
+# X = X - np.mean(X)
+# Y = Y - np.mean(Y)
 
-""" Se grafica el interferograma """
-Type = "interferogram"
+# R=np.sqrt(X**2 + Y**2)
+# RMS = np.sqrt(np.mean(R**2))
+# print("RMS Radius(mm): ", RMS)
 
-# ima = np.flipud(ima)
-Kos.ZernikeDataImage2Plot(ima, Type)
+# """ Se prepara una imagen con los coeficientes de 400x400"""
+# # Zcoef[0]=0.
+# # Zcoef[1]=0.
+# # Zcoef[2]=0.
+# ima = Kos.WavefrontData2Image(Zcoef, 400)
+
+# print("Peak 2 valley. ", np.max(ima)-np.min(ima))
 
 
-# """ Se calculan las sumas de Seidel """
-# AB = Kos.Seidel(Pupil)
 
-# print("--------------------------------------")
-# print(AB.SCW_AN)
-# print(AB.SCW_NM)
-# print(AB.SCW_TOTAL)
+# """ Se grafica el interferograma """
+# Type = "interferogram"
+
+# # ima = np.flipud(ima)
+# Kos.ZernikeDataImage2Plot(ima, Type)
+
+
+# # """ Se calculan las sumas de Seidel """
+# # AB = Kos.Seidel(Pupil)
+
+# # print("--------------------------------------")
+# # print(AB.SCW_AN)
+# # print(AB.SCW_NM)
+# # print(AB.SCW_TOTAL)
 
 
 

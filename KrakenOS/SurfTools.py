@@ -28,6 +28,10 @@ class surface_tools():
         j :
             j
         """
+
+
+
+
         if (j != self.Surface_Flattener):
             TOTAL_SURF_SHAPE = self.SDT[j].sigma_z(x, y, self.ErrSurfCase)
         else:

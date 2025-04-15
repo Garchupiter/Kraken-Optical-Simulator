@@ -43,6 +43,8 @@ zmf_category = ["GCAT",  # glass catalog names
                 "FLAP", "TCMM", "FLOA", "PMAG", "TOTR", "SLAB",
                 "POPS", "COMM", "PZUP", "LANG", "FIMP"]
 
+
+
 def zmf2dict(file_list: List[str]) -> Dict:
     '''
     parsing .zmf data
@@ -88,15 +90,24 @@ def zmf2dict(file_list: List[str]) -> Dict:
             cat_data[li[0]] = zmf_parsing(description)
     return cat_data
 
-def zmf_obfuscate(data: str, a, b):
+
+def zmf_obfuscate(data: bytes, a, b):
     iv = np.cos(6 * a + 3 * b)
     iv = np.cos(655 * (np.pi / 180) * iv) + iv
     p = np.arange(len(data))
-    k = 13.2 * (iv + np.sin(17 * (p + 3))) * (p + 1)
-    k = (int(("{:.8e}".format(_))[4:7]) for _ in k)
-    data = np.fromstring(data, np.uint8)
-    data ^= np.fromiter(k, np.uint8, len(data))
-    return data.tostring()
+    k_raw = 13.2 * (iv + np.sin(17 * (p + 3))) * (p + 1)
+
+    # Asegurar valores válidos para uint8
+    k = [int(("{:.8e}".format(val))[4:7]) % 256 for val in k_raw]
+
+    # Convertir datos a array modificable
+    data = np.frombuffer(data, dtype=np.uint8).copy()
+
+    # Aplicar operación XOR
+    data ^= np.array(k, dtype=np.uint8)
+
+    return data.tobytes()
+
 
 def zmf_parsing(data: str):
     lens_info = {}
@@ -282,7 +293,7 @@ def cat2surf(cat_dict: DICT, Thickness: float=0, Glass: str='AIR', inverse: bool
 
     else:
         for idx, surface in enumerate(surf_name):
-            print(surf_name)
+            # print(surf_name)
             if int(AxisMove)==0:
                 sf = surf(DespX=DespX, DespY=DespY, DespZ=DespZ, AxisMove=AxisMove)
             elif int(AxisMove)==1:
@@ -314,9 +325,11 @@ def cat2surf(cat_dict: DICT, Thickness: float=0, Glass: str='AIR', inverse: bool
 
     return surf_list
 
+###############################################################################
 
-# Read Zemax file using the same keywords that catalogs:
 
+
+###############################################################################
 
 def zmx_read(fn):
 
@@ -325,3 +338,33 @@ def zmx_read(fn):
     return zmf_parsing(data)
 
 
+
+
+
+def create_surfaces(diccionario):
+    superficies = []  # Lista para almacenar los objetos surf
+
+    # Iterar sobre las claves que corresponden a superficies ('SUFR 0', 'SUFR 1', ...)
+    for clave, atributos in diccionario.items():
+        if clave.startswith('SUFR'):
+            # Crear una nueva superficie usando Kos.surf()
+            superficie = surf()
+
+            # Asignar los atributos desde el diccionario
+            superficie.Rc = atributos.get('Rc', 0.0)
+            superficie.Thickness = atributos.get('Thickness', 0.0)
+            if superficie.Thickness == 0:
+                superficie.Thickness = 0.0001
+                print("Surface thickness set to 0.0001 for security")
+            superficie.Diameter = atributos.get('Diameter', 1.0)
+            if superficie.Diameter == 0:
+                superficie.Diameter = 1.0
+            superficie.Glass = atributos.get('Glass', 'AIR')  # Valor por defecto: "AIR"
+            superficie.Color = atributos.get('Color', [1.0, 1.0, 1.0])  # Valor por defecto: blanco
+            superficie.coating = atributos.get('coating', None)  # Puede ser None si no está definido
+            superficie.STOP = atributos.get('STOP', False)  # Define si es un "STOP"
+
+            # Añadir la superficie a la lista
+            superficies.append(superficie)
+
+    return superficies  # Devolver la lista de superficies

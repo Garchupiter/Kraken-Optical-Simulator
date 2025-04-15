@@ -9,6 +9,9 @@ from .Physics import *
 from .HitOnSurf import *
 from .InterNormalCalc import *
 import timeit
+import copy
+
+
 
 def prob(pro):
     """prob.
@@ -23,6 +26,8 @@ def prob(pro):
     distribution = [prob, (1.0 - prob)]
     random_number = random.choices(a_list, distribution)
     return random_number
+
+
 
 class system():
 
@@ -176,7 +181,34 @@ class system():
     """
 
 
-    def __init__(self, SurfData, KN_Setup):
+    def __init__(self, SurfData, KN_Setup, build = 1):
+        """__init__.
+
+        Parameters
+        ----------
+        SurfData :
+            SurfData
+        KN_Setup :
+            KN_Setup
+        """
+
+
+        SDT = []
+
+        for i in range(0, len(SurfData)):
+            SDT.append(SurfData[i])
+
+
+        self.SDT = SDT
+        self.SDT_0 = self.SDT
+        self.SETUP = KN_Setup
+
+        self.BUILD = build
+        self.build()
+
+
+
+    def build(self):
         """__init__.
 
         Parameters
@@ -190,17 +222,17 @@ class system():
         self.Next = 1.0 #Air Refraction index
         self.ExectTime=[]
 
-        self.SDT = SurfData
         self.update = False
         self.S_Matrix = []
         self.N_Matrix = []
         self.SistemMatrix = np.matrix([[1.0, 0.0], [0.0, 1.0]])
         (self.a, self.b, self.c, self.d, self.EFFL, self.PPA, self.PPP) = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-        self.SETUP = KN_Setup
         self.n = len(self.SDT)
         for ii in range(0, self.n):
             self.SDT[ii].SaveSetup()
         self.SuTo = SUT(self.SDT)
+        self.SuTo_0 = SUT(self.SDT_0)
+
         self.Object_Num = np.arange(0, self.n, 1)
         self.Targ_Surf = self.n
         self.SuTo.Surface_Flattener = 0
@@ -208,30 +240,47 @@ class system():
         self.ExtraDiameter = 0
         self.SuTo.ErrSurfCase = 0
         self.__SurFuncSuscrip()
-        self.Pr3D = Prerequisites(self.SDT, self.SuTo)
-        self.__PrerequisitesGlass()
+
+
+        self.Pr3D = Prerequisites(self.SuTo)
         self.Pr3D.Prerequisites3SMath()
-        self.Pr3D.Prerequisites3DSolids()
-        self.PreWave = (- 1e-09)
+        
+        self.Pr3D.Prerequisites3D_UDA()
+        
+        if self.BUILD == 1:
+            self.Pr3D.Prerequisites3DSolids()
+        else:
+            self.Pr3D.Prerequisites3DSolidsDummy()
+
+        self.SDT_0 = self.SDT
         self.AAA = self.Pr3D.AAA
         self.BBB = self.Pr3D.BBB
         self.DDD = self.Pr3D.DDD
         self.EEE = self.Pr3D.EEE
-        self.GlassOnSide = self.Pr3D.GlassOnSide
 
+        
+
+        self.__PrerequisitesGlass()
+        
+        self.GlassOnSide = self.Pr3D.GlassOnSide
         self.side_number = self.Pr3D.side_number
         self.TypeTotal = self.Pr3D.TypeTotal
+        
         self.TRANS_1A = self.Pr3D.TRANS_1A
         self.TRANS_2A = self.Pr3D.TRANS_2A
+
         self.HS = Hit_Solver(self.SDT)
         self.INORM = InterNormalCalc(self.SDT, self.TypeTotal, self.Pr3D, self.HS)
         self.INORM.Disable_Inner = 1
         self.Pr3D.Disable_Inner = 1
         (self.c_p, self.n_p, self.d_p) = (0.0, 0.0, 0.0)
+
         self.tt=1.
         self.energy_probability = 0
         self.NsLimit = 200
         self.ang = 0
+        self.PreWave = (- 1e-09)
+
 
     def __SurFuncSuscrip(self):
         """__SurFuncSuscrip.
@@ -249,10 +298,12 @@ class system():
                 # refractive index is manually entered
                 self.SDT[i].Glass = ('manual_n,' + str(self.SDT[i].Glass))
 
-            self.Glass.append(self.SDT[i].Glass.replace(' ', ','))
-            self.GlobGlass.append(self.SDT[i].Glass.replace(' ', ','))
+            rpc = self.SDT[i].Glass.replace(' ', ',')
+            self.Glass.append(rpc)
+            self.GlobGlass.append(rpc)
             if ((self.GlobGlass[i] == 'NULL') or (self.GlobGlass[i] == 'ABSORB')):
                 self.GlobGlass[i] = self.GlobGlass[(i - 1)]
+
 
     def __NonSequentialChooserToot(self, A_RayOrig, A_Proto_pTarget, k):
         """__NonSequentialChooserToot.
@@ -374,7 +425,8 @@ class system():
         Empty = np.asarray([])
         RayTraceType = 0
         ang = 0
-        ValToSav = [Empty, Empty, pS, pS, Empty, Empty, dC, Empty, Empty, Empty, WaveLength, Empty, Empty, Empty, Empty, Empty, j, RayTraceType]
+        EmptyGlass = "AIR"
+        ValToSav = [EmptyGlass, Empty, pS, pS, Empty, Empty, dC, Empty, Empty, Empty, WaveLength, Empty, Empty, Empty, Empty, Empty, j, RayTraceType]
         self.__CollectData(ValToSav)
 
     def __WavePrecalc(self):
@@ -384,10 +436,12 @@ class system():
             self.N_Prec = []
             self.AlphaPrecal = []
             self.PreWave = self.Wave
+
             for i in range(0, self.n):
                 (NP, AP) = n_wave_dispersion(self.SETUP, self.GlobGlass[i], self.Wave)
                 self.N_Prec.append(NP)
                 self.AlphaPrecal.append(AP)
+
 
     def __CollectData(self, ValToSav):
         """__CollectData.
@@ -398,6 +452,7 @@ class system():
             ValToSav
         """
         [Glass, alpha, RayOrig, pTarget, HitObjSpace, LMNObjSpace, SurfNorm, ImpVec, ResVec, PrevN, CurrN, WaveLength, D, Ord, GrSpa, Name, j, RayTraceType] = ValToSav
+
 
         self.SURFACE.append(j)
         self.NAME.append(Name)
@@ -440,6 +495,7 @@ class system():
         self.TP.append(Tp)
         self.TS.append(Ts)
         if ((RayTraceType == 0) or (RayTraceType == 1)):
+
             if (Glass == 'MIRROR'):
                 self.tt = ((1.0 * (Rp + Rs)) / 2.0)
                 self.BULK_TRANS.append(self.tt)
@@ -488,6 +544,7 @@ class system():
 
         return Rp, Rs, Tp, Ts, V
 
+
     def RestoreData(self):
         """RestoreData.
         """
@@ -516,6 +573,8 @@ class system():
         """
         self.__SurFuncSuscrip()
         self.Pr3D.Prerequisites3SMath()
+        self.Pr3D.Prerequisites3D_UDA()
+        
         self.Pr3D.Prerequisites3DSolids()
         self.INORM = InterNormalCalc(self.SDT, self.TypeTotal, self.Pr3D, self.HS)
         self.AAA = self.Pr3D.AAA
@@ -555,6 +614,14 @@ class system():
             self.Targ_Surf = tgsf
         else:
             self.Targ_Surf = self.n
+
+
+
+    def TargSurfRest(self):
+        self.Targ_Surf = self.n
+
+
+
 
     def SurfFlat(self, fltsf, Prep=0):
         """SurfFlat.
@@ -603,7 +670,8 @@ class system():
         if (Prep != 0):
             self.Pr3D.Prerequisites3DSolids()
 
-    def Trace(self, pS, dC, WaveLength):
+
+    def GTrace(self, pS, dC, WaveLength):
         """Trace.
 
         Parameters
@@ -627,6 +695,9 @@ class system():
         (PrevN, alpha) = (self.N_Prec[j], self.AlphaPrecal[j])
         j = 1
         SIGN = np.ones_like(ResVec)
+        HitObjSpace = [0,0,0]
+
+        const = 0
         while True:
             if (j == self.Targ_Surf):
                 break
@@ -635,27 +706,34 @@ class system():
 
             if (self.Glass[j] != 'NULL'):
                 Proto_pTarget = (np.asarray(RayOrig) + ((np.asarray(ResVec) * 999999999.9) * SIGN))
-
                 Output = self.INORM.InterNormal(RayOrig, Proto_pTarget, j, j)
 
+
                 (SurfHit, SurfNorm, pTarget, GooveVect, HitObjSpace, LMNObjSpace, j) = Output
+
 
                 if (SurfHit == 0):
                     break
 
                 ImpVec = np.asarray(ResVec)
                 (CurrN, alpha) = (self.N_Prec[j_gg], self.AlphaPrecal[j_gg])
+
+
                 S = ImpVec
                 R = SurfNorm
                 N = PrevN
                 Np = CurrN
                 D = GooveVect
 
+
                 Ord = self.SDT[j].Diff_Ord
                 GrSpa = self.SDT[j].Grating_D
                 Secuent = 0
 
                 (ResVec, CurrN, sign ,self.ang) = self.SDT[j].PHYSICS.calculate(S, R, N, Np, D, Ord, GrSpa, self.Wave, Secuent)
+
+
+
                 SIGN = (SIGN * sign)
                 Name = self.SDT[j].Name
                 RayTraceType = 0
@@ -663,7 +741,9 @@ class system():
                 self.__CollectData(ValToSav)
                 PrevN = CurrN
                 RayOrig = pTarget
-                self.RAY.append(RayOrig)
+
+
+            self.RAY.append(RayOrig)
 
             if self.Glass[j] == 'NULL':
                 ang = 0
@@ -675,6 +755,221 @@ class system():
                 break
 
             j = (j + 1)
+
+        if (len(self.GLASS) == 0):
+            self.__CollectDataInit()
+            self.val = 0
+            self.__EmptyCollect(RayOrig, ResVec, WaveLength, j)
+
+        self.ray_SurfHits = np.asarray(self.RAY)
+
+        AT = np.transpose(self.ray_SurfHits)
+        self.Hit_x = AT[0]
+        self.Hit_y = AT[1]
+        self.Hit_z = AT[2]
+        self.ExectTime=[]
+
+
+    def Trace(self, pS, dC, WaveLength):
+        """Trace.
+
+        Parameters
+        ----------
+        pS :
+            pS
+        dC :
+            dC
+        WaveLength :
+            WaveLength
+        """
+        self.__CollectDataInit()
+        ResVec = np.asarray(dC)
+        RayOrig = np.asarray(pS)
+        self.RAY = []
+        self.Wave = WaveLength
+        self.RAY.append(RayOrig)
+        self.__WavePrecalc()
+        j = 0
+
+        Glass = self.GlobGlass[j]
+        (PrevN, alpha) = (self.N_Prec[j], self.AlphaPrecal[j])
+        j = 1
+        SIGN = np.ones_like(ResVec)
+        HitObjSpace = [0,0,0]
+
+        const = 0
+        while True:
+            if (j == self.Targ_Surf):
+                break
+            j_gg = j
+            Glass = self.GlobGlass[j_gg]
+
+
+
+            if (self.Glass[j] != 'NULL'):
+
+
+                # print(self.SDT[j-1].Thickness, self.SDT[j].Rc, self.SDT[j].Const)
+                ImpVec = np.asarray(ResVec)
+                Proto_pTarget = (np.asarray(RayOrig) + ((ImpVec * 999999999.9) * SIGN))
+
+
+
+                Output = self.INORM.InterNormal(RayOrig, Proto_pTarget, j, j)
+                (SurfHit, SurfNorm, pTarget, GooveVect, HitObjSpace, LMNObjSpace, j) = Output
+                if (SurfHit == 0):
+                    break
+
+
+
+
+
+                (CurrN, alpha) = (self.N_Prec[j_gg], self.AlphaPrecal[j_gg])
+
+
+                S = ImpVec
+                R = SurfNorm
+                N = PrevN
+                Np = CurrN
+                D = GooveVect
+
+
+                Ord = self.SDT[j].Diff_Ord
+                GrSpa = self.SDT[j].Grating_D
+                Secuent = 0
+
+                (ResVec, CurrN, sign ,self.ang) = self.SDT[j].PHYSICS.calculate(S, R, N, Np, D, Ord, GrSpa, self.Wave, Secuent)
+
+
+
+                SIGN = (SIGN * sign)
+                Name = self.SDT[j].Name
+                RayTraceType = 0
+
+
+                ValToSav = [Glass, alpha, RayOrig, pTarget, HitObjSpace, LMNObjSpace, SurfNorm, ImpVec, ResVec, PrevN, CurrN, WaveLength, D, Ord, GrSpa, Name, j, RayTraceType]
+                self.__CollectData(ValToSav)
+                PrevN = CurrN
+                RayOrig = pTarget
+
+
+            self.RAY.append(RayOrig)
+
+            if self.Glass[j] == 'NULL':
+                ang = 0
+
+                ValToSav = [Glass, alpha, RayOrig, pTarget, HitObjSpace, LMNObjSpace, SurfNorm, ImpVec, ResVec, PrevN, CurrN, WaveLength, D, Ord, GrSpa, Name, j, RayTraceType]
+                self.__CollectData(ValToSav)
+
+            if self.Glass[j] == 'ABSORB':
+                break
+
+            j = (j + 1)
+
+        if (len(self.GLASS) == 0):
+            self.__CollectDataInit()
+            self.val = 0
+            self.__EmptyCollect(RayOrig, ResVec, WaveLength, j)
+
+        self.ray_SurfHits = np.asarray(self.RAY)
+
+        AT = np.transpose(self.ray_SurfHits)
+        self.Hit_x = AT[0]
+        self.Hit_y = AT[1]
+        self.Hit_z = AT[2]
+        self.ExectTime=[]
+
+    def RvTrace(self, pS, dC, WaveLength, StopSurf):
+        """Trace.
+
+        Parameters
+        ----------
+        pS :
+            pS
+        dC :
+            dC
+        WaveLength :
+            WaveLength
+        """
+        self.__CollectDataInit()
+        ResVec = np.asarray(dC)
+        RayOrig = np.asarray(pS)
+        self.RAY = []
+        self.Wave = WaveLength
+        self.RAY.append(RayOrig)
+        self.__WavePrecalc()
+        j = 0
+        Glass = self.GlobGlass[j+1]
+        (PrevN, alpha) = (self.N_Prec[j+1], self.AlphaPrecal[j+1])
+        j = 1
+        SIGN = np.ones_like(ResVec)
+        HitObjSpace = [0,0,0]
+        j = StopSurf
+        const = 0
+        while True:
+            if (j == self.Targ_Surf):
+                break
+            if (j  < -1):
+                break
+            j_gg = j+1
+            Glass = self.GlobGlass[j_gg]
+           
+            if (self.Glass[j] != 'NULL'):
+
+                # print(self.SDT[j-1].Thickness, self.SDT[j].Rc, self.SDT[j].Const)
+                ImpVec = np.asarray(ResVec)
+                Proto_pTarget = (np.asarray(RayOrig) + ((ImpVec * 999999999.9) * SIGN))
+
+
+
+                Output = self.INORM.InterNormal(RayOrig, Proto_pTarget, j, j)
+                (SurfHit, SurfNorm, pTarget, GooveVect, HitObjSpace, LMNObjSpace, j) = Output
+
+                if (SurfHit == 0):
+                    break
+
+
+
+
+
+                (CurrN, alpha) = (self.N_Prec[j_gg], self.AlphaPrecal[j_gg])
+
+                S = ImpVec
+                R = SurfNorm
+                N = PrevN
+                Np = CurrN
+                D = GooveVect
+
+
+                Ord = self.SDT[j].Diff_Ord
+                GrSpa = self.SDT[j].Grating_D
+                Secuent = 0
+
+                (ResVec, CurrN, sign ,self.ang) = self.SDT[j].PHYSICS.calculate(S, R, N, Np, D, Ord, GrSpa, self.Wave, Secuent)
+
+
+
+                SIGN = (SIGN * sign)
+                Name = self.SDT[j].Name
+                RayTraceType = 0
+                ValToSav = [Glass, alpha, RayOrig, pTarget, HitObjSpace, LMNObjSpace, SurfNorm, ImpVec, ResVec, PrevN, CurrN, WaveLength, D, Ord, GrSpa, Name, j, RayTraceType]
+                self.__CollectData(ValToSav)
+                PrevN = CurrN
+                RayOrig = pTarget
+
+
+            self.RAY.append(RayOrig)
+
+            if self.Glass[j] == 'NULL':
+                ang = 0
+
+                ValToSav = [Glass, alpha, RayOrig, pTarget, HitObjSpace, LMNObjSpace, SurfNorm, ImpVec, ResVec, PrevN, CurrN, WaveLength, D, Ord, GrSpa, Name, j, RayTraceType]
+                self.__CollectData(ValToSav)
+
+            if self.Glass[j] == 'ABSORB':
+                break
+
+            j = (j - 1)
 
         if (len(self.GLASS) == 0):
             self.__CollectDataInit()
@@ -701,6 +996,15 @@ class system():
         WaveLength :
             WaveLength
         """
+        BLD = self.BUILD
+        if self.Pr3D.ExistSolid == 0:
+            
+            self.BUILD = 1
+            self.build()
+            self.BUILD = BLD
+            
+                
+        
         global j_gg
         pS = np.asarray(pS)
         count = 0

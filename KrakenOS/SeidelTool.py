@@ -84,15 +84,6 @@ class Seidel():
 
 
 
-
-
-
-
-
-
-
-
-
         for si in range(0, len(n_sign)):
             n_abs[si:] = (n_sign[si] * n_abs[si:])
 

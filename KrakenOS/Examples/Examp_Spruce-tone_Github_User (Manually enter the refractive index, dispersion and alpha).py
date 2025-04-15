@@ -31,7 +31,7 @@ L1b = Kos.surf(Rc=-3.071608670000159E+001, Thickness=3.0, Glass='F2', Diameter=3
 
 L1c = Kos.surf(Rc=-7.819730726078505E+001, Thickness=9.737604742910693E+001, Glass='AIR', Diameter=30.0)
 # L1c = Kos.surf(Rc=-7.819730726078505E+001, Thickness=9.737604742910693E+001, Glass=1, Diameter=30.0)
-# L1c = Kos.surf(Rc=-7.819730726078505E+001, Thickness=9.737604742910693E+001, Glass='nvk 1.0 0 0', Diameter=30.0)
+L1c = Kos.surf(Rc=-7.819730726078505E+001, Thickness=9.737604742910693E+001, Glass='nvk 1.336 50.23 0', Diameter=30.0)
 # L1c = Kos.surf(Rc=-7.819730726078505E+001, Thickness=9.737604742910693E+001, Glass='___BLANK 1 0 1.52216 5.88E+1 0 0 0 0 0 0'  , Diameter=30.0)
 
 '''

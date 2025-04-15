@@ -111,9 +111,12 @@ class raykeeper():
         self.T_XYZ.append(np.asarray(self.SYSTEM.T_XYZ))
         self.XYZ.append(np.asarray(self.SYSTEM.XYZ))
 
+        # revisar
         lst = self.SYSTEM.OST_XYZ
         ll = filter(None, lst)
         self.OST_XYZ.append(np.asarray(ll))
+
+        # self.OST_XYZ.append(np.asarray(self.SYSTEM.OST_XYZ))
         self.OST_LMN.append(np.asarray(self.SYSTEM.OST_LMN))
         self.S_LMN.append(np.asarray(self.SYSTEM.S_LMN))
         self.LMN.append(np.asarray(self.SYSTEM.LMN))

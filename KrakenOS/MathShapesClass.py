@@ -1,5 +1,7 @@
+
 import numpy as np
 from scipy.interpolate import griddata
+import math
 
 class extra__surf():
     """extra__surf.
@@ -30,24 +32,6 @@ class extra__surf():
         Z = self.user_surface(x, y, self.COEF)
         return Z
 
-def even_asphere(x, y, E):
-    """even_asphere.
-
-    Parameters
-    ----------
-    x :
-        x
-    y :
-        y
-    E :
-        E
-    """
-    r = np.sqrt(((x * x) + (y * y)))
-    Z = 0.0 * np.zeros_like(x)
-    for i in range(1, 9):
-        if (E[(i - 1)] != 0):
-            Z = (Z + (E[(i - 1)] * np.power(r, ((2.0 * i*1.0) * 1.0))))
-    return Z
 
 class aspheric__surf():
     """aspheric__surf.
@@ -72,7 +56,13 @@ class aspheric__surf():
         y :
             y
         """
-        Z = even_asphere(x, y, self.E)
+
+        r = np.sqrt(((x * x) + (y * y)))
+        Z = 0.0 * np.zeros_like(x)
+        for i in range(1, 9):
+            if (self.E[(i - 1)] != 0):
+                Z = (Z + (self.E[(i - 1)] * np.power(r, ((2.0 * i*1.0) * 1.0))))
+
         return Z
 
 class conic__surf(object):
@@ -105,33 +95,21 @@ class conic__surf(object):
             y
         """
 
-        z = CalculateCon(x, y, self.R_C , self.C_RXY_RATIO, self.KON)
+        if (self.R_C != 0.0):
+
+            s = np.sqrt(((x * x) + ((y * self.C_RXY_RATIO) * (y * self.C_RXY_RATIO))))
+
+            c = (1.0 / self.R_C)
+            InRoot = (1 - (((((self.KON + 1.0) * c) * c) * s) * s))
+
+            InRoot = np.abs(InRoot)
+            z = (((c * s) * s) / (1.0 + np.sqrt(InRoot)))
+        else:
+            z = 0.0 * np.zeros_like(x)
 
         return z
 
-def CalculateCon(x, y, R_C , C_RXY_RATIO, KON):
-    """calculate.
 
-    Parameters
-    ----------
-    x :
-        x
-    y :
-        y
-    """
-    if (R_C != 0.0):
-
-        s = np.sqrt(((x * x) + ((y * C_RXY_RATIO) * (y * C_RXY_RATIO))))
-
-        c = (1.0 / R_C)
-        InRoot = (1 - (((((KON + 1.0) * c) * c) * s) * s))
-
-        InRoot = np.abs(InRoot)
-        z = (((c * s) * s) / (1.0 + np.sqrt(InRoot)))
-    else:
-        z = 0.0 * np.zeros_like(x)
-
-    return z
 
 class axicon__surf():
     """axicon__surf.
@@ -161,25 +139,14 @@ class axicon__surf():
             y
         """
 
-        z_axicon = CalculateAxic( x, y, self.C_RXY_RATIO, self.AXC)
+        if (self.AXC != 0.0):
+            s = np.sqrt(((x * x) + ((y * self.C_RXY_RATIO) * (y * self.C_RXY_RATIO))))
+            z_axicon = (s * np.tan(np.deg2rad(self.AXC)))
+        else:
+            z_axicon = 0.0 * np.zeros_like(x)
+
         return z_axicon
 
-def CalculateAxic( x, y, C_RXY_RATIO, AXC):
-    """calculate.
-
-    Parameters
-    ----------
-    x :
-        x
-    y :
-        y
-    """
-    if (AXC != 0.0):
-        s = np.sqrt(((x * x) + ((y * C_RXY_RATIO) * (y * C_RXY_RATIO))))
-        z_axicon = (s * np.tan(np.deg2rad(AXC)))
-    else:
-        z_axicon = 0.0 * np.zeros_like(x)
-    return z_axicon
 
 class error_map__surf():
     """error_map__surf.
@@ -334,6 +301,7 @@ def zernike_polynomials(term, ro, theta, Zern_pol, z_pow):
     L = len(ct)
     for i in range(0, L):
         NR = ((ct[i] * np.power(ro, pot[i])) + NR)
+
     if (par == 1):
         S = (raiz * NR)
     if (par == 3):
@@ -376,13 +344,13 @@ def r_zern(m, n):
     for s in range(0, (int(ls) + 1)):
         # print((n - s), int(n - s),"----", ((n + m) / 2.0) - s, (int(((n + m) / 2.0) - s)),"----" ,((((n - m) / 2.0) - s)), (int(((n - m) / 2.0) - s)))
         # try:
-        #     V1 = (np.power((- 1), s) * np.math.factorial((n - s)))
-        #     V2 = ((np.math.factorial(s) * np.math.factorial((((n + m) / 2.0) - s))) * np.math.factorial((((n - m) / 2.0) - s)))
-            
+        #     V1 = (np.power((- 1), s) * math.factorial((n - s)))
+        #     V2 = ((math.factorial(s) * math.factorial((((n + m) / 2.0) - s))) * math.factorial((((n - m) / 2.0) - s)))
+
         # except:
-        V1 = (np.power((- 1), s) * np.math.factorial(int(n - s)))
-        V2 = ((np.math.factorial(s) * np.math.factorial(int(((n + m) / 2.0) - s))) * np.math.factorial(int(((n - m) / 2.0) - s)))
-            
+        V1 = (np.power((- 1), s) * math.factorial(int(n - s)))
+        V2 = ((math.factorial(s) * math.factorial(int(((n + m) / 2.0) - s))) * math.factorial(int(((n - m) / 2.0) - s)))
+
         TC = (V1 / V2)
         potencia = (n - (2.0 * s))
         TCV.append(TC)

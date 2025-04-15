@@ -2,6 +2,29 @@
 import numpy as np
 from .Physics import *
 
+
+
+def custom_cross_product(a, b):
+    """
+    Calcula el producto cruz entre dos vectores de 3 elementos.
+
+    Parámetros:
+    - a: Primer vector (ndarray de NumPy con 3 elementos).
+    - b: Segundo vector (ndarray de NumPy con 3 elementos).
+
+    Retorna:
+    - ndarray de NumPy con el resultado del producto cruz.
+    """
+    if a.shape[0] != 3 or b.shape[0] != 3:
+        raise ValueError("Ambos vectores deben tener exactamente 3 elementos.")
+
+    result = np.array([a[1]*b[2] - a[2]*b[1],
+                       a[2]*b[0] - a[0]*b[2],
+                       a[0]*b[1] - a[1]*b[0]])
+    return result
+
+
+
 class snell_refraction_vector_physics():
     """snell_refraction_vector_physics.
     """
@@ -64,7 +87,8 @@ class snell_refraction_vector_physics():
         """----------------------------------------------"""
 
 
-        Nsurf_Cros_s1 = np.cross(Nv, Iv)
+        Nsurf_Cros_s1 = custom_cross_product(Nv, Iv)
+
         SIGN = 1.0
 
         if (n2 == - 1.0):
@@ -83,6 +107,7 @@ class snell_refraction_vector_physics():
             n2 = - n1
             NN = n1 / n2
             SIGN = -1.0
+            # print("Reflexion total interna")
 
         c1 = np.dot(Nv,Iv)
         if c1 < 0.0 :
@@ -182,7 +207,7 @@ class diffraction_grating_physics():
             Secuent
         """
 
-        D = np.cross(R, P)
+        D = custom_cross_product(R, P)
 
         lamb = W
         RefRef = ((- 1.) * np.sign(Np))

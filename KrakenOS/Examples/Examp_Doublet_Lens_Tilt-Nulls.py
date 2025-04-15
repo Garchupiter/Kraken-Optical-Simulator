@@ -18,6 +18,8 @@ if missing:
 
 
 import KrakenOS as Kos
+import pickle
+
 
 # _________________________________________#
 
@@ -84,14 +86,31 @@ configuracion_1 = Kos.Setup()
 
 # _________________________________________#
 
-Doblete = Kos.system(A, configuracion_1)
+Doblete = Kos.system(A, configuracion_1, build = 0)
+
+
+
+
+# with open('mi_objeto.pkl', 'wb') as archivo_salida:
+#     # Usa pickle.dump para serializar y guardar el objeto en el archivo.
+#     pickle.dump(Doblete, archivo_salida)
+
+
+
+# with open('mi_objeto.pkl', 'rb') as archivo_entrada:
+#     Doblete = pickle.load(archivo_entrada)
+
+
+
+Doblete.build()
+
 Rayos = Kos.raykeeper(Doblete)
 
 # _________________________________________#
 
 tam = 5
 rad = 10.0
-tsis = len(A) - 1
+tsis = 6
 for i in range(-tam, tam + 1):
     for j in range(-tam, tam + 1):
         x_0 = (i / tam) * rad

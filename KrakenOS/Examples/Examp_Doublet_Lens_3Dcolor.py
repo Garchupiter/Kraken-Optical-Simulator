@@ -16,7 +16,6 @@ if missing:
     import sys
     sys.path.append("../..")
 
-
 import KrakenOS as Kos
 
 # _________________________________________#

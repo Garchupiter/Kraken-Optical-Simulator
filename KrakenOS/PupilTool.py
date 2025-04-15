@@ -9,6 +9,216 @@ from scipy.optimize import fsolve
 from .AstroAtmosphere import *
 """ v2. """
 
+
+
+
+
+
+import numpy as np
+import matplotlib.pyplot as plt
+import time
+import math
+
+from scipy.interpolate import interp1d
+import scipy
+
+import scipy
+from scipy.optimize import minimize_scalar
+
+##############################################################################
+
+# Derivadas parciales para construir la matriz jacobiana
+def jacobian(x, y, fun, h=1e-6):
+    # Aproximación numérica de la jacobiana usando diferencias finitas
+    f_x1 = fun(x + h, y)
+    f_x2 = fun(x - h, y)
+    f_y1 = fun(x, y + h)
+    f_y2 = fun(x, y - h)
+
+    j_11 = (f_x1[0] - f_x2[0]) / (2 * h)  # df1/dx
+    j_12 = (f_y1[0] - f_y2[0]) / (2 * h)  # df1/dy
+    j_21 = (f_x1[1] - f_x2[1]) / (2 * h)  # df2/dx
+    j_22 = (f_y1[1] - f_y2[1]) / (2 * h)  # df2/dy
+
+    return np.array([[j_11, j_12], [j_21, j_22]])
+
+# Método de Newton-Raphson para minimizar rx y ry
+def newton_raphson(x0, y0, fun, tol=1e-6, max_iter=20):
+    x, y = x0, y0
+    for i in range(max_iter):
+        F = fun(x, y)
+        J = jacobian(x, y, fun)
+
+        # Verificar si la solución ha convergido
+        if np.linalg.norm(F, ord=2) < tol:
+            # print(f"Convergió en {i+1} iteraciones.")
+            return x, y
+
+        # Calcular el paso usando la inversa de la jacobiana
+        try:
+            delta = np.linalg.solve(J, F)  # J^-1 * F
+        except np.linalg.LinAlgError:
+            # print("La matriz jacobiana es singular.")
+            return None
+
+        # Actualizar las variables
+        x, y = x - delta[0], y - delta[1]
+
+    # print("No convergió dentro del número máximo de iteraciones.")
+    x = 123456789.10
+    y = 123456789.10
+    return x, y
+
+
+
+
+class RayStop:
+    def __init__(self, System, Wave, StopSurf):
+        """
+        System : Sistema optico
+        StopSurf : Superficie tomada como apertura del sistema
+        Wave : Longitud de onda
+
+        """
+
+        self.System = System
+        self.StopSurf = StopSurf
+        self.Wave = Wave
+        self.GlCorStop = np.asarray([0,0,0])
+        self.System.IgnoreVignetting(0)
+        self.IMP_LMN = [0,0,1]
+        self.Ang_X = 0
+        self.Ang_Y = 0
+        self.rx = 0
+        self.ry = 0
+        self.preX = 0
+        self.preY = 0
+
+
+    def LMN(self, ix, iy):
+        x0 = 0
+        y0 = 0
+        z0 = 0
+
+        x1 = ix
+        y1 = iy
+        z1 = -10000.0
+
+        r = np.sqrt((x1**2) + (y1**2) + (z1**2))
+
+        L = (x1 - x0) / r
+        M = (y1 - y0) / r
+        N = (z1 - z0) / r
+
+        return np.asarray([L, M, N])
+
+    def LMN2(self, x0, y0, z0, x1, y1, z1):
+
+        r = np.sqrt(((x1-x0)**2) + ((y1-y0)**2) + ((z1-z0)**2))
+
+        L = (x1 - x0) / r
+        M = (y1 - y0) / r
+        N = (z1 - z0) / r
+
+        return np.asarray([L, M, N])
+
+
+
+    def CalculateField(self, V):
+
+        ix =  V[0]
+        iy =  V[1]
+        dCos = self.LMN(ix, iy)
+        pSource = self.GlCorStop
+
+        self.System.RvTrace(pSource, dCos, self.Wave, self.StopSurf)
+        xyz = self.System.XYZ
+
+        [x0, y0, z0] = xyz[len(xyz)-1]
+        [x1, y1, z1] = xyz[len(xyz)-2]
+
+        Cx = x1 - x0
+        Cy = y1 - y0
+        Cz = z1 - z0
+
+        AngX = np.rad2deg(np.arctan(Cx/Cz)) - self.Ang_X
+        AngY = np.rad2deg(np.arctan(Cy/Cz)) - self.Ang_Y
+
+        self.XYZ_I = [x0, y0, z0]
+        self.XYZ_I2 = [x1, y1, z1]
+        self.LMN_I = self.LMN2(x0, y0, z0, x1, y1, z1)
+
+        return [AngX, AngY]
+
+    def CalculateHeight(self, V):
+
+        ix =  V[0]
+        iy =  V[1]
+        dCos = self.LMN(ix, iy)
+        pSource = self.GlCorStop
+
+        self.System.RvTrace(pSource, dCos, self.Wave, self.StopSurf)
+        xyz = self.System.XYZ
+
+        [x0, y0, z0] = xyz[len(xyz)-1]
+        [x1, y1, z1] = xyz[len(xyz)-2]
+
+        # Cx = x1 - x0
+        # Cy = y1 - y0
+        # Cz = z1 - z0
+
+        # AngX = np.rad2deg(np.arctan(Cx/Cz)) - self.Ang_X
+        # AngY = np.rad2deg(np.arctan(Cy/Cz)) - self.Ang_Y
+
+        self.XYZ_I = [x0, y0, z0]
+        self.XYZ_I2 = [x1, y1, z1]
+        self.LMN_I = self.LMN2(x0, y0, z0, x1, y1, z1)
+
+        return [x0- self.Ang_X, y0 - self.Ang_Y]
+
+
+    def calculateXYZ(self, X, Y):
+
+        dCos = self.INP_LMN
+        pSource = [self.preX + X, self.preY + Y, 0]
+
+
+        self.System.Trace(pSource, dCos, self.Wave)
+
+        [x, y, z] = self.System.XYZ[-1]
+
+
+        return np.array([x - self.Desp_X, y - self.Desp_Y])
+
+    def calculateLMN(self, X, Y):
+
+        [x0, y0, z0] = self.XYZ_I
+        [x1, y1, z1] = self.XYZ_I2
+
+        x1 = x1 + X
+        y1 = y1 + Y
+
+
+        r = np.sqrt(((x1 - x0)**2) + ((y1 - y0)**2) + ((z1 - z0)**2))
+
+        L = (x1 - x0) / r
+        M = (y1 - y0) / r
+        N = (z1 - z0) / r
+
+        dCos = [L,M, N]
+
+        pSource = [self.preX, self.preY, 0]
+
+
+        self.System.Trace(pSource, dCos, self.Wave)
+
+        [x, y, z] = self.System.XYZ[-1]
+
+
+        return np.array([x - self.Desp_X, y - self.Desp_Y])
+
+
+
 def RMS_Pupil(r, SYSTEM, Surf, W, tet):
     """RMS_Pupil.
 
@@ -52,6 +262,7 @@ def RMS_Pupil(r, SYSTEM, Surf, W, tet):
     s_0 = [0.0, (- r), 0.0]
     SYSTEM.Trace(s_0, c_4, W)
     RP.push()
+
 
     (X, Y, Z, L, M, N) = RP.pick(Surf)
     delta_Z = 0
@@ -549,6 +760,7 @@ class PupilCalc():
         self.Pattern()
         x = (self.Cordx * self.RadPupInp)
         y = (self.Cordy * self.RadPupInp)
+
         (Px, Py, Pz) = self.PosPupInp
         if (self.FieldType == 'angle'):
             if (self.AtmosRef == 1):
@@ -601,4 +813,148 @@ class PupilCalc():
         M = ((y - y0) / S)
         N = ((z - z0) / S)
         return (x0, y0, z0, L, M, N)
+
+
+
+
+    def Pattern2FieldPlus(self):
+        """Pattern2FieldPlus.
+        """
+
+        r = self.SYSTEM.SDT[self.Surf].Diameter/2.0
+
+        X = self.Cordx * r
+        Y = self.Cordy * r
+
+        Z = np.zeros_like(X)
+        V1 = np.ones_like(X)
+
+        # print(X, Y, Z, " - . - . - . - . - . - . - . - . - . - . - . - ")
+
+
+        StopPoint = np.array([X, Y, Z, V1])
+
+
+        AA = self.SYSTEM.Pr3D.TRANS_1A[self.Surf].dot(StopPoint)
+
+
+        XX = AA[0, :].tolist()
+        YY = AA[1, :].tolist()
+        ZZ = AA[2, :].tolist()
+        VV = AA[3, :].tolist()
+
+        RST = RayStop(self.SYSTEM, self.W, self.Surf)
+        RST.Ang_X = self.FieldX
+        RST.Ang_Y = self.FieldY
+
+        H = 10000.0
+        LimInf = [-H, -H]
+        LimSup = [ H,  H]
+        b=(LimInf, LimSup)
+
+        Tx = 0
+        Ty = 0
+
+        # RST.GlCorStop = [-X[0][i], -Y[0][i], -Z[0][i]]
+
+        StopPoint = [0, 0, 0, 1]
+        AA = self.SYSTEM.Pr3D.TRANS_1A[self.Surf].dot(StopPoint)
+        AA = AA.tolist()
+
+        X = -AA[0][0]
+        Y = -AA[0][1]
+        Z = -AA[0][2]
+        V = -AA[0][3]
+
+        RST.GlCorStop = [X, Y, Z]
+        R = scipy.optimize.least_squares(RST.CalculateField, [Tx,Ty],bounds = b,verbose = 0)
+
+        xyz = RST.XYZ_I
+        lmn = RST.LMN_I
+        lmn = lmn.tolist()
+
+        self.chief_xyz = xyz
+        self.chief_lmn = lmn
+
+        Tx = xyz[0]
+        Ty = xyz[1]
+
+        RST.System.IgnoreVignetting(0)
+        RST.System.TargSurf(RST.StopSurf) # coloca como objetivo la superficie "Diafragma"
+
+        RST.INP_LMN = lmn
+
+        vx = []
+        vy = []
+        vz = []
+
+
+        [ll,mm,nn] = lmn
+        l = []
+        m = []
+        n = []
+
+
+
+    ##############################################################################
+
+        if (self.FieldType == 'angle'):
+
+            for i in range(0, len(XX[0])):
+                RST.preX = Tx # Coordenadas X del rayo en el origen
+                RST.preY = Ty # Coordenadas Y del rayo en el origen
+
+                RST.Desp_X = -XX[0][i] # Coordenada X deseada en el diafragma
+                RST.Desp_Y = -YY[0][i] # Coordenada X deseada en el diafragma
+                x0, y0 = 0, 0  # Punto inicial
+                x, y = newton_raphson(x0, y0, RST.calculateXYZ)
+
+                if x != 123456789.10:
+                    vx.append(x + Tx)
+                    vy.append(y + Ty)
+                    vz.append(0)
+                    l.append(ll)
+                    m.append(mm)
+                    n.append(nn)
+
+
+    ##############################################################################
+
+        if (self.FieldType == 'height'):
+
+            for i in range(0, len(XX[0])):
+                RST.preX = Tx # Coordenadas X del rayo en el origen
+                RST.preY = Ty # Coordenadas Y del rayo en el origen
+
+                RST.Desp_X = -XX[0][i] # Coordenada X deseada en el diafragma
+                RST.Desp_Y = -YY[0][i] # Coordenada X deseada en el diafragma
+                x0, y0 = 0, 0  # Punto inicial
+                lx, my = newton_raphson(x0, y0, RST.calculateLMN)
+
+                if lx != 123456789.10:
+                    vx.append(Tx)
+                    vy.append(Ty)
+                    vz.append(0)
+
+                    [x0, y0, z0] = RST.XYZ_I
+                    [x1, y1, z1] = RST.XYZ_I2
+
+                    x1 = x1 + lx
+                    y1 = y1 + my
+
+                    r = np.sqrt(((x1 - x0)**2) + ((y1 - y0)**2) + ((z1 - z0)**2))
+
+                    L = (x1 - x0) / r
+                    M = (y1 - y0) / r
+                    N = (z1 - z0) / r
+
+                    l.append(L)
+                    m.append(M)
+                    n.append(N)
+
+        self.SYSTEM.TargSurfRest()
+        return(vx, vy, vz, l, m, n)
+
+
+
 

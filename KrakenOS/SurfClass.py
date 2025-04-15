@@ -1,12 +1,13 @@
 
 import numpy as np
-import pyvista as pv
+
 import os
 import sys
 currentDirectory = os.getcwd()
 sys.path.insert(1, (currentDirectory + '/library'))
 from .MathShapesClass import *
 from .PhysicsClass import *
+import pyvista as pv
 
 class surf():
     """surf.
@@ -171,11 +172,17 @@ class surf():
         ,Surface_type = 0.0\
         ,SURF_FUNC = [conic__surf(0.0, 0.0, 1.0)]\
         ,SPECIAL_SURF_FUNC = []\
-        ,SubAperture = [1,0,0], Coating = [[],[],[],[]], CoatingMet = 0, NumLabel = 1, ):
+        ,DerPres = 0
+        ,SubAperture = [1,0,0], Coating = [[],[],[],[]], CoatingMet = 0, Const = [0,0,0,0,0,0,0,0,0,0], NumLabel = 1):
 
         """__init__.
         """
         pass
+
+
+
+
+
         self.Var = ["Enpty"]
         self.Rc = Rc
         self.Thickness = Thickness
@@ -218,11 +225,15 @@ class surf():
         self.Surface_type = Surface_type
         self.SURF_FUNC = SURF_FUNC
         self.SPECIAL_SURF_FUNC = SPECIAL_SURF_FUNC
+        self.DerPres = DerPres
+        self.PresicionPrecal = 0.04
         self.General_Status = self.update()
         self.SubAperture = SubAperture
         self.Coating = Coating
         self.CoatingMet = CoatingMet
         self.NumLabel = NumLabel
+        self.Const = Const
+
 
     def RestoreVTK(self):
         Objeto_3D = pv.Disc(center=[0.0, 0.0, 0.0], inner=0, outer=0.001, normal=(0, 0, 1), r_res=3, c_res=3)
@@ -231,7 +242,6 @@ class surf():
         self.Mask_Shape = Mask
 
     def EraseVTK(self):
-
         self.Mask_Shape = "None"
 
     def warning(self):
@@ -379,6 +389,9 @@ class surf():
         self.Sv_Error_map = self.Error_map
         self.Sv_SubAperture = self.SubAperture
         self.Sv_Coating = self.Coating
+        self.Sv_DerPres = self.DerPres
+        self.Sv_Const = self.Const
+
 
     def RestoreSetup(self):
         """RestoreSetup.
@@ -412,3 +425,8 @@ class surf():
         self.Error_map = self.Sv_Error_map
         self.SubAperture = self.Sv_SubAperture
         self.Coating = self.Sv_Coating
+        self.DerPres = self.Sv_DerPres
+        self.Const = self.Sv_Const
+
+
+

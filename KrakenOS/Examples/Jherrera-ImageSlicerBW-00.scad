@@ -127,10 +127,11 @@ P=0.5;
 pm=1.0;
 
 translate([0,0,-A])
-    {
+{
+    color([0.5, 0.5, 0.8], alpha=0.5) // Color azul claro con opacidad
     union()
-        {
+    {
         completo(A,B,P);
         Prisma(pm,B, A);
-        }
     }
+}

@@ -1,6 +1,7 @@
 import numpy as np
 from .SurfTools import surface_tools as SUT
 
+
 class Hit_Solver():
     """Hit_Solver.
     """
@@ -27,7 +28,7 @@ class Hit_Solver():
         self.SuTo.ErrSurfCase = 0
         self.delta = 0.04
         self.delta2 = 2.0 * self.delta
-        self.deltaLineCurve = 1e-13
+        self.deltaLineCurve = 1e-9
         self.Parray=np.asarray([0.0, 0.0, 0.0])
 
         self.vx = np.asarray([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
@@ -53,31 +54,69 @@ class Hit_Solver():
         z :
             z
         """
-        self.vx1 = np.asarray([(x + self.delta), x, x, (x - self.delta), x, x, (x + self.delta2), x, x, (x - self.delta2), x, x])
-        self.vy1 = np.asarray([y, (y + self.delta), y, y, (y - self.delta), y, y, (y + self.delta2), y, y, (y - self.delta2), y])
-        self.vz1 = np.asarray([z, z, (z + self.delta), z, z, (z - self.delta), z, z, (z + self.delta2), z, z, (z - self.delta2)])
+
+
+        Ndelta = self.SDT[self.vj].PresicionPrecal
+        Ndelta2 = Ndelta * 2.0
+
+
+        self.vx1 = np.asarray([(x + Ndelta), x, x, (x - Ndelta), x, x, (x + Ndelta2), x, x, (x - Ndelta2), x, x])
+        self.vy1 = np.asarray([y, (y + Ndelta), y, y, (y - Ndelta), y, y, (y + Ndelta2), y, y, (y - Ndelta2), y])
+        self.vz1 = np.asarray([z, z, (z + Ndelta), z, z, (z - Ndelta), z, z, (z + Ndelta2), z, z, (z - Ndelta2)])
         F = self.SuTo.SurfaceShape(self.vx1, self.vy1, self.vj) - self.vz1
 
         AX1=-F[6]
         AX2=8.*F[0]
         AX3=-8.*F[3]
         AX4=F[9]
-        Dx=(AX1+AX2+AX3+AX4)/(12.0*self.delta)
+        Dx=(AX1+AX2+AX3+AX4)/(12.0*Ndelta)
 
         AY1=-F[6+1]
         AY2=8.*F[0+1]
         AY3=-8.*F[3+1]
         AY4=F[9+1]
-        Dy=(AY1+AY2+AY3+AY4)/(12.0*self.delta)
+        Dy=(AY1+AY2+AY3+AY4)/(12.0*Ndelta)
 
         AZ1=-F[6+2]
         AZ2=8.*F[0+2]
         AZ3=-8.*F[3+2]
         AZ4=F[9+2]
-        Dz=(AZ1+AZ2+AZ3+AZ4)/(12.0*self.delta)
+        Dz=(AZ1+AZ2+AZ3+AZ4)/(12.0*Ndelta)
 
         Dr = np.sqrt((((Dx ** 2.) + (Dy ** 2.)) + (Dz ** 2.)))
+        # print((Dx / Dr), (Dy / Dr), (Dz / Dr))
         return ((Dx / Dr), (Dy / Dr), (Dz / Dr))
+
+
+
+    def SurfaceShape(self, x, y, z):
+        return self.SuTo.SurfaceShape(x, y, self.vj) - z
+
+    def SurfDer1(self, x, y, z):
+        # Prepara vectores de desplazamiento para diferencias finitas de sexto orden
+        deltas = np.array([-3, -2, -1, 1, 2, 3]) * self.delta
+        coeffs = np.array([-1, 9, -45, 45, -9, 1]) / (60.0 * self.delta)
+
+        # Evalúa la función en los puntos necesarios para calcular la derivada respecto a x
+        Fx_vals = np.array([self.SurfaceShape(x+dx, y, z) for dx in deltas])
+
+        # Evalúa la función en los puntos necesarios para calcular la derivada respecto a y
+        Fy_vals = np.array([self.SurfaceShape(x, y+dy, z) for dy in deltas])
+
+        # Evalúa la función en los puntos necesarios para calcular la derivada respecto a z
+        Fz_vals = np.array([self.SurfaceShape(x, y, z+dz) for dz in deltas])
+
+        # Calcula las derivadas usando los coeficientes de diferencias finitas
+        Dx = np.dot(coeffs, Fx_vals)
+        Dy = np.dot(coeffs, Fy_vals)
+        Dz = np.dot(coeffs, Fz_vals)
+
+        # Normaliza el vector de derivadas
+        norm = np.sqrt(Dx**2 + Dy**2 + Dz**2)
+        return (Dx / norm, Dy / norm, Dz / norm)
+
+
+
 
     # def __surface_Derivative(self,x,y,z,j):
     #     #http://www2.math.umd.edu/~dlevy/classes/amsc466/lecture-notes/differentiation-chap.pdf
@@ -124,6 +163,7 @@ class Hit_Solver():
         AA = (SP - self.Parray)
 
         Dz = ((AA[0] - AA[2]) / (2.0 * self.deltaLineCurve))
+        # print(Dz, SP, self.deltaLineCurve)
         return Dz, AA[1]
 
     def SolveHit(self, Px1, Py1, Pz1, L, M, N, j):

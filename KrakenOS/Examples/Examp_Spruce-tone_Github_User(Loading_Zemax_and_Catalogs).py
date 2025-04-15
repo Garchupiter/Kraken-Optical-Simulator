@@ -23,6 +23,7 @@ import KrakenOS as Kos
 
 LENSCAT_PATH = os.path.abspath(os.path.join(os.getcwd(), os.pardir, os.pardir)) + "/KrakenOS/LensCat"
 
+
 ED_CAT_PATH = os.path.join(LENSCAT_PATH, 'Edmund Optics 2019.ZMF')
 
 THOR_CAT_PATH = os.path.join(LENSCAT_PATH, 'THORLABS.ZMF')

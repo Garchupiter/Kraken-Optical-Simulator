@@ -128,7 +128,7 @@ for i in range(0, len(x)):
 
 # ______________________________________#
 
-# Kos.display2d(Telescopio, Rayos, 1, 0)
+Kos.display2d(Telescopio, Rayos, 1, 0)
 
 # ______________________________________#
 

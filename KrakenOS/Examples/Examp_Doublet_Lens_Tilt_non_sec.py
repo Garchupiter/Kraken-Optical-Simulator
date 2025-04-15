@@ -75,7 +75,7 @@ configuracion_1 = Kos.Setup()
 
 # _________________________________________#
 
-Doblete = Kos.system(A, configuracion_1)
+Doblete = Kos.system(A, configuracion_1, build = 0)
 Rayos = Kos.raykeeper(Doblete)
 Doblete.energy_probability=1
 

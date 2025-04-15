@@ -55,13 +55,6 @@ def load_Catalog(FileCat):
                 if not x.isspace():
                      cat.append(x)
 
-        # f = open(file, 'r')
-        # for x in f:
-
-        #     if not x.isspace():
-        #          cat.append(x)
-
-            # cat.append(x)
 
 
     con = 0
@@ -76,7 +69,15 @@ def load_Catalog(FileCat):
         con = (con + 1)
     names = np.asarray(names)
     for i in range(0, (len(coords) - 1)):
+        
         ITT = []
+        NM = []
+        ED = []
+        CD = []
+        TD = []
+        OD = []
+        LD = []
+        IT = []
         for j in range(coords[i], coords[(i + 1)]):
             cadena = cat[j].split()
             cad = cat[j][2:].split()

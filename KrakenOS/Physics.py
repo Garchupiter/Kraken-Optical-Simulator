@@ -9,12 +9,15 @@ fraunhofer = dict(   # http://en.wikipedia.org/wiki/Abbe_number
     h  =  404.66e-9, # Hg violet
     g  =  435.84e-9, # Hg blue
     Fp =  479.99e-9, # Cd blue
-    F  =  486.13e-9, # H  blue
+    # F  =  486.13e-9, # H  blue
+    F  =  486.1327e-9, # H  blue - Zemax manual
     e  =  546.07e-9, # Hg green
-    d  =  587.56e-9, # He yellow
+    # d  =  587.56e-9, # He yellow
+    d = 587.5618e-9, # He yellow - Zemax manual
     D  =  589.30e-9, # Na yellow
     Cp =  643.85e-9, # Cd red
-    C  =  656.27e-9, # H  red
+    # C  =  656.27e-9, # H  red
+    C  =  656.2725e-9, # H  red - Zemaxmanual
     r  =  706.52e-9, # He red
     Ap =  768.20e-9, # K  IR
     s  =  852.11e-9, # Cs IR
@@ -139,9 +142,11 @@ def Abbe_refractive_correction(n: float, v: float, wave: float):
         corrected refractive index
     '''
     if v!= 0:
-        lambda_ref = fraunhofer["d"]*10**9
-        lambda_short = fraunhofer["F"]*10**9
-        lambda_long = fraunhofer["C"]*10**9
+        lambda_ref = fraunhofer["d"]*10**6
+        lambda_short = fraunhofer["F"]*10**6
+        lambda_long = fraunhofer["C"]*10**6
+
+        # print(lambda_ref)
 
         n_corrected = (n + (wave - lambda_ref) /
         (lambda_long - lambda_short) *
@@ -177,6 +182,10 @@ def n_wave_dispersion(krakenSetup, GLSS, Wave):
 
     elif (GLSS == 'AIR'):
         n = 1.0
+        Alpha = 0.0
+
+    elif (GLSS == 'GRIN'):
+        n = 1.25
         Alpha = 0.0
 
     elif (GLSS.split(',')[0]=='___BLANK'):

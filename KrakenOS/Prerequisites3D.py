@@ -4,9 +4,6 @@ import pyvista as pv
 from .UDA import *
 
 
-
-
-
 def interpolate_coordinates(x, y, num_points=362):
     # Asegurarse de que las listas tengan el mismo número de elementos
     if len(x) != len(y):
@@ -59,7 +56,7 @@ class Prerequisites():
     """Prerequisites.
     """
 
-    def __init__(self, SurfData, SUTO):
+    def __init__(self, SUTO):
         """__init__.
 
         Parameters
@@ -69,22 +66,26 @@ class Prerequisites():
         SUTO :
             SUTO
         """
-        self.SDT = SurfData
+        self.SuTo = SUTO
+        self.SDT = self.SuTo.SDT
         self.n = len(self.SDT)
         self.ANG = np.arange(0, 362, 1)
         self.ANG_Rad = np.deg2rad(self.ANG)
+        self.ANG_dummy = np.arange(0, 362, 10)
+        self.ANG_Rad_dummy = np.deg2rad(self.ANG_dummy)
         self.Disable_Inner = 1
         self.ExtraDiameter = 0
-        self.SuTo = SUTO
+
         self.TRANS_1A = []
         self.TRANS_2A = []
+        self.ExistSolid = 0
 
     def GeometricRotatAndTran(self, L_te_h, j):
         """GeometricRotatAndTran.
 
         Parameters
         ----------
-        L_te_h :
+        L_te_h :f
             L_te_h
         j :
             j
@@ -117,7 +118,7 @@ class Prerequisites():
                     L_te_h.rotate_x(tx, inplace = True)
                 except:
                     L_te_h.rotate_x(tx)
-                try:    
+                try:
                     L_te_h.rotate_y(ty, inplace=True)
                 except:
                     L_te_h.rotate_y(ty) # Para Windows
@@ -154,7 +155,7 @@ class Prerequisites():
                     L_te_h.translate([0, 0, self.SDT[(n - 1)].Thickness],inplace=True)
                 except:
                     L_te_h.translate([0, 0, self.SDT[(n - 1)].Thickness])
-                    
+
         return L_te_h
 
     def Flat2SigmaSurface(self, plane_object, j):
@@ -189,7 +190,7 @@ class Prerequisites():
         Parameters
         ----------
         j :
-            j
+            jZ
         """
 
 
@@ -206,7 +207,18 @@ class Prerequisites():
                 r_RES = int((RES * con))
                 INNER = ((self.SDT[j].InDiameter * self.Disable_Inner) / 2.0)
                 OUTER = ((self.SDT[j].Diameter *self.SDT[j].SubAperture[0]) / 2.0)
-                disc = pv.Disc(center=[0.0, 0.0, 0.0], inner=INNER, outer=OUTER, normal=(0, 0, 1), r_res=r_RES, c_res=(RES * 2))
+
+
+                if self.SDT[j].Const[1] == 1:
+                    r_RES = 5
+                    RES = 5
+                else:
+                    r_RES = r_RES
+                    RES =RES
+
+                # print(self.SDT[j].Const[1], r_RES, RES)
+
+                disc = pv.Disc(center=[0.0, 0.0, 0.0], inner=INNER, outer=OUTER, normal=(0, 0, 1), r_res = r_RES, c_res = (RES * 2))
                 L_te_h = self.Flat2SigmaSurface(disc, j)
                 if (self.SDT[j].InDiameter > 0):
                     L_te_h = L_te_h.delaunay_2d().edge_source = L_te_h
@@ -215,9 +227,6 @@ class Prerequisites():
             else:
                 udashape =self.SDT[j].UDA_Obj.UDA_Surf
                 L_te_h = self.Flat2SigmaSurface(udashape, j)
-
-
-
 
         else:
             aaa = isinstance(self.SDT[j].Solid_3d_stl, pv.core.pointset.PolyData)
@@ -283,6 +292,7 @@ class Prerequisites():
         j2 :
             j2
         """
+
         PTS1 = self.SidePerim(j)
         x1 = PTS1[:, 0]
         y1 = PTS1[:, 1]
@@ -335,10 +345,21 @@ class Prerequisites():
         cant.compute_normals(cell_normals=True, point_normals=True, split_vertices=True, flip_normals=False, consistent_normals=True, auto_orient_normals=False, non_manifold_traversal=True, feature_angle=30.0, inplace = False)
 
         return cant
+    
+    
+    def Prerequisites3D_UDA(self):
+        for j in range(0, self.n):
+            if (self.SDT[j].UDA != 'None'):
+                px = self.SDT[j].UDA[0]
+                py = self.SDT[j].UDA[1]
+                self.SDT[j].UDA_Obj = UDA(px, py)
+
 
     def Prerequisites3DSolids(self):
         """Prerequisites3DSolids.
         """
+        print("Creating solid objects for optical elements")
+        
         self.GlassOnSide = []
         self.PreTypeTotal = []
         self.TypeTotal = []
@@ -350,12 +371,10 @@ class Prerequisites():
         self.counter = []
         self.side_number = []
         for j in range(0, self.n):
-            if (self.SDT[j].UDA != 'None'):
-                px = self.SDT[j].UDA[0]
-                py = self.SDT[j].UDA[1]
-                self.SDT[j].UDA_Obj = UDA(px, py)
 
-            (lens, masked) = self.Face3D(j)
+            if self.SDT[j].Const[1] == 0:
+                (lens, masked) = self.Face3D(j)
+                
 
 
 
@@ -394,6 +413,158 @@ class Prerequisites():
             self.GlassOnSide.append(i)
         for i in self.PreTypeTotal:
             self.TypeTotal.append(i)
+        self.ExistSolid = 1
+
+
+
+
+    def SidePerimDummy(self, j):
+        """SidePerim.
+
+        Parameters
+        ----------
+        j :
+            j
+        """
+
+
+        if self.SDT[j].UDA == "None":
+            rad2 = ((self.SDT[j].Diameter *self.SDT[j].SubAperture[0]) / 2.0)
+            x2 = rad2 * np.cos(self.ANG_Rad_dummy)
+            y2 = rad2 * np.sin(self.ANG_Rad_dummy)
+
+        else:
+            px = self.SDT[j].UDA[0]
+            py = self.SDT[j].UDA[1]
+            x2, y2 = interpolate_coordinates(px, py, num_points=38)
+
+        z2 = np.zeros_like(x2)
+        x2 = x2 + self.SDT[j].SubAperture[2]
+        y2 = y2 + self.SDT[j].SubAperture[1]
+
+        
+        points2 = np.c_[(x2, y2, z2)]
+        L_te = pv.PolyData(points2, force_float=False)
+        L_te = self.GeometricRotatAndTran(L_te, j)
+        return L_te.points
+
+    def Side3DDummy(self, j, j2):
+        """Side3D.
+
+        Parameters
+        ----------
+        j :
+            j
+        j2 :
+            j2
+        """
+
+        PTS1 = self.SidePerimDummy(j)
+        x1 = PTS1[:, 0]
+        y1 = PTS1[:, 1]
+        z1 = PTS1[:, 2]
+        PTS2 = self.SidePerimDummy(j2)
+        x2 = PTS2[:, 0]
+        y2 = PTS2[:, 1]
+        z2 = PTS2[:, 2]
+
+        RR = np.zeros_like(x2)
+        for s in range(0, len(x2)):
+            x2 = np.roll(x2, 1)
+            y2 = np.roll(y2, 1)
+            z2 = np.roll(z2, 1)
+
+            X = x2 - x1
+            Y = y2 - y1
+            Z = z2 - z1
+            R = np.sqrt(X**2 + Y**2 + Z**2)
+
+
+            RR[s] = np.mean(R)
+        ag = np.argmin(RR)
+
+        x2 = np.roll(x2, ag)
+        y2 = np.roll(y2, ag)
+        z2 = np.roll(z2, ag)
+
+        P = []
+        F = []
+        for i in range(0, 36):
+            P.append([x1[i], y1[i], z1[i]])
+            P.append([x2[i], y2[i], z2[i]])
+            P.append([x1[(i + 1)], y1[(i + 1)], z1[(i + 1)]])
+            F.append([3, (0 + (i * 6)), (1 + (i * 6)), (2 + (i * 6))])
+            P.append([x1[(i + 1)], y1[(i + 1)], z1[(i + 1)]])
+            P.append([x2[i], y2[i], z2[i]])
+            P.append([x2[(i + 1)], y2[(i + 1)], z2[(i + 1)]])
+            F.append([3, (3 + (i * 6)), (4 + (i * 6)), (5 + (i * 6))])
+        P = np.asarray(P)
+        F = np.asarray(F)
+        cant = pv.PolyData(P, F, force_float=False)
+        Ax = cant.points[:, 0]
+        Ay = cant.points[:, 1]
+        Az = cant.points[:, 2]
+        Ax = np.asarray(Ax)
+        Ay = np.asarray(Ay)
+        Az = np.asarray(Az)
+
+        cant.compute_normals(cell_normals=True, point_normals=True, split_vertices=True, flip_normals=False, consistent_normals=True, auto_orient_normals=False, non_manifold_traversal=True, feature_angle=30.0, inplace = False)
+
+        return cant
+
+            
+    def Prerequisites3DSolidsDummy(self):
+        """Prerequisites3DSolidsDummy.
+        """
+        self.GlassOnSide = []
+        self.PreTypeTotal = []
+        self.TypeTotal = []
+        self.PreGlassOnSide = []
+        self.AAA = []
+        self.BBB = []
+        self.DDD = []
+        self.EEE = []
+        self.counter = []
+        self.side_number = []
+        lens = 0
+        # side = pv.Polygon(n_sides=3)
+        for j in range(0, self.n):
+
+            self.AAA.append(lens)
+            if (self.SDT[j].Solid_3d_stl == 'None'):
+                self.TypeTotal.append(0)
+            else:
+                self.TypeTotal.append(1)
+            self.EEE.append(lens)
+            self.counter.append(j)
+            self.DDD.append(0)
+            self.counter.append(j)
+            self.GlassOnSide.append(j)
+            if (j < (self.n - 1)):
+                if (self.SDT[j].Glass != 'NULL'):
+                    if (self.SDT[j].Glass != 'AIR'):
+                        if (self.SDT[j].Glass != 'MIRROR'):
+                            if (self.SDT[j].Solid_3d_stl == 'None'):
+                                j2 = (j + 1)
+                                while True:
+                                    if ((self.SDT[j].Glass == 'NULL') or (self.SDT[j2].Solid_3d_stl != 'None')):
+                                        j2 = (j2 + 1)
+                                    else:
+                                        break
+                                    if (j2 == (self.n - 1)):
+                                        break
+                                side = self.Side3DDummy(j, j2)
+                                self.BBB.append(side)
+                                self.PreTypeTotal.append(1)
+                                self.PreGlassOnSide.append(j)
+                                self.side_number.append(j)
+        for i in self.BBB:
+            self.EEE.append(i)
+        for i in self.PreGlassOnSide:
+            self.GlassOnSide.append(i)
+        for i in self.PreTypeTotal:
+            self.TypeTotal.append(i)
+        self.ExistSolid = 0
 
     def Prerequisites3SMath(self):
         """Prerequisites3SMath.
@@ -401,6 +572,22 @@ class Prerequisites():
         self.TRANS_1A = []
         self.TRANS_2A = []
         for j in range(0, self.n):
+
+            if (self.SDT[j].DerPres == 0): # Un centecimo del radio de curvatura
+                self.SDT[j].PresicionPrecal = np.abs(self.SDT[j].Rc) / 100
+                if self.SDT[j].Rc == 0:
+                    self.SDT[j].PresicionPrecal = 0.04
+
+            else: # Valor sado por medio de surf
+                self.SDT[j].PresicionPrecal = self.SDT[j].DerPres
+
+
+
+
+
+
+
+
             Start_trans1 = np.matrix([[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]])
             for n in range(j, (- 1), (- 1)):
                 LL = 1.0

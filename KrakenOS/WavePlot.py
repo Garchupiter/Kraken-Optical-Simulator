@@ -61,6 +61,6 @@ def WavefrontData2Image(z_coeff, res=323):
     X = np.asarray(X)
     Y = np.asarray(Y)
     Z = Kos.Wavefront_Zernike_Phase(X, Y, z_coeff)
-    ARRAY_ZERNIKE[(H, K)] = Z
+    ARRAY_ZERNIKE[(-H, -K)] = Z
     return ARRAY_ZERNIKE
 

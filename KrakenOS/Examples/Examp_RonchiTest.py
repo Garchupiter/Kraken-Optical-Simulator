@@ -113,7 +113,7 @@ for i in range(0, Sun.num):
     Nr[con] = Telescope.SURFACE[-1]
     con = con + 1
     con2 = con2 + 1
-    # Rays.push()
+    Rays.push()
 
 args = np.argwhere(Nr == len(A)-1)
 plt.plot(Xr[args], Yr[args], '.', c="g", markersize=1)
@@ -128,4 +128,4 @@ plt.axis('square')
 plt.show()
 
 #             Rays.push()
-# Kos.display3d(Telescope, Rays, 1)
+Kos.display3d(Telescope, Rays, 1)

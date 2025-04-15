@@ -279,7 +279,7 @@ lam=a[:,1]/10000.0
 
 
 
-a=np.arange(-35, -57, -1)
+a=np.arange(-35, -80, -1)
 
 x=[]
 y=[]
@@ -317,7 +317,7 @@ Z=np.asarray(z)
 # ______________________________________#
 
 
-plt.plot(X, -Y, 'x')
+plt.plot(X, -Y, '|')
 plt.xlabel('X')
 plt.ylabel('Y')
 plt.title('Spot Diagram')

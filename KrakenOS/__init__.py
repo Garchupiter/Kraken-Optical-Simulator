@@ -288,3 +288,9 @@ from .KrakenSys import *
 from .PSFCalc import *
 from .LensCat import *
 from .SurfBlockClass import *
+
+
+
+
+from .PSFMap import *
+from .SphericalPSFCalc import *

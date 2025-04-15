@@ -36,7 +36,7 @@ Dif_Obj.Glass = "MIRROR"
 Dif_Obj.Diameter = 30.0
 Dif_Obj.Grating_D = 1000/600
 Dif_Obj.Diff_Ord = 1
-Dif_Obj.Grating_Angle = 90.0
+Dif_Obj.Grating_Angle = 0.0
 
 
 # _________________________________________#
@@ -64,10 +64,11 @@ Rayos = Kos.raykeeper(Doblete)
 pSource_0 = [0, 0, 0.0]
 tet = 0
 dCos = [0.0, np.sin(np.deg2rad(tet)), np.cos(np.deg2rad(tet))]
-W = 0.650
-Doblete.Trace(pSource_0, dCos, W)
-print(Doblete.XYZ[-1])
-Rayos.push()
+w = np.linspace(.35, .90, 10)
+for W in w:
+    Doblete.Trace(pSource_0, dCos, W)
+    print(Doblete.XYZ[-1])
+    Rayos.push()
 
 
 # ______________________________________#

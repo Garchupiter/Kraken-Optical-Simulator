@@ -58,7 +58,7 @@ M2.TiltY = 0.0
 M2.TiltX = 0.0
 M2.DespY = 0.0
 M2.DespX = 0.0
-M2.AxisMove = 0
+M2.AxisMove = 0.0
 
 # ______________________________________#
 
@@ -78,11 +78,11 @@ Telescopio = Kos.system(A, configuracion_1)
 Surf = 1
 W = 0.5016
 AperVal = 2000.
-AperType = "EPD"
+AperType = "STOP"
 Pupil = Kos.PupilCalc(Telescopio, Surf, W, AperType, AperVal)
 Pupil.Samp = 10
 Pupil.Ptype = "hexapolar"
-Pupil.FieldX = 0.1
+Pupil.FieldX = 0.3
 Pupil.FieldY = 0.0
 
 Pupil.FieldType = "angle"

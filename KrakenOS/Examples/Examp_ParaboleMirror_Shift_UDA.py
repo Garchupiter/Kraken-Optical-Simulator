@@ -91,7 +91,7 @@ configuracion_1 = Kos.Setup()
 
 # ______________________________________#
 
-Espejo = Kos.system(A, configuracion_1)
+Espejo = Kos.system(A, configuracion_1, build = 1)
 Rayos = Kos.raykeeper(Espejo)
 
 # ______________________________________#
@@ -99,7 +99,7 @@ Rayos = Kos.raykeeper(Espejo)
 
 
 diametro = 300
-num_puntos_lado = 10
+num_puntos_lado = 30
 
 x = np.linspace(-diametro/2, diametro/2, num_puntos_lado)
 y = np.linspace(-diametro/2, diametro/2, num_puntos_lado)

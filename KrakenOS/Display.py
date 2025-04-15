@@ -9,40 +9,6 @@ from typing import Tuple
 
 
 
-
-# def make_points():
-#     """Helper to make XYZ points"""
-#     theta = np.linspace(-4 * np.pi, 4 * np.pi, 100)
-#     z = np.linspace(-2, 2, 100)
-#     r = z**2 + 1
-#     x = r * np.sin(theta)
-#     y = r * np.cos(theta)
-#     return np.column_stack((x, y, z))
-
-# def lines_from_points(points):
-#     """Given an array of points, make a line set"""
-#     poly = pv.PolyData()
-#     poly.points = points
-#     cells = np.full((len(points) - 1, 3), 2, dtype=np.int_)
-#     cells[:, 1] = np.arange(0, len(points) - 1, dtype=np.int_)
-#     cells[:, 2] = np.arange(1, len(points), dtype=np.int_)
-#     poly.lines = cells
-#     return poly
-
-
-
-# def polyline_from_points(points):
-#     poly = pv.PolyData()
-#     poly.points = points
-#     the_cell = np.arange(0, len(points), dtype=np.int_)
-#     the_cell = np.insert(the_cell, 0, len(points))
-#     poly.lines = the_cell
-#     return poly
-
-
-
-
-
 def rgba2rgb(rgba, background=[255, 255, 255]):
     return (
         ((1 - rgba[3]) * background[0]) + (rgba[3] * rgba[0]),
@@ -178,26 +144,26 @@ def display3d_old(SYSTEM, RAYS, view=0, inline=False,     BackgCol= 'white', Bac
     Glass_color=np.array([12/256, 238/256, 246/256])
     recorte = view
     NN = SYSTEM.AAA.n_blocks
-    if (SYSTEM.SDT[0].Drawing == 0):
+    if (SYSTEM.SDT_0[0].Drawing == 0):
         points2 = np.c_[0.0, 0.0, 0.0]
         c = pv.PolyData(points2)
         cc = pv.PolyData(points2)
-    if (SYSTEM.SDT[0].Drawing == 1):
+    if (SYSTEM.SDT_0[0].Drawing == 1):
         c = SYSTEM.AAA[0]
         cc = SYSTEM.AAA[0]
     for n in range(1, NN):
-        if (SYSTEM.SDT[n].Drawing == 1):
+        if (SYSTEM.SDT_0[n].Drawing == 1):
             AAAA = SYSTEM.AAA[n]
-            if (SYSTEM.SDT[n].Glass != 'NULL'):
-                if (SYSTEM.SDT[n].Color == [0, 0, 0]):
-                    if (SYSTEM.SDT[n].Glass == 'MIRROR'):
+            if (SYSTEM.SDT_0[n].Glass != 'NULL'):
+                if (SYSTEM.SDT_0[n].Color == [0, 0, 0]):
+                    if (SYSTEM.SDT_0[n].Glass == 'MIRROR'):
                         color = Mirror_color
                     else:
                         color = Glass_color
-                    if (SYSTEM.SDT[n].Glass == 'ABSORB'):
+                    if (SYSTEM.SDT_0[n].Glass == 'ABSORB'):
                         color = Absorb_color
                 else:
-                    color = SYSTEM.SDT[n].Color
+                    color = SYSTEM.SDT_0[n].Color
                 cc = cc.merge(AAAA)
                 if (recorte == 1):
                     clippedx = AAAA.clip((1, 0, 0), invert=False)
@@ -216,7 +182,7 @@ def display3d_old(SYSTEM, RAYS, view=0, inline=False,     BackgCol= 'white', Bac
                     c = c.merge(clippedx)
                 p.add_mesh(c, color, opacity=OPA, specular=1, specular_power=15, smooth_shading=True, show_edges=False)
                 edges = c.extract_feature_edges(feature_angle=10, boundary_edges=True, feature_edges=False, manifold_edges=False)
-                if SYSTEM.SDT[n].Solid_3d_stl != "None" and recorte ==0:
+                if SYSTEM.SDT_0[n].Solid_3d_stl != "None" and recorte ==0:
                     print(" ") # No edges
                 else:
                     p.add_mesh(edges, 'red')
@@ -226,17 +192,17 @@ def display3d_old(SYSTEM, RAYS, view=0, inline=False,     BackgCol= 'white', Bac
     NN = SYSTEM.AAA.n_blocks
     n = 0
     for g in SYSTEM.side_number:
-        if (SYSTEM.SDT[g].Drawing == 1):
-            if (SYSTEM.SDT[g].Color == [0, 0, 0]):
-                if (SYSTEM.SDT[g].Glass == 'MIRROR'):
+        if (SYSTEM.SDT_0[g].Drawing == 1):
+            if (SYSTEM.SDT_0[g].Color == [0, 0, 0]):
+                if (SYSTEM.SDT_0[g].Glass == 'MIRROR'):
                     LL_color = Mirror_color
                 else:
                     LL_color = Glass_color
-                if (SYSTEM.SDT[g].Glass == 'ABSORB'):
+                if (SYSTEM.SDT_0[g].Glass == 'ABSORB'):
                     LL_color = Absorb_color
                 color = LL_color
             else:
-                color = SYSTEM.SDT[g].Color
+                color = SYSTEM.SDT_0[g].Color
             if (recorte == 1):
                 clippedx = SYSTEM.BBB[n].clip('x', invert=False)
                 p.add_mesh(clippedx, color ,opacity=OPA, smooth_shading=True, show_edges=None)
@@ -300,8 +266,14 @@ def display3d(SYSTEM, RAYS, view=0, inline=False,     BackgCol= 'white', BackgCo
         view
     """
 
+    BLD = SYSTEM.BUILD
+    if SYSTEM.Pr3D.ExistSolid == 0:
+        SYSTEM.BUILD = 1
+        SYSTEM.build()
+        SYSTEM.BUILD = BLD
+
     ST1="KrakenOS v0.1. Executing Script: " + sys.argv[0]
-    OPA = 0.95
+    OPA = 0.99
     p = pv.Plotter(shape=(1, 1), title=ST1,notebook=inline)
 
 
@@ -373,26 +345,26 @@ def plot3d(SYSTEM, view, p, OPA):
     Glass_color=np.array([12/256, 238/256, 246/256])
     recorte = view
     NN = SYSTEM.AAA.n_blocks
-    if (SYSTEM.SDT[0].Drawing == 0):
+    if (SYSTEM.SDT_0[0].Drawing == 0):
         points2 = np.c_[0.0, 0.0, 0.0]
         c = pv.PolyData(points2)
         cc = pv.PolyData(points2)
-    if (SYSTEM.SDT[0].Drawing == 1):
+    if (SYSTEM.SDT_0[0].Drawing == 1):
         c = SYSTEM.AAA[0]
         cc = SYSTEM.AAA[0]
     for n in range(1, NN):
-        if (SYSTEM.SDT[n].Drawing == 1):
+        if (SYSTEM.SDT_0[n].Drawing == 1):
             AAAA = SYSTEM.AAA[n]
-            if (SYSTEM.SDT[n].Glass != 'NULL'):
-                if (SYSTEM.SDT[n].Color == [0, 0, 0]):
-                    if (SYSTEM.SDT[n].Glass == 'MIRROR'):
+            if (SYSTEM.SDT_0[n].Glass != 'NULL'):
+                if (SYSTEM.SDT_0[n].Color == [0, 0, 0]):
+                    if (SYSTEM.SDT_0[n].Glass == 'MIRROR'):
                         color = Mirror_color
                     else:
                         color = Glass_color
-                    if (SYSTEM.SDT[n].Glass == 'ABSORB'):
+                    if (SYSTEM.SDT_0[n].Glass == 'ABSORB'):
                         color = Absorb_color
                 else:
-                    color = SYSTEM.SDT[n].Color
+                    color = SYSTEM.SDT_0[n].Color
 
 
                 cc = cc.merge(AAAA)
@@ -406,17 +378,24 @@ def plot3d(SYSTEM, view, p, OPA):
                     clippedx = AAAA.clip((1, 0, 0), invert=False)
                     clippedy = clippedx.clip((0, (- 1), 0), invert=False)
                     c = c.merge(clippedy)
+                # if (recorte == 0):
+                #     c = cc
+
                 if (recorte == 0):
-                    c = cc
+                    clippedx = AAAA
+                    c = c.merge(clippedx)
+
+
 
                 if (recorte == 2):
                     clippedx = AAAA.clip((1, 0, 0), invert=False)
                     c = c.merge(clippedx)
+
                 p.add_mesh(c, color, opacity=OPA, specular=1, specular_power=15, smooth_shading=True, show_edges=False)
                 edges = c.extract_feature_edges(feature_angle=10, boundary_edges=True, feature_edges=False, manifold_edges=False)
 
                # TTT.append(c)
-                if SYSTEM.SDT[n].Solid_3d_stl != "None" and recorte ==0:
+                if SYSTEM.SDT_0[n].Solid_3d_stl != "None" and recorte ==0:
                     print(" ") # No edges
                 else:
                     p.add_mesh(edges, 'red')
@@ -427,34 +406,33 @@ def plot3d(SYSTEM, view, p, OPA):
     n = 0
 
     for g in SYSTEM.side_number:
-        if (SYSTEM.SDT[g].Drawing == 1):
-            if (SYSTEM.SDT[g].Color == [0, 0, 0]):
-                if (SYSTEM.SDT[g].Glass == 'MIRROR'):
+        if (SYSTEM.SDT_0[g].Drawing == 1):
+            if (SYSTEM.SDT_0[g].Color == [0, 0, 0]):
+                if (SYSTEM.SDT_0[g].Glass == 'MIRROR'):
                     LL_color = Mirror_color
                 else:
                     LL_color = Glass_color
-                if (SYSTEM.SDT[g].Glass == 'ABSORB'):
+                if (SYSTEM.SDT_0[g].Glass == 'ABSORB'):
                     LL_color = Absorb_color
                 color = LL_color
             else:
-                color = SYSTEM.SDT[g].Color
+                color = SYSTEM.SDT_0[g].Color
             if (recorte == 1):
                 clippedx = SYSTEM.BBB[n].clip('x', invert=False)
                 p.add_mesh(clippedx, color ,opacity=OPA, smooth_shading=True, show_edges=None)
                 clippedy = SYSTEM.BBB[n].clip('-y', invert=False)
                 p.add_mesh(clippedy, color,opacity=OPA, smooth_shading=True, show_edges=None)
-                #TTT.append(clippedx)
-                #TTT.append(clippedy)
+
 
             if (recorte == 0):
                 No_clipped = SYSTEM.BBB[n]
                 p.add_mesh(No_clipped, color,opacity=OPA, smooth_shading=False, show_edges=None)
-                #TTT.append(No_clipped)
+
             if (recorte == 2):
                 BBBB = SYSTEM.BBB[n]
                 clippedx = BBBB.clip((1, 0, 0), invert=False)
                 p.add_mesh(clippedx, color,opacity=OPA, smooth_shading=True, show_edges=None)
-                #TTT.append(clippedx)
+
         n = (n + 1)
 
 
@@ -473,10 +451,15 @@ def display2d(SYSTEM, RAYS, view=0, arrow=0, nrays = 0, figsize: Tuple=(10, 4), 
     view :
         view
     """
-
+    BLD = SYSTEM.BUILD
+    if SYSTEM.Pr3D.ExistSolid == 0:
+        SYSTEM.BUILD = 1
+        SYSTEM.build()
+        SYSTEM.BUILD = BLD
 
     fs=fs # font size
     fig = plt.figure(figsize=figsize)
+
     ax1 = fig.add_subplot(111)
 
     INST = isinstance(SYSTEM, list)
@@ -508,27 +491,27 @@ def display2d(SYSTEM, RAYS, view=0, arrow=0, nrays = 0, figsize: Tuple=(10, 4), 
 def Plot2DSurf(SYSTEM, view, ax1):
     fs = 11
     NN = SYSTEM.AAA.n_blocks
-    if (SYSTEM.SDT[0].Drawing == 0):
+    if (SYSTEM.SDT_0[0].Drawing == 0):
         points2 = np.c_[0.0, 0.0, 0.0]
         c = pv.PolyData(points2, force_float=False)
-    if (SYSTEM.SDT[0].Drawing == 1):
+    if (SYSTEM.SDT_0[0].Drawing == 1):
         c = SYSTEM.AAA[0]
     sign=-1.0
     sn=0.65
     mx = []
     mn = []
     for n in range(0, NN):
-        if SYSTEM.SDT[n].Solid_3d_stl != "None":
+        if SYSTEM.SDT_0[n].Solid_3d_stl != "None":
             solid = 1
         else:
             solid = 0
 
         sn = sn * sign
-        if (SYSTEM.SDT[n].Drawing == 1):
+        if (SYSTEM.SDT_0[n].Drawing == 1):
             AAAA = SYSTEM.AAA[n]
-            if (SYSTEM.SDT[n].Glass != 'NULL'):
-                (PosX, PosY) = SYSTEM.SDT[n].Nm_Pos
-                s = SYSTEM.SDT[n].Name
+            if (SYSTEM.SDT_0[n].Glass != 'NULL'):
+                (PosX, PosY) = SYSTEM.SDT_0[n].Nm_Pos
+                s = SYSTEM.SDT_0[n].Name
                 ss = SYSTEM.Object_Num[n]
                 if (view == 0):
                     LT = ''
@@ -546,7 +529,7 @@ def Plot2DSurf(SYSTEM, view, ax1):
                     CordABC = az[ABC]
 
 
-                    if SYSTEM.SDT[n].NumLabel == 1:
+                    if SYSTEM.SDT_0[n].NumLabel == 1:
 
                         ax1.text(CordABC, sn*1.5*(np.min(ay) - (1.5 * delta)), (('[' + str(ss)) + ']'), fontsize=fs)
                         ax1.plot([CordABC, CordABC], [np.mean(ay), sn*1.5*(np.min(ay) - delta)], '-.', c='red', linewidth=0.5)
@@ -570,7 +553,7 @@ def Plot2DSurf(SYSTEM, view, ax1):
                     CordABC = az[ABC]
 
 
-                    if SYSTEM.SDT[n].NumLabel == 1:
+                    if SYSTEM.SDT_0[n].NumLabel == 1:
                         ax1.text(CordABC, sn*1.5*(np.min(ax) - (1.5 * delta)), (('[' + str(ss)) + ']'), fontsize=fs)
                         ax1.plot([CordABC, CordABC], [np.mean(ax), sn*1.5*(np.min(ax) - delta)], '-.', c='red', linewidth=0.5)
 
@@ -583,7 +566,7 @@ def Plot2DSurf(SYSTEM, view, ax1):
 
     NN = SYSTEM.BBB.n_blocks
     for n in range(0, NN):
-        if SYSTEM.SDT[n].Solid_3d_stl != "None":
+        if SYSTEM.SDT_0[n].Solid_3d_stl != "None":
             solid = 1
         else:
             solid = 0
@@ -592,6 +575,9 @@ def Plot2DSurf(SYSTEM, view, ax1):
 
 
         sim = '-.'
+
+# Grin
+
         if (view == 0):
             (ax, ay, az) = edge_3d(TT, 1, 0, 0, solid)
             ax1.plot(az, ay, sim, c='black', linewidth=0.5)
@@ -797,27 +783,27 @@ def display3d_4OB(SYSTEM, RAYS, view, inline, BackgCol, BackgColTop, GridCol, p)
     Glass_color=np.array([12/256, 238/256, 246/256])
     recorte = view
     NN = SYSTEM.AAA.n_blocks
-    if (SYSTEM.SDT[0].Drawing == 0):
+    if (SYSTEM.SDT_0[0].Drawing == 0):
         points2 = np.c_[0.0, 0.0, 0.0]
         c = pv.PolyData(points2)
         cc = pv.PolyData(points2)
-    if (SYSTEM.SDT[0].Drawing == 1):
+    if (SYSTEM.SDT_0[0].Drawing == 1):
         c = SYSTEM.AAA[0]
         cc = SYSTEM.AAA[0]
 
     for n in range(1, NN):
-        if (SYSTEM.SDT[n].Drawing == 1):
+        if (SYSTEM.SDT_0[n].Drawing == 1):
             AAAA = SYSTEM.AAA[n]
-            if (SYSTEM.SDT[n].Glass != 'NULL'):
-                if (SYSTEM.SDT[n].Color == [0, 0, 0]):
-                    if (SYSTEM.SDT[n].Glass == 'MIRROR'):
+            if (SYSTEM.SDT_0[n].Glass != 'NULL'):
+                if (SYSTEM.SDT_0[n].Color == [0, 0, 0]):
+                    if (SYSTEM.SDT_0[n].Glass == 'MIRROR'):
                         color = Mirror_color
                     else:
                         color = Glass_color
-                    if (SYSTEM.SDT[n].Glass == 'ABSORB'):
+                    if (SYSTEM.SDT_0[n].Glass == 'ABSORB'):
                         color = Absorb_color
                 else:
-                    color = SYSTEM.SDT[n].Color
+                    color = SYSTEM.SDT_0[n].Color
 
                 cc = cc.merge(AAAA)
                 if (recorte == 1):
@@ -838,7 +824,7 @@ def display3d_4OB(SYSTEM, RAYS, view, inline, BackgCol, BackgColTop, GridCol, p)
                     c = c.merge(clippedx)
                 p.add_mesh(c, color, opacity=OPA, specular=1, specular_power=15, smooth_shading=True, show_edges=False)
                 edges = c.extract_feature_edges(feature_angle=10, boundary_edges=True, feature_edges=False, manifold_edges=False)
-                if SYSTEM.SDT[n].Solid_3d_stl != "None" and recorte ==0:
+                if SYSTEM.SDT_0[n].Solid_3d_stl != "None" and recorte ==0:
                     print(" ") # No edges
                 else:
                     p.add_mesh(edges, 'red')
@@ -848,17 +834,17 @@ def display3d_4OB(SYSTEM, RAYS, view, inline, BackgCol, BackgColTop, GridCol, p)
     NN = SYSTEM.AAA.n_blocks
     n = 0
     for g in SYSTEM.side_number:
-        if (SYSTEM.SDT[g].Drawing == 1):
-            if (SYSTEM.SDT[g].Color == [0, 0, 0]):
-                if (SYSTEM.SDT[g].Glass == 'MIRROR'):
+        if (SYSTEM.SDT_0[g].Drawing == 1):
+            if (SYSTEM.SDT_0[g].Color == [0, 0, 0]):
+                if (SYSTEM.SDT_0[g].Glass == 'MIRROR'):
                     LL_color = Mirror_color
                 else:
                     LL_color = Glass_color
-                if (SYSTEM.SDT[g].Glass == 'ABSORB'):
+                if (SYSTEM.SDT_0[g].Glass == 'ABSORB'):
                     LL_color = Absorb_color
                 color = LL_color
             else:
-                color = SYSTEM.SDT[g].Color
+                color = SYSTEM.SDT_0[g].Color
             if (recorte == 1):
                 clippedx = SYSTEM.BBB[n].clip('x', invert=False)
                 p.add_mesh(clippedx, color ,opacity=OPA, smooth_shading=True, show_edges=None)

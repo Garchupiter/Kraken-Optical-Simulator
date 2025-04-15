@@ -105,7 +105,7 @@ if A1 == 0:
         pSource_0 = [X[i], Y[i], Z[i]]
         dCos = [L[i], M[i], N[i]]
         Telescopio.Trace(pSource_0, dCos, W)
-
+        print(Telescopio.NAME[-1])
         if Telescopio.NAME[-1] == "Image plane Tel":
             x, y, z = Telescopio.XYZ[-1]
             l, m, n = Telescopio.LMN[-1]
@@ -141,7 +141,7 @@ if A1 == 0:
 ################################################################
 
 else:
-    
+
     P_Obj = Kos.surf()
     P_Obj.Rc = 0
     P_Obj.Thickness = 100. + 0.5
@@ -150,18 +150,18 @@ else:
 
     # currentDirectory = os.getcwd()
     ruta = os.getcwd()
-    
+
     import os.path
 
     ruta = ruta + "/Jherrera-ImageSlicerBW-00.stl"
     existe = os.path.exists(ruta)
-    
+
     if existe:
         print("El archivo existe.")
     else:
         print("El archivo no existe.")
-    
-    
+
+
 
     direc = ruta
     P_ImageSlicer = Kos.surf()

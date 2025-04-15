@@ -15,6 +15,7 @@ if missing:
 
 
 import KrakenOS as Kos
+import os
 
 # ______________________________________#
 
@@ -47,9 +48,11 @@ P_Ima.Name = "Plano imagen"
 
 A = [P_Obj, M1, P_Ima]
 configuracion_1 = Kos.Setup()
-file = "/Users/joelherreravazquez/Library/CloudStorage/OneDrive-UNIVERSIDADNACIONALAUTÓNOMADEMÉXICO/Documentos/GitHub/Kraken-Optical-Simulator/KrakenOS/Cat/Gold.csv"
-# file = "/borrar/KrakenOS/Cat/Gold.csv"
-configuracion_1.LoadMetal(file, "Gold", 1)
+
+GLASCAT_PATH = os.path.abspath(os.path.join(os.getcwd(), os.pardir, os.pardir)) + "/KrakenOS/Cat"
+MATERIAL_PATH = os.path.join(GLASCAT_PATH, 'Gold.csv')
+
+configuracion_1.LoadMetal(MATERIAL_PATH, "Gold", 1)
 
 # ______________________________________#
 

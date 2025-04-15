@@ -48,6 +48,7 @@ M2.k = -4.328100000000000E+000
 M2.Glass = "MIRROR"
 M2.Diameter = 3.365E+002 * 2.0
 M2.AxisMove = 0
+M2.TiltX = 0
 
 # ______________________________________#
 
@@ -116,12 +117,12 @@ for i in range(0, len(xc)):
     Telescopio.Trace(pSource_0, dCos, W)
     Rayos.push()
 
-# ______________________________________#
+# # ______________________________________#
 
 Kos.display3d(Telescopio, Rayos, 2)
 X, Y, Z, L, M, N = Rayos.pick(-1)
 
-# ______________________________________#
+# # ______________________________________#
 
 plt.plot(X, Y, 'x')
 plt.xlabel('x')
