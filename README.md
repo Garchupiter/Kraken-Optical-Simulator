@@ -31,14 +31,14 @@ pip install KrakenOS
 
 ## Prerequisites
 The library has been tested with the following packages and versions, these are also installed with the previous instruction.
-• Python '3.7.4'          
-• numpy '1.18.5'          
-• scipy '1.7.1'          
-• pyvista '0.25.3'          
-• pyvtk '0.5.18'  
-• matplotlib '3.4.3'  
-• vtk '8.2'          
-• csv '1.0'
+
+• Python 3.13.1
+• numpy 2.2.2
+• scipy 1.15.1
+• pyvista 0.44.1
+• matplotlib 3.10.0
+• vtk 9.4.1
+• pandas 2.2.3
 
 to install prerequisites
 
@@ -52,23 +52,8 @@ pip install matplotlib
 pip install csv342
 ```
 
-
-
 • Or clone the repository and place the directory “KrakenOS” in the same path where the code to be executed is located.    
 
-> **⚠ WARNING: If you prefer clone the repositoy instead of using pip install KrakenOS, modify the first line in the file /KrakenOS/SetupClass.py from pip = True to False.**  
-
-### 
-
-```python
-pip = False
-```
-
-> **⚠ WARNING: The before mentioned modification is not required in last version, the file /KrakenOS/SetupClass.py do not have the option pip = True.**  
-
-## Surfaces and the optical system
-The library has been simplified to the point of having only two classes of objects for the definition of a system, these are surf and system.
-The surf object contains all the relevant information of every optical interface, in this way, every optical interface is an object of the surf class, all interfaces, from the object plane to the image plane, contain attributes of size, shape, material or orientation.
 
 ### A little fun before class ... and objects
 
