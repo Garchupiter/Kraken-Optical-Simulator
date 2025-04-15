@@ -32,13 +32,13 @@ pip install KrakenOS
 ## Prerequisites
 The library has been tested with the following packages and versions, these are also installed with the previous instruction.
 
-• Python 3.13.1
-• numpy 2.2.2
-• scipy 1.15.1
-• pyvista 0.44.1
-• matplotlib 3.10.0
-• vtk 9.4.1
-• pandas 2.2.3
+    • Python 3.13.1 
+    • numpy 2.2.2 
+    • scipy 1.15.1 
+    • pyvista 0.44.1 
+    • matplotlib 3.10.0 
+    • vtk 9.4.1 
+    • pandas 2.2.3 
 
 to install prerequisites
 
@@ -50,6 +50,7 @@ pip install numpy
 pip install scipy
 pip install matplotlib
 pip install csv342
+pip install pandas
 ```
 
 • Or clone the repository and place the directory “KrakenOS” in the same path where the code to be executed is located.    
