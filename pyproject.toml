@@ -1,0 +1,32 @@
+[project]
+name = "KrakenOS"
+version = "1.0.0"
+authors = [
+  {name = "Joel Herrera Vázquez", email = "joel@astro.unam.mx"},
+  {name = "Kuravi H", email = "kuravih@gmail.com"}
+]
+description = "Kraken Optical Simulator"
+readme = "README.md"
+requires-python = ">=3.7.4"
+license = "GPL-3.0"
+keywords = ["optics", "geometric raytrace", "simulator"]
+classifiers = [
+  "Programming Language :: Python :: 3"
+]
+dependencies = [
+  "numpy>=1.18.5",
+  "scipy>=1.7.1",
+  "pyvista>=0.25.3",
+  "pyvtk>=0.5.18",
+  "matplotlib>=3.4.3",
+  "vtk>=8.2",
+  "pandas>=2.2.3"
+]
+
+[project.urls]
+Repository = "https://github.com/kuravih/Kraken-Optical-Simulator.git"
+Issues = "https://github.com/kuravih/Kraken-Optical-Simulator/issues"
+
+[tool.setuptools]
+packages = ["KrakenOS"]
+package-dir = {"" = "."}
