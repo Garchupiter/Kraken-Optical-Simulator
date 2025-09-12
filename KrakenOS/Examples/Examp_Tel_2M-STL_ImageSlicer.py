@@ -4,27 +4,12 @@
 Examp-2M-STL_ImageSlicer.py
 """
 
-import pkg_resources
-""" Looking for if KrakenOS is installed, if not, it assumes that
-an folder downloaded from github is run"""
-
-required = {'KrakenOS'}
-installed = {pkg.key for pkg in pkg_resources.working_set}
-missing = required - installed
-
-if missing:
-    print("Not installed")
-    import sys
-    sys.path.append("../..")
-
-
-import KrakenOS as Kos
-
-
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy
-import os
+from importlib import resources
+
+import KrakenOS as Kos
 
 A1 = 1
 
@@ -148,22 +133,7 @@ else:
     P_Obj.Glass = "AIR"
     P_Obj.Diameter = 10
 
-    # currentDirectory = os.getcwd()
-    ruta = os.getcwd()
-
-    import os.path
-
-    ruta = ruta + "/Jherrera-ImageSlicerBW-00.stl"
-    existe = os.path.exists(ruta)
-
-    if existe:
-        print("El archivo existe.")
-    else:
-        print("El archivo no existe.")
-
-
-
-    direc = ruta
+    direc = resources.files("KrakenOS.Examples") / "Jherrera-ImageSlicerBW-00.stl"
     P_ImageSlicer = Kos.surf()
     P_ImageSlicer.Diameter = 10.0
     P_ImageSlicer.Glass = "BK7"
@@ -194,7 +164,7 @@ else:
     ImageSlicer = Kos.system(A, configuracion_1)
     Rayos = Kos.raykeeper(ImageSlicer)
 
-    outfile = "savedRays.npy"
+    outfile = resources.files("KrakenOS.Examples") / "savedRays.npy"
     R = np.load(outfile)
 
     print(np.shape(R))

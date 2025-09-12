@@ -3,16 +3,7 @@
 """Examp Parabole Mirror Shift"""
 
 import numpy as np
-import pkg_resources
-required = {'KrakenOS'}
-installed = {pkg.key for pkg in pkg_resources.working_set}
-missing = required - installed
-
-if missing:
-    print("No instalado")
-    import sys
-    sys.path.append("../..")
-
+from importlib import resources
 
 import KrakenOS as Kos
 
@@ -27,7 +18,7 @@ P.Diameter = 5
 
 
 
-file = r"prism.stl"
+file = resources.files("KrakenOS.Examples") / "prism.stl"
 Solid = Kos.surf()
 Solid.Diameter = 20
 Solid.Solid_3d_stl = file

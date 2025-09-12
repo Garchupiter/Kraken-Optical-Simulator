@@ -2,18 +2,8 @@
 # -*- coding: utf-8 -*-
 """Examp Tel 2M Spyder Spot Diagram"""
 
-# import os
 import numpy as np
-import pkg_resources
-required = {'KrakenOS'}
-installed = {pkg.key for pkg in pkg_resources.working_set}
-missing = required - installed
-
-if missing:
-    print("No instalado")
-    import sys
-    sys.path.append("../..")
-
+from importlib import resources
 
 import KrakenOS as Kos
 
@@ -57,7 +47,7 @@ Vertex.Drawing = 0
 
 # ______________________________________#
 
-file = r"Prisma.stl"
+file = resources.files("KrakenOS.Examples") / "Prisma.stl"
 
 # ______________________________________#
 

@@ -12,16 +12,6 @@ Using stl or vtk solid elements in non-sequential mode is not accurate,
 import matplotlib.pyplot as plt
 import numpy as np
 import pyvista as pv
-import pkg_resources
-required = {'KrakenOS'}
-installed = {pkg.key for pkg in pkg_resources.working_set}
-missing = required - installed
-
-if missing:
-    print("No instalado")
-    import sys
-    sys.path.append("../..")
-
 
 import KrakenOS as Kos
 

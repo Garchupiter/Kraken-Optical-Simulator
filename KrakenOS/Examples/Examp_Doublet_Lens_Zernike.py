@@ -2,23 +2,9 @@
 # -*- coding: utf-8 -*-
 """Doublet Lens Zernike"""
 
-import pkg_resources
-required = {'KrakenOS'}
-installed = {pkg.key for pkg in pkg_resources.working_set}
-missing = required - installed
-
-if missing:
-    print("No instalado")
-    import sys
-    sys.path.append("../..")
-
+import numpy as np
 
 import KrakenOS as Kos
-
-
-import numpy as np
-import matplotlib.pyplot as plt
-import time
 
 # ______________________________________#
 

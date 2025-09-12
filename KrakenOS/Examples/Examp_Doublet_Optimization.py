@@ -2,26 +2,12 @@
 # -*- coding: utf-8 -*-
 """Examp Perfect Lens"""
 
-import time
 import matplotlib.pyplot as plt
 import numpy as np
-import pkg_resources
-required = {'KrakenOS'}
-installed = {pkg.key for pkg in pkg_resources.working_set}
-missing = required - installed
-
-if missing:
-    print("No instalado")
-    import sys
-    sys.path.append("../..")
-
+import scipy
 
 import KrakenOS as Kos
 
-import scipy
-
-
-import matplotlib.pyplot as plt
 def MyPlot(RK,surf, figure= "Spot", mk=["x"], col = [[0.8,0.0,0.0]]):
     fig = plt.figure(figure)
     ax = fig.add_subplot()

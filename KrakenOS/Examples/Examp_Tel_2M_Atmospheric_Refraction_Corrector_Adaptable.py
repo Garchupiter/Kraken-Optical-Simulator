@@ -2,25 +2,11 @@
 # -*- coding: utf-8 -*-
 """Examp-Tel_2M_Atmospheric_Refraction_Corrector"""
 
-import pkg_resources
-required = {'KrakenOS'}
-installed = {pkg.key for pkg in pkg_resources.working_set}
-missing = required - installed
-
-if missing:
-    print("No instalado")
-    import sys
-    sys.path.append("../..")
-
-
-import KrakenOS as Kos
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy
 
-
-
-
+import KrakenOS as Kos
 
 def MyPlot(RK,surf, figure= "Spot", mk=["x"], col = [[0.8,0.0,0.0]]):
     fig = plt.figure(figure)

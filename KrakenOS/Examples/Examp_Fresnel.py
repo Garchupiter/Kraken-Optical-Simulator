@@ -8,23 +8,11 @@ builds an optical system in KrakenOS, and traces rays through the system to
 visualize the lens behavior.
 """
 
-import pkg_resources
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
-
-# -----------------------------------------------------------------------------
-# Check that KrakenOS is available
-# -----------------------------------------------------------------------------
-
-required = {'KrakenOS'}
-installed = {pkg.key for pkg in pkg_resources.working_set}
-missing = required - installed
-
-if missing:
-    print("KrakenOS is not installed. Adding relative path for local environment.")
-    sys.path.append("../..")
+from importlib import resources
 
 import KrakenOS as Kos
 
@@ -109,7 +97,7 @@ class FresnelPrepare:
 # Define the Fresnel lens from the profile file
 # -----------------------------------------------------------------------------
 
-file = "R1064_F1800.txt"  # Lens profile file
+file = resources.files("KrakenOS.Examples") / "R1064_F1800.txt"  # Lens profile file
 fresnel = FresnelPrepare(file)
 E = []  # Placeholder for additional data if needed
 

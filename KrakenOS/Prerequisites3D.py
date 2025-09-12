@@ -221,7 +221,10 @@ class Prerequisites():
                 disc = pv.Disc(center=[0.0, 0.0, 0.0], inner=INNER, outer=OUTER, normal=(0, 0, 1), r_res = r_RES, c_res = (RES * 2))
                 L_te_h = self.Flat2SigmaSurface(disc, j)
                 if (self.SDT[j].InDiameter > 0):
-                    L_te_h = L_te_h.delaunay_2d().edge_source = L_te_h
+                    # L_te_h = L_te_h.delaunay_2d().edge_source = L_te_h
+                    mesh = L_te_h.delaunay_2d()
+                    pv.set_new_attribute(mesh, "edge_source", L_te_h)
+                    L_te_h = mesh
                 else:
                     L_te_h = L_te_h.delaunay_2d()
             else:

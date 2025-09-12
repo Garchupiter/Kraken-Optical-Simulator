@@ -14,20 +14,7 @@ Author: Joel H. V.
 Date:12/04/25
 """
 
-import pkg_resources
-import sys
 import numpy as np
-import matplotlib.pyplot as plt
-
-
-# --- Dependency check: ensure KrakenOS is installed or load from local path ---
-required = {'KrakenOS'}
-installed = {pkg.key for pkg in pkg_resources.working_set}
-missing = required - installed
-
-if missing:
-    print("KrakenOS not installed. Adding relative path.")
-    sys.path.append("../..")
 
 import KrakenOS as Kos
 

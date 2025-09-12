@@ -2,36 +2,16 @@
 # -*- coding: utf-8 -*-
 """Examp Doublet Lens"""
 
-
+from importlib import resources
 import numpy as np
-import pkg_resources
-import os
-""" Looking for if KrakenOS is installed, if not, it assumes that
-an folder downloaded from github is run"""
-
-required = {'KrakenOS'}
-installed = {pkg.key for pkg in pkg_resources.working_set}
-missing = required - installed
-
-if missing:
-    print("Not installed")
-    import sys
-    sys.path.append("../..")
-
 
 import KrakenOS as Kos
 
-LENSCAT_PATH = os.path.abspath(os.path.join(os.getcwd(), os.pardir, os.pardir)) + "/KrakenOS/LensCat"
-
-
-ED_CAT_PATH = os.path.join(LENSCAT_PATH, 'Edmund Optics 2019.ZMF')
-
-THOR_CAT_PATH = os.path.join(LENSCAT_PATH, 'THORLABS.ZMF')
-
 # load lens catalog
-PATH1 = os.path.join(LENSCAT_PATH, ED_CAT_PATH)
 
-PATH2 = os.path.join(LENSCAT_PATH, THOR_CAT_PATH)
+PATH1 = resources.files("KrakenOS.lens_cat") / "Edmund Optics 2019.ZMF"
+
+PATH2 = resources.files("KrakenOS.lens_cat") / "THORLABS.ZMF"
 
 cat = Kos.zmf2dict([PATH1, PATH2])
 
@@ -56,7 +36,7 @@ cat_dictionary = Kos.surflist2dict(surf_list)
 
 
 
-Zf = os.path.join(LENSCAT_PATH, 'zmax_84383.zmx')
+Zf = resources.files("KrakenOS.lens_cat") / "zmax_84383.zmx"
 
 Z = Kos.zmx_read(Zf)
 
