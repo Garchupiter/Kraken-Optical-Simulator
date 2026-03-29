@@ -308,6 +308,18 @@ def R_RMS(delta_Z, L, M, N, X, Y):
     R_RMS = np.sqrt(np.mean(R2))
     return R_RMS
 
+def minimize_R_RMS(delta_Z, L, M, N, X, Y):
+    """Find the axial shift that minimizes `R_RMS`.
+
+    `fsolve` tries to find a zero of `R_RMS`, but this quantity is non-negative
+    and generally does not cross zero for real systems.  Minimize the RMS value
+    directly instead to avoid spurious convergence warnings.
+    """
+    result = minimize_scalar(R_RMS, args=(L, M, N, X, Y))
+    if result.success:
+        return np.asarray([result.x])
+    return np.asarray([delta_Z])
+
 def FuncVectorCross(Z1, XYZa, LMNa, XYZb, LMNb, xy):
     """FuncVectorCross.
 
@@ -648,10 +660,10 @@ class PupilCalc():
 
         delta_Z = 0
         ZZ = (Ls, Ms, Ns, Xs, Ys)
-        v0 = scipy.optimize.fsolve(R_RMS, delta_Z, args=ZZ)
+        v0 = minimize_R_RMS(delta_Z, *ZZ)
 
         ZZ = (Le, Me, Ne, Xe, Ye)
-        vf = scipy.optimize.fsolve(R_RMS, delta_Z, args=ZZ)
+        vf = minimize_R_RMS(delta_Z, *ZZ)
 
         PosPupInp = np.asarray([0, 0, v0[0]])
         OPS = np.asarray([Le[0], Me[0], Ne[0]])
@@ -954,7 +966,6 @@ class PupilCalc():
 
         self.SYSTEM.TargSurfRest()
         return(vx, vy, vz, l, m, n)
-
 
 
 

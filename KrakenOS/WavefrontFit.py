@@ -61,7 +61,7 @@ def Zernike_Fitting(x1, y1, Z1, Arr, minimum=0.000000001):
         D = D.T
         SA = np.zeros_like(Arr)
         NA = Arr.shape[0]
-        MA = np.asarray(np.matmul(ZTZ_1_ZT, D))
+        MA = np.asarray(np.matmul(ZTZ_1_ZT, D)).reshape(-1)
 
         p = 2.5
         A=Zi
@@ -74,7 +74,7 @@ def Zernike_Fitting(x1, y1, Z1, Arr, minimum=0.000000001):
         Inv_A_T_A_A_T = np.matmul(Inv_A_T_A, A_T)
         x=np.matmul(Inv_A_T_A_A_T, b)
 
-        MA=x
+        MA = np.asarray(x).reshape(-1)
 
         cont = 0
         ZZ = []
@@ -83,7 +83,7 @@ def Zernike_Fitting(x1, y1, Z1, Arr, minimum=0.000000001):
         ZZ = np.asarray(ZZ)
         for i2 in range(0, NA):
             if (Arr[i2] != 0):
-                SA[i2] = MA[cont][0]
+                SA[i2] = MA[cont]
                 cont = (cont + 1)
             else:
                 SA[i2] = 0.0
@@ -202,4 +202,3 @@ def System_Matrix_Zernikes(x, y, A, Zern_pol, z_pow, fz):
             ZU[(cont, n)] = F
         cont = (cont + 1)
     return ZU
-

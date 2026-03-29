@@ -1,3 +1,14 @@
+import os
+import tempfile
+
+import matplotlib
+if os.environ.get("WAYLAND_DISPLAY") or os.environ.get("DISPLAY"):
+    for candidate in ("qtagg", "tkagg", "gtk3agg", "gtk4agg"):
+        try:
+            matplotlib.use(candidate, force=True)
+            break
+        except Exception:
+            continue
 
 import numpy as np
 import pyvista as pv
@@ -198,12 +209,12 @@ def display3d_old(SYSTEM, RAYS, view=0, inline=False,     BackgCol= 'white', Bac
                 if (recorte == 2):
                     clippedx = AAAA.clip((1, 0, 0), invert=False)
                     c = c.merge(clippedx)
-                p.add_mesh(c, color, opacity=OPA, specular=1, specular_power=15, smooth_shading=True, show_edges=False)
+                p.add_mesh(c, color=color, opacity=OPA, specular=1, specular_power=15, smooth_shading=True, show_edges=False)
                 edges = c.extract_feature_edges(feature_angle=10, boundary_edges=True, feature_edges=False, manifold_edges=False)
                 if SYSTEM.SDT_0[n].Solid_3d_stl != "None" and recorte ==0:
                     print(" ") # No edges
                 else:
-                    p.add_mesh(edges, 'red')
+                    p.add_mesh(edges, color='red')
                 points2 = np.c_[0.0, 0.0, 0.0]
                 c = pv.PolyData(points2)
     p.add_mesh(SYSTEM.DDD, color=[0.5, 0.5, 0.5], opacity=OPA, show_edges=None)
@@ -223,16 +234,16 @@ def display3d_old(SYSTEM, RAYS, view=0, inline=False,     BackgCol= 'white', Bac
                 color = SYSTEM.SDT_0[g].Color
             if (recorte == 1):
                 clippedx = SYSTEM.BBB[n].clip('x', invert=False)
-                p.add_mesh(clippedx, color ,opacity=OPA, smooth_shading=True, show_edges=None)
+                p.add_mesh(clippedx, color=color, opacity=OPA, smooth_shading=True, show_edges=None)
                 clippedy = SYSTEM.BBB[n].clip('-y', invert=False)
-                p.add_mesh(clippedy, color,opacity=OPA, smooth_shading=True, show_edges=None)
+                p.add_mesh(clippedy, color=color, opacity=OPA, smooth_shading=True, show_edges=None)
             if (recorte == 0):
                 No_clipped = SYSTEM.BBB[n]
-                p.add_mesh(No_clipped, color,opacity=OPA, smooth_shading=False, show_edges=None)
+                p.add_mesh(No_clipped, color=color, opacity=OPA, smooth_shading=False, show_edges=None)
             if (recorte == 2):
                 BBBB = SYSTEM.BBB[n]
                 clippedx = BBBB.clip((1, 0, 0), invert=False)
-                p.add_mesh(clippedx, color,opacity=OPA, smooth_shading=True, show_edges=None)
+                p.add_mesh(clippedx, color=color, opacity=OPA, smooth_shading=True, show_edges=None)
         n = (n + 1)
 
     if INST == True:
@@ -437,6 +448,11 @@ def display3d_colab(
         _HAS_IPY = True
     except Exception:
         _HAS_IPY = False
+
+    if filename.startswith("/content/") and not os.path.isdir("/content"):
+        filename = os.path.join(tempfile.gettempdir(), os.path.basename(filename))
+
+    os.makedirs(os.path.dirname(filename) or ".", exist_ok=True)
 
     # 1) Asegura Xvfb (headless render) en Colab
     # Si no estás en colab igual funciona en modo off_screen si hay soporte
@@ -672,14 +688,14 @@ def plot3d(SYSTEM, view, p, OPA):
                     clippedx = AAAA.clip((1, 0, 0), invert=False)
                     c = c.merge(clippedx)
 
-                p.add_mesh(c, color, opacity=OPA, specular=1, specular_power=15, smooth_shading=True, show_edges=False)
+                p.add_mesh(c, color=color, opacity=OPA, specular=1, specular_power=15, smooth_shading=True, show_edges=False)
                 edges = c.extract_feature_edges(feature_angle=10, boundary_edges=True, feature_edges=False, manifold_edges=False)
 
                # TTT.append(c)
                 if SYSTEM.SDT_0[n].Solid_3d_stl != "None" and recorte ==0:
                     print(" ") # No edges
                 else:
-                    p.add_mesh(edges, 'red')
+                    p.add_mesh(edges, color='red')
                 points2 = np.c_[0.0, 0.0, 0.0]
                 c = pv.PolyData(points2)
     p.add_mesh(SYSTEM.DDD, color=[0.5, 0.5, 0.5], opacity=OPA, show_edges=None)
@@ -700,19 +716,19 @@ def plot3d(SYSTEM, view, p, OPA):
                 color = SYSTEM.SDT_0[g].Color
             if (recorte == 1):
                 clippedx = SYSTEM.BBB[n].clip('x', invert=False)
-                p.add_mesh(clippedx, color ,opacity=OPA, smooth_shading=True, show_edges=None)
+                p.add_mesh(clippedx, color=color, opacity=OPA, smooth_shading=True, show_edges=None)
                 clippedy = SYSTEM.BBB[n].clip('-y', invert=False)
-                p.add_mesh(clippedy, color,opacity=OPA, smooth_shading=True, show_edges=None)
+                p.add_mesh(clippedy, color=color, opacity=OPA, smooth_shading=True, show_edges=None)
 
 
             if (recorte == 0):
                 No_clipped = SYSTEM.BBB[n]
-                p.add_mesh(No_clipped, color,opacity=OPA, smooth_shading=False, show_edges=None)
+                p.add_mesh(No_clipped, color=color, opacity=OPA, smooth_shading=False, show_edges=None)
 
             if (recorte == 2):
                 BBBB = SYSTEM.BBB[n]
                 clippedx = BBBB.clip((1, 0, 0), invert=False)
-                p.add_mesh(clippedx, color,opacity=OPA, smooth_shading=True, show_edges=None)
+                p.add_mesh(clippedx, color=color, opacity=OPA, smooth_shading=True, show_edges=None)
 
         n = (n + 1)
 
@@ -1003,6 +1019,17 @@ def display2d(SYSTEM, RAYS, view=0, arrow=0, nrays = 0, figsize: Tuple=(10, 4), 
 
 ###############################################################################
 
+def _scalar_coord(value, index=0):
+    arr = np.asarray(value)
+    if arr.ndim == 0:
+        return float(arr)
+    flat = arr.reshape(-1)
+    if flat.size == 0:
+        return 0.0
+    idx = max(min(index, flat.size - 1), -flat.size)
+    return float(flat[idx])
+
+
 def Plot2DSurf(SYSTEM, view, ax1):
     fs = 11
     NN = SYSTEM.AAA.n_blocks
@@ -1026,6 +1053,8 @@ def Plot2DSurf(SYSTEM, view, ax1):
             AAAA = SYSTEM.AAA[n]
             if (SYSTEM.SDT_0[n].Glass != 'NULL'):
                 (PosX, PosY) = SYSTEM.SDT_0[n].Nm_Pos
+                PosX = _scalar_coord(PosX)
+                PosY = _scalar_coord(PosY)
                 s = SYSTEM.SDT_0[n].Name
                 ss = SYSTEM.Object_Num[n]
                 if (view == 0):
@@ -1036,21 +1065,57 @@ def Plot2DSurf(SYSTEM, view, ax1):
                     (ax, ay, az) = edge_3d(AAAA, (- 1), 0, 0, solid)
                     (az, ay) = filter_face_2dplot(az, ay, solid)
                     ax1.plot(az, ay, LT, c='black', linewidth=0.5)
-                    ax1.text(((np.max(az) + PosX) + 1), ((np.max(ay) + PosY) - 1), s, fontsize=fs)
+                    ax1.text(
+                        _scalar_coord((np.max(az) + PosX) + 1),
+                        _scalar_coord((np.max(ay) + PosY) - 1),
+                        s,
+                        fontsize=fs,
+                    )
                     delta = ((np.max(ay) - np.min(ay)) / 10)
 
 
                     ABC=int(0.5*(np.argmin(ay) - np.argmax(ay)))
-                    CordABC = az[ABC]
+                    CordABC = _scalar_coord(az, ABC)
 
 
                     if SYSTEM.SDT_0[n].NumLabel == 1:
 
-                        ax1.text(CordABC, sn*1.5*(np.min(ay) - (1.5 * delta)), (('[' + str(ss)) + ']'), fontsize=fs)
-                        ax1.plot([CordABC, CordABC], [np.mean(ay), sn*1.5*(np.min(ay) - delta)], '-.', c='red', linewidth=0.5)
+                        ax1.text(
+                            _scalar_coord(CordABC),
+                            _scalar_coord(sn * 1.5 * (np.min(ay) - (1.5 * delta))),
+                            (('[' + str(ss)) + ']'),
+                            fontsize=fs,
+                        )
+                        ax1.plot(
+                            [_scalar_coord(CordABC), _scalar_coord(CordABC)],
+                            [_scalar_coord(np.mean(ay)), _scalar_coord(sn * 1.5 * (np.min(ay) - delta))],
+                            '-.',
+                            c='red',
+                            linewidth=0.5,
+                        )
                     if ((PosX != 0) or (PosY != 0)):
-                        ax1.arrow((np.max(az) + PosX), (np.max(ay) + PosY/2), (- PosX), (- PosY/2.0), head_width=0.5, head_length=1.0, fc='k', ec='k', length_includes_head=True)
-                        ax1.arrow((np.max(az) + PosX), (np.max(ay) + PosY), (- PosX)*0, (- PosY)/2.0, head_width=0.1, head_length=0.0, fc='k', ec='k', length_includes_head=True)
+                        ax1.arrow(
+                            _scalar_coord(np.max(az) + PosX),
+                            _scalar_coord(np.max(ay) + PosY / 2),
+                            _scalar_coord(-PosX),
+                            _scalar_coord(-PosY / 2.0),
+                            head_width=0.5,
+                            head_length=1.0,
+                            fc='k',
+                            ec='k',
+                            length_includes_head=True,
+                        )
+                        ax1.arrow(
+                            _scalar_coord(np.max(az) + PosX),
+                            _scalar_coord(np.max(ay) + PosY),
+                            _scalar_coord((-PosX) * 0),
+                            _scalar_coord((-PosY) / 2.0),
+                            head_width=0.1,
+                            head_length=0.0,
+                            fc='k',
+                            ec='k',
+                            length_includes_head=True,
+                        )
 
                 if (view == 1):
 
@@ -1061,20 +1126,56 @@ def Plot2DSurf(SYSTEM, view, ax1):
                     (ax, ay, az) = edge_3d(AAAA, 0, (- 1), 0, solid)
                     (az, ax) = filter_face_2dplot(az, ax, solid)
                     ax1.plot(az, ax, LT, c='black', linewidth=0.5)
-                    ax1.text(((np.max(az) + PosX) + 1), ((np.max(ax) + PosY) - 1), s, fontsize=fs)
+                    ax1.text(
+                        _scalar_coord((np.max(az) + PosX) + 1),
+                        _scalar_coord((np.max(ax) + PosY) - 1),
+                        s,
+                        fontsize=fs,
+                    )
                     delta = ((np.max(ax) - np.min(ax)) / 10)
 
                     ABC=int(0.5*(np.argmin(ax) - np.argmax(ax)))
-                    CordABC = az[ABC]
+                    CordABC = _scalar_coord(az, ABC)
 
 
                     if SYSTEM.SDT_0[n].NumLabel == 1:
-                        ax1.text(CordABC, sn*1.5*(np.min(ax) - (1.5 * delta)), (('[' + str(ss)) + ']'), fontsize=fs)
-                        ax1.plot([CordABC, CordABC], [np.mean(ax), sn*1.5*(np.min(ax) - delta)], '-.', c='red', linewidth=0.5)
+                        ax1.text(
+                            _scalar_coord(CordABC),
+                            _scalar_coord(sn * 1.5 * (np.min(ax) - (1.5 * delta))),
+                            (('[' + str(ss)) + ']'),
+                            fontsize=fs,
+                        )
+                        ax1.plot(
+                            [_scalar_coord(CordABC), _scalar_coord(CordABC)],
+                            [_scalar_coord(np.mean(ax)), _scalar_coord(sn * 1.5 * (np.min(ax) - delta))],
+                            '-.',
+                            c='red',
+                            linewidth=0.5,
+                        )
 
                     if ((PosX != 0) or (PosY != 0)):
-                        ax1.arrow((np.max(az) + PosX), (np.max(ax) + PosY/2), (- PosX), (- PosY/2.0), head_width=0.5, head_length=1.0, fc='k', ec='k', length_includes_head=True)
-                        ax1.arrow((np.max(az) + PosX), (np.max(ax) + PosY), (- PosX)*0, (- PosY)/2.0, head_width=0.1, head_length=0.0, fc='k', ec='k', length_includes_head=True)
+                        ax1.arrow(
+                            _scalar_coord(np.max(az) + PosX),
+                            _scalar_coord(np.max(ax) + PosY / 2),
+                            _scalar_coord(-PosX),
+                            _scalar_coord(-PosY / 2.0),
+                            head_width=0.5,
+                            head_length=1.0,
+                            fc='k',
+                            ec='k',
+                            length_includes_head=True,
+                        )
+                        ax1.arrow(
+                            _scalar_coord(np.max(az) + PosX),
+                            _scalar_coord(np.max(ax) + PosY),
+                            _scalar_coord((-PosX) * 0),
+                            _scalar_coord((-PosY) / 2.0),
+                            head_width=0.1,
+                            head_length=0.0,
+                            fc='k',
+                            ec='k',
+                            length_includes_head=True,
+                        )
 
             mx.append(np.max(az))
             mn.append(np.min(az))
@@ -1337,12 +1438,12 @@ def display3d_4OB(SYSTEM, RAYS, view, inline, BackgCol, BackgColTop, GridCol, p)
                 if (recorte == 2):
                     clippedx = AAAA.clip((1, 0, 0), invert=False)
                     c = c.merge(clippedx)
-                p.add_mesh(c, color, opacity=OPA, specular=1, specular_power=15, smooth_shading=True, show_edges=False)
+                p.add_mesh(c, color=color, opacity=OPA, specular=1, specular_power=15, smooth_shading=True, show_edges=False)
                 edges = c.extract_feature_edges(feature_angle=10, boundary_edges=True, feature_edges=False, manifold_edges=False)
                 if SYSTEM.SDT_0[n].Solid_3d_stl != "None" and recorte ==0:
                     print(" ") # No edges
                 else:
-                    p.add_mesh(edges, 'red')
+                    p.add_mesh(edges, color='red')
                 points2 = np.c_[0.0, 0.0, 0.0]
                 c = pv.PolyData(points2)
     p.add_mesh(SYSTEM.DDD, color=[0.5, 0.5, 0.5], opacity=OPA, show_edges=None)
@@ -1362,16 +1463,16 @@ def display3d_4OB(SYSTEM, RAYS, view, inline, BackgCol, BackgColTop, GridCol, p)
                 color = SYSTEM.SDT_0[g].Color
             if (recorte == 1):
                 clippedx = SYSTEM.BBB[n].clip('x', invert=False)
-                p.add_mesh(clippedx, color ,opacity=OPA, smooth_shading=True, show_edges=None)
+                p.add_mesh(clippedx, color=color, opacity=OPA, smooth_shading=True, show_edges=None)
                 clippedy = SYSTEM.BBB[n].clip('-y', invert=False)
-                p.add_mesh(clippedy, color,opacity=OPA, smooth_shading=True, show_edges=None)
+                p.add_mesh(clippedy, color=color, opacity=OPA, smooth_shading=True, show_edges=None)
             if (recorte == 0):
                 No_clipped = SYSTEM.BBB[n]
-                p.add_mesh(No_clipped, color,opacity=OPA, smooth_shading=False, show_edges=None)
+                p.add_mesh(No_clipped, color=color, opacity=OPA, smooth_shading=False, show_edges=None)
             if (recorte == 2):
                 BBBB = SYSTEM.BBB[n]
                 clippedx = BBBB.clip((1, 0, 0), invert=False)
-                p.add_mesh(clippedx, color,opacity=OPA, smooth_shading=True, show_edges=None)
+                p.add_mesh(clippedx, color=color, opacity=OPA, smooth_shading=True, show_edges=None)
         n = (n + 1)
 
     if INST == True:
@@ -1400,5 +1501,5 @@ def display3d_4OB(SYSTEM, RAYS, view, inline, BackgCol, BackgColTop, GridCol, p)
     p.set_background(BackgCol, top=BackgColTop)
     p.add_text('KrakenOS',position="upper_left" ,font_size=20,color="royalblue")
     p.show_grid(font_size=6,color=GridCol)
-    p.show(auto_close=False, interactive=True, interactive_update=True)
+    p.show(auto_close=False, interactive=True, interactive_update=False)
     [cpx,cpy,cpz]=p.camera_position
