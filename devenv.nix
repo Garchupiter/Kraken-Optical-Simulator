@@ -30,7 +30,7 @@ in
 
   languages.python = {
     enable = true;
-    package = pkgs.python312;
+    package = pkgs.python313;
     uv.enable = true;
   };
 
@@ -42,10 +42,14 @@ in
   enterShell = ''
     VENV_DIR="$PWD/.devenv/state/venv"
     REQ_HASH_FILE="$PWD/.devenv/state/kraken-requirements.hash"
-    REQ_HASH="krakenos-v4"
+    REQ_HASH="krakenos-v6"
 
     if [ ! -x "$VENV_DIR/bin/python" ]; then
       python -m venv "$VENV_DIR"
+    fi
+
+    if ! "$VENV_DIR/bin/python" -m pip --version >/dev/null 2>&1; then
+      "$VENV_DIR/bin/python" -m ensurepip --upgrade
     fi
 
     if [ ! -f "$REQ_HASH_FILE" ] || [ "$(cat "$REQ_HASH_FILE" 2>/dev/null)" != "$REQ_HASH" ]; then
