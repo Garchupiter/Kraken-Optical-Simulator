@@ -3,10 +3,11 @@
 """Examp Parabole Mirror Shift"""
 
 import numpy as np
-import pkg_resources
+from importlib import metadata
+from pathlib import Path
 required = {'KrakenOS'}
-installed = {pkg.key for pkg in pkg_resources.working_set}
-missing = required - installed
+installed = {dist.metadata["Name"] for dist in metadata.distributions() if dist.metadata.get("Name")}
+missing = {pkg for pkg in required if pkg not in installed}
 
 if missing:
     print("No instalado")
@@ -47,8 +48,7 @@ P_Ima.Name = "Plano imagen"
 
 A = [P_Obj, M1, P_Ima]
 configuracion_1 = Kos.Setup()
-file = "/Users/joelherreravazquez/Library/CloudStorage/OneDrive-UNIVERSIDADNACIONALAUTÓNOMADEMÉXICO/Documentos/GitHub/Kraken-Optical-Simulator/KrakenOS/Cat/Gold.csv"
-# file = "/borrar/KrakenOS/Cat/Gold.csv"
+file = Path(__file__).resolve().parents[1] / "Cat" / "Gold.csv"
 configuracion_1.LoadMetal(file, "Gold", 1)
 
 # ______________________________________#
@@ -103,7 +103,6 @@ print(Rayos.RP[0], Rayos.RP[1], Rayos.RP[2])
 
 
 # x,y,z,l,m,n = Rayos.pick(-1, coordinates="local")
-
 
 
 

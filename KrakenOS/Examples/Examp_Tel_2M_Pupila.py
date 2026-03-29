@@ -8,10 +8,10 @@ import numpy as np
 import sys
 sys.path.insert(1, '/Users/joelherreravazquez/Documents/GitHub/Kraken-Optical-Simulator/')
 
-import pkg_resources
+from importlib import metadata
 required = {'KrakenOS'}
-installed = {pkg.key for pkg in pkg_resources.working_set}
-missing = required - installed
+installed = {dist.metadata["Name"] for dist in metadata.distributions() if dist.metadata.get("Name")}
+missing = {pkg for pkg in required if pkg not in installed}
 
 if missing:
     print("No instalado")

@@ -4,10 +4,13 @@
 
 import numpy as np
 
-import pkg_resources
 required = {'KrakenOS'}
-installed = {pkg.key for pkg in pkg_resources.working_set}
-missing = required - installed
+try:
+    from importlib import metadata
+    installed = {dist.metadata["Name"] for dist in metadata.distributions() if dist.metadata.get("Name")}
+    missing = {pkg for pkg in required if pkg not in installed}
+except Exception:
+    missing = set()
 
 if missing:
     print("No instalado")

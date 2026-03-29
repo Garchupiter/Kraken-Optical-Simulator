@@ -13,15 +13,15 @@ Date: 10/03/2025
 """
 
 import numpy as np
-import pkg_resources
+from importlib import metadata
 
 # =============================================================================
 # Check if KrakenOS is installed. If not, assume that the code is run from a
 # downloaded GitHub folder and add the relative path.
 # =============================================================================
 required = {'KrakenOS'}
-installed = {pkg.key for pkg in pkg_resources.working_set}
-missing = required - installed
+installed = {dist.metadata["Name"] for dist in metadata.distributions() if dist.metadata.get("Name")}
+missing = {pkg for pkg in required if pkg not in installed}
 
 if missing:
     print("KrakenOS is not installed. Using local GitHub folder.")
