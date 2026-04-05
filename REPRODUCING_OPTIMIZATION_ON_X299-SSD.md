@@ -160,6 +160,9 @@ Current optimization UI behavior:
 - optimization output is written in the bottom panel:
   - left: `Debug`
   - right: `Progress`
+- the `Progress` panel header shows:
+  - a liveness spinner
+  - completion percentage by generation
 
 ## Notes
 

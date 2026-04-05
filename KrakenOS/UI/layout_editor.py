@@ -209,29 +209,32 @@ class KrakenLayoutEditor(tk.Tk):
         ttk.Button(toolbar, text="Refresh Plot", command=self.refresh_plot).grid(
             row=0, column=8, padx=(12, 0), pady=4
         )
+        ttk.Button(toolbar, text="Clear Marks", command=self.clear_optimization_marks).grid(
+            row=0, column=9, padx=(4, 0), pady=4
+        )
         ttk.Button(toolbar, text="Layout", command=lambda: self.set_analysis_mode("none")).grid(
-            row=0, column=9, padx=(12, 2), pady=4
+            row=0, column=10, padx=(12, 2), pady=4
         )
         ttk.Button(toolbar, text="Spot", command=lambda: self.set_analysis_mode("spot")).grid(
-            row=0, column=10, padx=2, pady=4
-        )
-        ttk.Button(toolbar, text="RMS", command=lambda: self.set_analysis_mode("rms")).grid(
             row=0, column=11, padx=2, pady=4
         )
-        ttk.Button(toolbar, text="Pupil", command=lambda: self.set_analysis_mode("pupil")).grid(
+        ttk.Button(toolbar, text="RMS", command=lambda: self.set_analysis_mode("rms")).grid(
             row=0, column=12, padx=2, pady=4
         )
-        ttk.Button(toolbar, text="Seidel", command=lambda: self.set_analysis_mode("seidel")).grid(
+        ttk.Button(toolbar, text="Pupil", command=lambda: self.set_analysis_mode("pupil")).grid(
             row=0, column=13, padx=2, pady=4
         )
-        ttk.Button(toolbar, text="Wavefront", command=lambda: self.set_analysis_mode("wavefront")).grid(
+        ttk.Button(toolbar, text="Seidel", command=lambda: self.set_analysis_mode("seidel")).grid(
             row=0, column=14, padx=2, pady=4
         )
+        ttk.Button(toolbar, text="Wavefront", command=lambda: self.set_analysis_mode("wavefront")).grid(
+            row=0, column=15, padx=2, pady=4
+        )
         ttk.Button(toolbar, text="Start Optimization", command=self.start_optimization).grid(
-            row=0, column=15, padx=(12, 0), pady=4
+            row=0, column=16, padx=(12, 0), pady=4
         )
         ttk.Button(toolbar, text="Stop", command=self.stop_optimization).grid(
-            row=0, column=16, padx=(4, 0), pady=4
+            row=0, column=17, padx=(4, 0), pady=4
         )
 
         main = ttk.Panedwindow(self, orient=tk.VERTICAL)
@@ -269,7 +272,7 @@ class KrakenLayoutEditor(tk.Tk):
 
         progress_frame = ttk.LabelFrame(bottom, text="Progress", padding=8)
         progress_frame.columnconfigure(0, weight=1)
-        progress_frame.rowconfigure(0, weight=1)
+        progress_frame.rowconfigure(1, weight=1)
         bottom.add(progress_frame, weight=1)
 
         self.table = ttk.Treeview(table_frame, columns=FIELDS, show="headings", selectmode="extended")
@@ -306,9 +309,18 @@ class KrakenLayoutEditor(tk.Tk):
         self.debug_text.configure(yscrollcommand=debug_scroll.set)
 
         self.progress_text = tk.Text(progress_frame, wrap="word", height=8)
-        self.progress_text.grid(row=0, column=0, sticky="nsew")
+        status_bar = ttk.Frame(progress_frame)
+        status_bar.grid(row=0, column=0, sticky="ew", pady=(0, 6))
+        status_bar.columnconfigure(1, weight=1)
+        self.progress_spinner_var = tk.StringVar(value="idle")
+        self.progress_percent_var = tk.StringVar(value="0%")
+        ttk.Label(status_bar, textvariable=self.progress_spinner_var, width=6).grid(row=0, column=0, sticky="w")
+        ttk.Label(status_bar, textvariable=self.progress_percent_var).grid(row=0, column=1, sticky="w")
+
+        self.progress_text = tk.Text(progress_frame, wrap="word", height=8)
+        self.progress_text.grid(row=1, column=0, sticky="nsew")
         progress_scroll = ttk.Scrollbar(progress_frame, orient="vertical", command=self.progress_text.yview)
-        progress_scroll.grid(row=0, column=1, sticky="ns")
+        progress_scroll.grid(row=1, column=1, sticky="ns")
         self.progress_text.configure(yscrollcommand=progress_scroll.set)
 
         self.status_var = tk.StringVar(value="Ready")
@@ -364,17 +376,7 @@ class KrakenLayoutEditor(tk.Tk):
             values=MERIT_MODES,
         )
         self.merit_mode_menu.grid(row=13, column=0, sticky="ew", pady=(0, 8))
-
-        ttk.Label(
-            parent,
-            text="Right-click Rc/Thickness cells to mark optimization variables.",
-            wraplength=180,
-            justify="left",
-        ).grid(row=14, column=0, sticky="ew", pady=(4, 8))
-        ttk.Button(parent, text="Clear Marks", command=self.clear_optimization_marks).grid(
-            row=15, column=0, sticky="ew", pady=(0, 4)
-        )
-        ttk.Button(parent, text="Refresh", command=self.refresh_plot).grid(row=16, column=0, sticky="ew", pady=(8, 0))
+        ttk.Button(parent, text="Refresh", command=self.refresh_plot).grid(row=14, column=0, sticky="ew", pady=(8, 0))
 
     def _build_results_panel(self, parent) -> None:
         self.results_table = ttk.Treeview(parent, columns=("property", "value"), show="headings", selectmode="none")
@@ -1156,6 +1158,18 @@ class KrakenLayoutEditor(tk.Tk):
         self.progress_text.see("end")
         self.update_idletasks()
 
+    def _update_progress_indicators(self) -> None:
+        if not self.optimization_running or self.optimization_context is None:
+            self.progress_spinner_var.set("idle")
+            self.progress_percent_var.set("0%")
+            return
+        done = int(self.optimization_context.get("generation_done", 0))
+        total = max(1, int(self.optimization_context.get("generations_total", 1)))
+        spinner = "|/-\\"[done % 4]
+        percent = int((done / total) * 100)
+        self.progress_spinner_var.set(spinner)
+        self.progress_percent_var.set(f"{percent}% ({done}/{total})")
+
     def _update_results(self, system, rays, wavelength: float) -> None:
         items = []
         items.append(("Surface count", str(len(self.rows))))
@@ -1331,6 +1345,7 @@ class KrakenLayoutEditor(tk.Tk):
             "generation_done": 0,
             "verbosity_every": 3,
         }
+        self._update_progress_indicators()
         self.after(0, self._optimization_step)
 
     def stop_optimization(self) -> None:
@@ -1339,6 +1354,7 @@ class KrakenLayoutEditor(tk.Tk):
             return
         self.optimization_cancel_requested = True
         self.append_progress("Stop requested. Optimization will stop after the current generation.")
+        self._update_progress_indicators()
 
     def _optimization_step(self) -> None:
         if not self.optimization_running or self.optimization_context is None:
@@ -1364,6 +1380,7 @@ class KrakenLayoutEditor(tk.Tk):
 
         self.append_debug(capture.getvalue())
         ctx["generation_done"] += 1
+        self._update_progress_indicators()
         logs = algorithm.extract(pg.de).get_log()
         if logs:
             gen, fevals, best, dx, df = logs[-1]
@@ -1425,6 +1442,7 @@ class KrakenLayoutEditor(tk.Tk):
         self.optimization_context = None
         self.optimization_running = False
         self.optimization_cancel_requested = False
+        self._update_progress_indicators()
 
     def _sample_ray_heights(self, max_radius: float) -> list[float]:
         if max_radius <= 1e-9:
