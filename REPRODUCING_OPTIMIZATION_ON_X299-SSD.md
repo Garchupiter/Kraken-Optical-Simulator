@@ -151,11 +151,12 @@ Current optimization UI behavior:
 - choose `Select to optimize`
 - the numeric cell is highlighted and gets a trailing `*`
 - optionally use the same right-click menu to set custom optimization bounds
-- click `Start Optimization`
-- choose the merit function in the popup:
+- choose the merit function in the left panel:
   - `Spot RMS`
   - `Wavefront RMS`
   - `Spot + Wavefront`
+- click `Start Optimization`
+- use `Stop` in the toolbar to request cancellation after the current generation step
 - optimization output is written in the bottom panel:
   - left: `Debug`
   - right: `Progress`

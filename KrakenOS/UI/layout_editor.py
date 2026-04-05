@@ -135,6 +135,8 @@ class KrakenLayoutEditor(tk.Tk):
         self.last_system = None
         self.last_rays = None
         self.optimization_running = False
+        self.optimization_cancel_requested = False
+        self.optimization_context: dict | None = None
 
         self._build_menu()
         self._build_ui()
@@ -227,6 +229,9 @@ class KrakenLayoutEditor(tk.Tk):
         )
         ttk.Button(toolbar, text="Start Optimization", command=self.start_optimization).grid(
             row=0, column=15, padx=(12, 0), pady=4
+        )
+        ttk.Button(toolbar, text="Stop", command=self.stop_optimization).grid(
+            row=0, column=16, padx=(4, 0), pady=4
         )
 
         main = ttk.Panedwindow(self, orient=tk.VERTICAL)
@@ -350,16 +355,26 @@ class KrakenLayoutEditor(tk.Tk):
         self.aperture_value_var = tk.StringVar(value="1.0")
         ttk.Entry(parent, textvariable=self.aperture_value_var, width=12).grid(row=11, column=0, sticky="ew", pady=(0, 8))
 
+        ttk.Label(parent, text="Merit function").grid(row=12, column=0, sticky="w", pady=(0, 2))
+        self.merit_mode_var = tk.StringVar(value=MERIT_MODES[0])
+        self.merit_mode_menu = ttk.Combobox(
+            parent,
+            textvariable=self.merit_mode_var,
+            state="readonly",
+            values=MERIT_MODES,
+        )
+        self.merit_mode_menu.grid(row=13, column=0, sticky="ew", pady=(0, 8))
+
         ttk.Label(
             parent,
             text="Right-click Rc/Thickness cells to mark optimization variables.",
             wraplength=180,
             justify="left",
-        ).grid(row=12, column=0, sticky="ew", pady=(4, 8))
+        ).grid(row=14, column=0, sticky="ew", pady=(4, 8))
         ttk.Button(parent, text="Clear Marks", command=self.clear_optimization_marks).grid(
-            row=13, column=0, sticky="ew", pady=(0, 4)
+            row=15, column=0, sticky="ew", pady=(0, 4)
         )
-        ttk.Button(parent, text="Refresh", command=self.refresh_plot).grid(row=14, column=0, sticky="ew", pady=(8, 0))
+        ttk.Button(parent, text="Refresh", command=self.refresh_plot).grid(row=16, column=0, sticky="ew", pady=(8, 0))
 
     def _build_results_panel(self, parent) -> None:
         self.results_table = ttk.Treeview(parent, columns=("property", "value"), show="headings", selectmode="none")
@@ -1252,36 +1267,6 @@ class KrakenLayoutEditor(tk.Tk):
             )
         return MeritFunction(operands=operands)
 
-    def _ask_optimization_options(self) -> str | None:
-        dialog = tk.Toplevel(self)
-        dialog.title("Optimization Setup")
-        dialog.transient(self)
-        dialog.grab_set()
-        dialog.resizable(False, False)
-
-        ttk.Label(dialog, text="Optimize against").grid(row=0, column=0, sticky="w", padx=12, pady=(12, 4))
-        merit_var = tk.StringVar(value=MERIT_MODES[0])
-        merit_menu = ttk.Combobox(dialog, textvariable=merit_var, state="readonly", values=MERIT_MODES, width=24)
-        merit_menu.grid(row=1, column=0, sticky="ew", padx=12, pady=(0, 12))
-
-        result = {"value": None}
-
-        def accept():
-            result["value"] = merit_var.get().strip()
-            dialog.destroy()
-
-        def cancel():
-            dialog.destroy()
-
-        buttons = ttk.Frame(dialog)
-        buttons.grid(row=2, column=0, sticky="ew", padx=12, pady=(0, 12))
-        ttk.Button(buttons, text="Start", command=accept).pack(side="left")
-        ttk.Button(buttons, text="Cancel", command=cancel).pack(side="left", padx=(8, 0))
-
-        merit_menu.focus_set()
-        self.wait_window(dialog)
-        return result["value"]
-
     def start_optimization(self) -> None:
         if self.optimization_running:
             return
@@ -1297,11 +1282,7 @@ class KrakenLayoutEditor(tk.Tk):
             self.append_progress(f"Optimization aborted: system build failed: {exc}")
             return
 
-        merit_mode = self._ask_optimization_options()
-        if merit_mode is None:
-            self.append_progress("Optimization cancelled before start.")
-            return
-
+        merit_mode = self.merit_mode_var.get().strip()
         merit = self._build_merit_function(merit_mode)
         if not merit.operands:
             self.append_progress("Optimization aborted: no merit operands selected.")
@@ -1333,28 +1314,86 @@ class KrakenLayoutEditor(tk.Tk):
             self.append_progress(f"Optimization aborted: pygmo unavailable: {exc}")
             return
 
-        self.optimization_running = True
-        try:
-            udp = Pygmo2MeritProblem(evaluator=evaluator, variables=variables)
-            problem = pg.problem(udp)
-            population = pg.population(problem, size=12, seed=42)
-            population.push_back(x0)
-            algorithm = pg.algorithm(pg.de(gen=12, seed=42))
-            algorithm.set_verbosity(3)
-            capture = io.StringIO()
-            with redirect_stdout(capture), redirect_stderr(capture):
-                evolved = algorithm.evolve(population)
-            self.append_debug(capture.getvalue())
-            for gen, fevals, best, dx, df in algorithm.extract(pg.de).get_log():
-                self.append_progress(
-                    f"Gen {int(gen):>3} | fevals {int(fevals):>4} | best {float(best):.6g} | dx {float(dx):.6g} | df {float(df):.6g}"
-                )
-            champion_x = evolved.champion_x
-            champion = evaluator.evaluate(variables, champion_x)
-        finally:
-            self.optimization_running = False
+        udp = Pygmo2MeritProblem(evaluator=evaluator, variables=variables)
+        problem = pg.problem(udp)
+        population = pg.population(problem, size=12, seed=42)
+        population.push_back(x0)
 
-        for variable, value in zip(variables, champion_x):
+        self.optimization_running = True
+        self.optimization_cancel_requested = False
+        self.optimization_context = {
+            "pg": pg,
+            "variables": variables,
+            "evaluator": evaluator,
+            "initial": initial,
+            "population": population,
+            "generations_total": 12,
+            "generation_done": 0,
+            "verbosity_every": 3,
+        }
+        self.after(0, self._optimization_step)
+
+    def stop_optimization(self) -> None:
+        if not self.optimization_running:
+            self.append_progress("Stop ignored: no optimization is running.")
+            return
+        self.optimization_cancel_requested = True
+        self.append_progress("Stop requested. Optimization will stop after the current generation.")
+
+    def _optimization_step(self) -> None:
+        if not self.optimization_running or self.optimization_context is None:
+            return
+
+        ctx = self.optimization_context
+        if self.optimization_cancel_requested:
+            self._finish_optimization(cancelled=True)
+            return
+
+        pg = ctx["pg"]
+        algorithm = pg.algorithm(pg.de(gen=1, seed=42 + ctx["generation_done"]))
+        algorithm.set_verbosity(1)
+        capture = io.StringIO()
+        try:
+            with redirect_stdout(capture), redirect_stderr(capture):
+                ctx["population"] = algorithm.evolve(ctx["population"])
+        except Exception as exc:
+            self.append_debug(capture.getvalue())
+            self.append_progress(f"Optimization failed at generation {ctx['generation_done'] + 1}: {exc}")
+            self._finish_optimization(cancelled=True)
+            return
+
+        self.append_debug(capture.getvalue())
+        ctx["generation_done"] += 1
+        logs = algorithm.extract(pg.de).get_log()
+        if logs:
+            gen, fevals, best, dx, df = logs[-1]
+            if (
+                ctx["generation_done"] == 1
+                or ctx["generation_done"] == ctx["generations_total"]
+                or ctx["generation_done"] % ctx["verbosity_every"] == 0
+            ):
+                self.append_progress(
+                    f"Gen {int(ctx['generation_done']):>3} | fevals {int(fevals):>4} | best {float(best):.6g} | dx {float(dx):.6g} | df {float(df):.6g}"
+                )
+
+        if ctx["generation_done"] >= ctx["generations_total"]:
+            self._finish_optimization(cancelled=False)
+            return
+
+        self.after(1, self._optimization_step)
+
+    def _finish_optimization(self, cancelled: bool) -> None:
+        if self.optimization_context is None:
+            self.optimization_running = False
+            self.optimization_cancel_requested = False
+            return
+
+        ctx = self.optimization_context
+        population = ctx["population"]
+        champion_x = population.champion_x
+        champion = ctx["evaluator"].evaluate(ctx["variables"], champion_x)
+
+        for variable, value in zip(ctx["variables"], champion_x):
             row = self.rows[variable.surface_index]
             if variable.parameter == "Rc":
                 row.rc = float(value)
@@ -1363,14 +1402,29 @@ class KrakenLayoutEditor(tk.Tk):
 
         self._sync_table()
         self.refresh_plot()
-        self.status_var.set(
-            f"Optimization finished: {initial.total:.6g} -> {champion.total:.6g}"
-        )
-        self.append_progress(f"Optimization finished | merit {initial.total:.6g} -> {champion.total:.6g}")
+        initial = ctx["initial"]
+        if cancelled:
+            self.status_var.set(
+                f"Optimization stopped: {initial.total:.6g} -> {champion.total:.6g}"
+            )
+            self.append_progress(
+                f"Optimization stopped | merit {initial.total:.6g} -> {champion.total:.6g}"
+            )
+        else:
+            self.status_var.set(
+                f"Optimization finished: {initial.total:.6g} -> {champion.total:.6g}"
+            )
+            self.append_progress(
+                f"Optimization finished | merit {initial.total:.6g} -> {champion.total:.6g}"
+            )
         for operand in champion.operands:
             self.append_progress(
                 f"  {operand.name}: value={operand.value:.6g} weighted={operand.weighted:.6g}"
             )
+
+        self.optimization_context = None
+        self.optimization_running = False
+        self.optimization_cancel_requested = False
 
     def _sample_ray_heights(self, max_radius: float) -> list[float]:
         if max_radius <= 1e-9:
