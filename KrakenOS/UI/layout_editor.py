@@ -9,6 +9,8 @@ This is an initial editor scaffold that mirrors the RayTracing workflow:
 from __future__ import annotations
 
 import importlib.util
+import io
+from contextlib import redirect_stderr, redirect_stdout
 from dataclasses import dataclass, asdict
 import os
 from pathlib import Path
@@ -69,8 +71,10 @@ class SurfaceRow:
     surface: str = "Standard"
     name: str = "Surface"
     optimize_rc: bool = False
+    optimize_rc_bounds: tuple[float, float] | None = None
     rc: float = 0.0
     optimize_thickness: bool = False
+    optimize_thickness_bounds: tuple[float, float] | None = None
     thickness: float = 0.0
     diameter: float = 25.0
     glass: str = "AIR"
@@ -102,6 +106,14 @@ def _coerce_opt_flag(value) -> bool:
     if isinstance(value, bool):
         return value
     return str(value).strip() in {"*", "1", "true", "True", "yes", "on"}
+
+
+def _coerce_bounds(value) -> tuple[float, float] | None:
+    if value is None:
+        return None
+    if isinstance(value, (list, tuple)) and len(value) == 2:
+        return (float(value[0]), float(value[1]))
+    return None
 
 
 class KrakenLayoutEditor(tk.Tk):
@@ -242,6 +254,19 @@ class KrakenLayoutEditor(tk.Tk):
         plot_frame.rowconfigure(0, weight=1)
         main.add(plot_frame, weight=2)
 
+        bottom = ttk.Panedwindow(main, orient=tk.HORIZONTAL)
+        main.add(bottom, weight=1)
+
+        debug_frame = ttk.LabelFrame(bottom, text="Debug", padding=8)
+        debug_frame.columnconfigure(0, weight=1)
+        debug_frame.rowconfigure(0, weight=1)
+        bottom.add(debug_frame, weight=1)
+
+        progress_frame = ttk.LabelFrame(bottom, text="Progress", padding=8)
+        progress_frame.columnconfigure(0, weight=1)
+        progress_frame.rowconfigure(0, weight=1)
+        bottom.add(progress_frame, weight=1)
+
         self.table = ttk.Treeview(table_frame, columns=FIELDS, show="headings", selectmode="extended")
         for field in FIELDS:
             self.table.heading(field, text=COLUMN_LABELS[field])
@@ -268,6 +293,18 @@ class KrakenLayoutEditor(tk.Tk):
         self.ax = self.figure.add_subplot(111)
         self.canvas = FigureCanvasTkAgg(self.figure, master=plot_frame)
         self.canvas.get_tk_widget().grid(row=0, column=0, sticky="nsew")
+
+        self.debug_text = tk.Text(debug_frame, wrap="word", height=8)
+        self.debug_text.grid(row=0, column=0, sticky="nsew")
+        debug_scroll = ttk.Scrollbar(debug_frame, orient="vertical", command=self.debug_text.yview)
+        debug_scroll.grid(row=0, column=1, sticky="ns")
+        self.debug_text.configure(yscrollcommand=debug_scroll.set)
+
+        self.progress_text = tk.Text(progress_frame, wrap="word", height=8)
+        self.progress_text.grid(row=0, column=0, sticky="nsew")
+        progress_scroll = ttk.Scrollbar(progress_frame, orient="vertical", command=self.progress_text.yview)
+        progress_scroll.grid(row=0, column=1, sticky="ns")
+        self.progress_text.configure(yscrollcommand=progress_scroll.set)
 
         self.status_var = tk.StringVar(value="Ready")
         ttk.Label(self, textvariable=self.status_var, anchor="w").grid(
@@ -373,8 +410,10 @@ class KrakenLayoutEditor(tk.Tk):
                     surface=str(item.get("surface", self._infer_surface_type(item))),
                     name=str(item.get("name", "Surface")),
                     optimize_rc=_coerce_opt_flag(item.get("optimize_rc", item.get("opt_rc", ""))),
+                    optimize_rc_bounds=_coerce_bounds(item.get("optimize_rc_bounds")),
                     rc=float(item.get("rc", 0.0)),
                     optimize_thickness=_coerce_opt_flag(item.get("optimize_thickness", item.get("opt_thickness", ""))),
+                    optimize_thickness_bounds=_coerce_bounds(item.get("optimize_thickness_bounds")),
                     thickness=float(item.get("thickness", 0.0)),
                     diameter=float(item.get("diameter", 25.0)),
                     glass=str(item.get("glass", "AIR")),
@@ -458,8 +497,10 @@ class KrakenLayoutEditor(tk.Tk):
                     surface=str(values[1]),
                     name=str(values[2]),
                     optimize_rc=self.rows[len(rows)].optimize_rc if len(rows) < len(self.rows) else False,
+                    optimize_rc_bounds=self.rows[len(rows)].optimize_rc_bounds if len(rows) < len(self.rows) else None,
                     rc=self._parse_numeric_display(str(values[3])),
                     optimize_thickness=self.rows[len(rows)].optimize_thickness if len(rows) < len(self.rows) else False,
+                    optimize_thickness_bounds=self.rows[len(rows)].optimize_thickness_bounds if len(rows) < len(self.rows) else None,
                     thickness=self._parse_numeric_display(str(values[4])),
                     diameter=float(values[5]),
                     glass=str(values[6]),
@@ -617,11 +658,15 @@ class KrakenLayoutEditor(tk.Tk):
         self.current_menu_row_id = row_id
         self.current_menu_field = field
         marked = row.optimize_rc if field == "rc" else row.optimize_thickness
+        bounds = row.optimize_rc_bounds if field == "rc" else row.optimize_thickness_bounds
         menu = tk.Menu(self, tearoff=0)
         menu.add_command(
             label="Unselect from optimize" if marked else "Select to optimize",
             command=self.toggle_current_optimization_cell,
         )
+        menu.add_separator()
+        menu.add_command(label="Set bounds...", command=self.edit_current_bounds)
+        menu.add_command(label="Clear bounds", command=self.clear_current_bounds, state=("normal" if bounds else "disabled"))
         self.popup_menu = menu
         try:
             menu.tk_popup(event.x_root, event.y_root)
@@ -720,6 +765,76 @@ class KrakenLayoutEditor(tk.Tk):
         self.current_menu_row_id = None
         self.current_menu_field = None
 
+    def edit_current_bounds(self) -> None:
+        if self.current_menu_row_id is None or self.current_menu_field is None:
+            return
+        index = self.table.index(self.current_menu_row_id)
+        row = self.rows[index]
+        current = row.optimize_rc_bounds if self.current_menu_field == "rc" else row.optimize_thickness_bounds
+        current_value = row.rc if self.current_menu_field == "rc" else row.thickness
+        default_bounds = current or self._optimization_bounds(self.current_menu_field.capitalize() if self.current_menu_field == "rc" else "Thickness", current_value)
+
+        dialog = tk.Toplevel(self)
+        dialog.title(f"Bounds for {row.name} {self.current_menu_field}")
+        dialog.transient(self)
+        dialog.grab_set()
+        dialog.resizable(False, False)
+
+        ttk.Label(dialog, text="Lower").grid(row=0, column=0, padx=12, pady=(12, 4), sticky="w")
+        lower_var = tk.StringVar(value=f"{default_bounds[0]:g}")
+        ttk.Entry(dialog, textvariable=lower_var, width=16).grid(row=1, column=0, padx=12, pady=(0, 8))
+
+        ttk.Label(dialog, text="Upper").grid(row=2, column=0, padx=12, pady=(0, 4), sticky="w")
+        upper_var = tk.StringVar(value=f"{default_bounds[1]:g}")
+        ttk.Entry(dialog, textvariable=upper_var, width=16).grid(row=3, column=0, padx=12, pady=(0, 12))
+
+        def accept():
+            try:
+                lower = float(lower_var.get())
+                upper = float(upper_var.get())
+            except ValueError:
+                self.append_debug("Invalid optimization bounds entry.")
+                return
+            if lower >= upper:
+                self.append_debug("Optimization bounds rejected: lower must be less than upper.")
+                return
+            if self.current_menu_field == "rc":
+                row.optimize_rc_bounds = (lower, upper)
+            else:
+                row.optimize_thickness_bounds = (lower, upper)
+            self.append_progress(
+                f"Bounds set for row {index} {self.current_menu_field}: [{lower:g}, {upper:g}]"
+            )
+            dialog.destroy()
+
+        buttons = ttk.Frame(dialog)
+        buttons.grid(row=4, column=0, padx=12, pady=(0, 12), sticky="w")
+        ttk.Button(buttons, text="Save", command=accept).pack(side="left")
+        ttk.Button(buttons, text="Cancel", command=dialog.destroy).pack(side="left", padx=(8, 0))
+
+        self.wait_window(dialog)
+        if self.popup_menu is not None:
+            self.popup_menu.destroy()
+            self.popup_menu = None
+        self.current_menu_row_id = None
+        self.current_menu_field = None
+
+    def clear_current_bounds(self) -> None:
+        if self.current_menu_row_id is None or self.current_menu_field is None:
+            return
+        index = self.table.index(self.current_menu_row_id)
+        row = self.rows[index]
+        if self.current_menu_field == "rc":
+            row.optimize_rc_bounds = None
+        else:
+            row.optimize_thickness_bounds = None
+        self.append_progress(f"Bounds cleared for row {index} {self.current_menu_field}.")
+        if self.popup_menu is not None:
+            self.popup_menu.destroy()
+            self.popup_menu = None
+        self.current_menu_row_id = None
+        self.current_menu_field = None
+
     def clear_optimization_marks(self) -> None:
         for row in self.rows:
             row.optimize_rc = False
@@ -802,17 +917,20 @@ class KrakenLayoutEditor(tk.Tk):
             analysis_ax = self.figure.add_subplot(gs[1])
 
         try:
-            system = self.build_system()
             wavelength = self._current_wavelength()
-            if getattr(system.Pr3D, "ExistSolid", 0) == 0:
-                original_build = system.BUILD
-                system.BUILD = 1
-                system.build()
-                system.BUILD = original_build
-            rays = Kos.raykeeper(system)
-            for y0 in self._sample_ray_heights(max_radius):
-                system.Trace([0.0, y0, 0.0], [0.0, 0.0, 1.0], wavelength)
-                rays.push()
+            capture = io.StringIO()
+            with redirect_stdout(capture), redirect_stderr(capture):
+                system = self.build_system()
+                if getattr(system.Pr3D, "ExistSolid", 0) == 0:
+                    original_build = system.BUILD
+                    system.BUILD = 1
+                    system.build()
+                    system.BUILD = original_build
+                rays = Kos.raykeeper(system)
+                for y0 in self._sample_ray_heights(max_radius):
+                    system.Trace([0.0, y0, 0.0], [0.0, 0.0, 1.0], wavelength)
+                    rays.push()
+            self.append_debug(capture.getvalue())
             self.last_system = system
             self.last_rays = rays
             Plot2DSurf(system, 0, self.ax)
@@ -832,6 +950,7 @@ class KrakenLayoutEditor(tk.Tk):
                 analysis_ax.set_axis_off()
             self._set_results([("Status", "Unavailable"), ("Error", str(exc))])
             self.status_var.set(f"Plot refreshed with fallback preview: {exc}")
+            self.append_debug(f"Plot refresh error: {exc}")
 
         self.ax.grid(True, alpha=0.2)
         self.ax.set_xlabel("Z [mm]")
@@ -1008,6 +1127,20 @@ class KrakenLayoutEditor(tk.Tk):
         for key, value in items:
             self.results_table.insert("", "end", values=(key, value))
 
+    def append_debug(self, message: str) -> None:
+        if not message:
+            return
+        self.debug_text.insert("end", message.rstrip() + "\n")
+        self.debug_text.see("end")
+        self.update_idletasks()
+
+    def append_progress(self, message: str) -> None:
+        if not message:
+            return
+        self.progress_text.insert("end", message.rstrip() + "\n")
+        self.progress_text.see("end")
+        self.update_idletasks()
+
     def _update_results(self, system, rays, wavelength: float) -> None:
         items = []
         items.append(("Surface count", str(len(self.rows))))
@@ -1079,12 +1212,12 @@ class KrakenLayoutEditor(tk.Tk):
             if row.surface in {"Object", "Image"}:
                 continue
             if row.optimize_rc and row.surface == "Standard":
-                lower, upper = self._optimization_bounds("Rc", row.rc)
+                lower, upper = row.optimize_rc_bounds or self._optimization_bounds("Rc", row.rc)
                 variables.append(
                     OpticalVariable(index, "Rc", lower, upper, name=f"{row.name} Rc")
                 )
             if row.optimize_thickness:
-                lower, upper = self._optimization_bounds("Thickness", row.thickness)
+                lower, upper = row.optimize_thickness_bounds or self._optimization_bounds("Thickness", row.thickness)
                 variables.append(
                     OpticalVariable(index, "Thickness", lower, upper, name=f"{row.name} Thickness")
                 )
@@ -1155,22 +1288,23 @@ class KrakenLayoutEditor(tk.Tk):
         self._read_rows_from_table()
         variables = self._build_optimization_variables()
         if not variables:
-            messagebox.showinfo("Optimization", "Mark at least one Rc or Thickness cell for optimization.")
+            self.append_progress("Optimization skipped: no Rc/Thickness cells marked.")
             return
 
         try:
             system = self.build_system()
         except Exception as exc:
-            messagebox.showerror("Optimization", f"System build failed before optimization: {exc}")
+            self.append_progress(f"Optimization aborted: system build failed: {exc}")
             return
 
         merit_mode = self._ask_optimization_options()
         if merit_mode is None:
+            self.append_progress("Optimization cancelled before start.")
             return
 
         merit = self._build_merit_function(merit_mode)
         if not merit.operands:
-            messagebox.showinfo("Optimization", "Select a merit function before starting optimization.")
+            self.append_progress("Optimization aborted: no merit operands selected.")
             return
 
         x0 = []
@@ -1181,6 +1315,9 @@ class KrakenLayoutEditor(tk.Tk):
         evaluator = MeritEvaluator(system.SDT, setup=system.SETUP, merit_function=merit)
         initial = evaluator.evaluate(variables, x0)
         self.status_var.set(f"Optimization running: initial merit = {initial.total:.6g}")
+        self.append_progress(f"Optimization start | merit mode: {merit_mode}")
+        self.append_progress(f"Variables: {', '.join(v.normalized_name() for v in variables)}")
+        self.append_progress(f"Initial merit: {initial.total:.6g}")
         self.update_idletasks()
 
         try:
@@ -1193,7 +1330,7 @@ class KrakenLayoutEditor(tk.Tk):
                     pass
             import pygmo as pg  # type: ignore
         except Exception as exc:
-            messagebox.showerror("Optimization", f"pygmo is unavailable: {exc}")
+            self.append_progress(f"Optimization aborted: pygmo unavailable: {exc}")
             return
 
         self.optimization_running = True
@@ -1204,7 +1341,14 @@ class KrakenLayoutEditor(tk.Tk):
             population.push_back(x0)
             algorithm = pg.algorithm(pg.de(gen=12, seed=42))
             algorithm.set_verbosity(3)
-            evolved = algorithm.evolve(population)
+            capture = io.StringIO()
+            with redirect_stdout(capture), redirect_stderr(capture):
+                evolved = algorithm.evolve(population)
+            self.append_debug(capture.getvalue())
+            for gen, fevals, best, dx, df in algorithm.extract(pg.de).get_log():
+                self.append_progress(
+                    f"Gen {int(gen):>3} | fevals {int(fevals):>4} | best {float(best):.6g} | dx {float(dx):.6g} | df {float(df):.6g}"
+                )
             champion_x = evolved.champion_x
             champion = evaluator.evaluate(variables, champion_x)
         finally:
@@ -1222,10 +1366,11 @@ class KrakenLayoutEditor(tk.Tk):
         self.status_var.set(
             f"Optimization finished: {initial.total:.6g} -> {champion.total:.6g}"
         )
-        messagebox.showinfo(
-            "Optimization finished",
-            f"Merit improved from {initial.total:.6g} to {champion.total:.6g}.",
-        )
+        self.append_progress(f"Optimization finished | merit {initial.total:.6g} -> {champion.total:.6g}")
+        for operand in champion.operands:
+            self.append_progress(
+                f"  {operand.name}: value={operand.value:.6g} weighted={operand.weighted:.6g}"
+            )
 
     def _sample_ray_heights(self, max_radius: float) -> list[float]:
         if max_radius <= 1e-9:
@@ -1290,8 +1435,10 @@ class KrakenLayoutEditor(tk.Tk):
                     surface=str(item.get("surface", self._infer_surface_type(item))),
                     name=str(item.get("name", "Surface")),
                     optimize_rc=_coerce_opt_flag(item.get("optimize_rc", item.get("opt_rc", ""))),
+                    optimize_rc_bounds=_coerce_bounds(item.get("optimize_rc_bounds")),
                     rc=float(item.get("rc", 0.0)),
                     optimize_thickness=_coerce_opt_flag(item.get("optimize_thickness", item.get("opt_thickness", ""))),
+                    optimize_thickness_bounds=_coerce_bounds(item.get("optimize_thickness_bounds")),
                     thickness=float(item.get("thickness", 0.0)),
                     diameter=float(item.get("diameter", 25.0)),
                     glass=str(item.get("glass", "AIR")),
@@ -1340,6 +1487,8 @@ class KrakenLayoutEditor(tk.Tk):
         ]
         for index, row in enumerate(self.rows):
             var_name = f"s{index}"
+            rc_bounds_repr = repr(tuple(row.optimize_rc_bounds)) if row.optimize_rc_bounds is not None else "None"
+            thickness_bounds_repr = repr(tuple(row.optimize_thickness_bounds)) if row.optimize_thickness_bounds is not None else "None"
             lines.extend(
                 [
                     f"    {var_name} = Kos.surf()",
@@ -1350,6 +1499,14 @@ class KrakenLayoutEditor(tk.Tk):
                     f"    {var_name}.Glass = {row.glass!r}",
                 ]
             )
+            if row.optimize_rc:
+                lines.append(f"    {var_name}.optimize_rc = True")
+            if row.optimize_rc_bounds is not None:
+                lines.append(f"    {var_name}.optimize_rc_bounds = {tuple(row.optimize_rc_bounds)!r}")
+            if row.optimize_thickness:
+                lines.append(f"    {var_name}.optimize_thickness = True")
+            if row.optimize_thickness_bounds is not None:
+                lines.append(f"    {var_name}.optimize_thickness_bounds = {tuple(row.optimize_thickness_bounds)!r}")
             if row.surface == "Thin Lens":
                 focal = float(row.rc) if float(row.rc) != 0.0 else 100.0
                 lines.append(f"    {var_name}.Thin_Lens = {focal!r}")
@@ -1357,13 +1514,48 @@ class KrakenLayoutEditor(tk.Tk):
             elif row.surface == "Grating":
                 lines.append(f"    {var_name}.Diff_Ord = 1.0")
                 lines.append(f"    {var_name}.Grating_D = 1.0")
-            lines.append(f"    surfaces.append({var_name})")
+            lines.append(
+                "    surfaces.append({"
+                f"'surface': {row.surface!r}, "
+                f"'name': {row.name!r}, "
+                f"'rc': {float(row.rc)!r}, "
+                f"'thickness': {float(row.thickness)!r}, "
+                f"'diameter': {float(row.diameter)!r}, "
+                f"'glass': {row.glass!r}, "
+                f"'optimize_rc': {row.optimize_rc!r}, "
+                f"'optimize_rc_bounds': {rc_bounds_repr}, "
+                f"'optimize_thickness': {row.optimize_thickness!r}, "
+                f"'optimize_thickness_bounds': {thickness_bounds_repr}"
+                "})"
+            )
             lines.append("")
         lines.extend(
             [
+                "    return surfaces",
+                "",
+                "",
+                "SURFACES = build_system()",
+                "",
+                "",
+                "def build_runtime_system():",
+                "    surface_dicts = SURFACES",
+                "    runtime_surfaces = []",
+                "    for spec in surface_dicts:",
+                "        s = Kos.surf()",
+                "        s.Name = spec['name']",
+                "        s.Rc = spec['rc']",
+                "        s.Thickness = spec['thickness']",
+                "        s.Diameter = spec['diameter']",
+                "        s.Glass = spec['glass']",
+                "        if spec['surface'] == 'Thin Lens':",
+                "            s.Thin_Lens = spec['rc'] if spec['rc'] != 0 else 100.0",
+                "            s.Rc = 0.0",
+                "        elif spec['surface'] == 'Grating':",
+                "            s.Diff_Ord = 1.0",
+                "            s.Grating_D = 1.0",
+                "        runtime_surfaces.append(s)",
                 "    setup = Kos.Setup()",
-                "    system = Kos.system(surfaces, setup)",
-                "    return system",
+                "    return Kos.system(runtime_surfaces, setup)",
                 "",
                 "",
                 "def build_rays(system):",
@@ -1377,7 +1569,7 @@ class KrakenLayoutEditor(tk.Tk):
                 "",
                 "",
                 "if __name__ == '__main__':",
-                "    system = build_system()",
+                "    system = build_runtime_system()",
                 "    rays = build_rays(system)",
                 "    Kos.display2d(system, rays, 0)",
                 "",

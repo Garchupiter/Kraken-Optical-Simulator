@@ -150,11 +150,15 @@ Current optimization UI behavior:
 - right-click an `Rc` or `Thickness` cell
 - choose `Select to optimize`
 - the numeric cell is highlighted and gets a trailing `*`
+- optionally use the same right-click menu to set custom optimization bounds
 - click `Start Optimization`
 - choose the merit function in the popup:
   - `Spot RMS`
   - `Wavefront RMS`
   - `Spot + Wavefront`
+- optimization output is written in the bottom panel:
+  - left: `Debug`
+  - right: `Progress`
 
 ## Notes
 
