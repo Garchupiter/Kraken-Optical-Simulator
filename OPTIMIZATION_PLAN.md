@@ -239,3 +239,37 @@ This should build on the existing layout editor branch, not replace it.
 3. Add a `pygmo2` adapter using the local `~/Projects/pygmo2` checkout.
 4. Add wavefront merit once spot optimization is stable.
 5. Only then connect optimization controls into the Kraken UI.
+
+## Current implementation status
+- `KrakenOS/Optimization/` scaffold exists.
+- A doublet merit example runs end-to-end with `scipy.optimize.differential_evolution`.
+- The first wavefront merit term is implemented via `PupilCalc()` and `Phase()`.
+- A pygmo-compatible UDP wrapper exists in:
+  - `KrakenOS/Optimization/adapters/pygmo2_adapter.py`
+
+## Current blocker for local pygmo2
+The local Python repo at `~/Projects/pygmo2` is not importable yet in the Kraken environment.
+At the moment:
+- `pygmo` is not installed in the Kraken venv,
+- the local `~/Projects/pygmo2` checkout does not contain a built `pygmo.core` extension,
+- building it will require a working local `pagmo` installation plus the required CMake toolchain.
+
+The example script therefore does two things:
+- always runs a real optimization with SciPy,
+- attempts a `pygmo` run only if `pygmo` becomes importable later.
+
+## Local pygmo bootstrap notes
+The intended local dependency chain is:
+- `~/Projects/pagmo2` -> build/install C++ pagmo locally
+- `~/Projects/pygmo2` -> build/install Python bindings against that pagmo install
+- Kraken optimization example -> import `pygmo` and evolve the UDP
+
+Environment support already added to `devenv.nix`:
+- `cmake`
+- `ninja`
+- `gcc`
+- `boost`
+- `tbb`
+- pip packages:
+  - `cloudpickle`
+  - `pybind11`

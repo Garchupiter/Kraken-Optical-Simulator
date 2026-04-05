@@ -36,14 +36,19 @@ in
 
   packages = with pkgs; [
     git
+    cmake
+    ninja
     pkg-config
+    gcc
+    boost
+    tbb
   ] ++ runtimeLibs;
 
   enterShell = ''
     VENV_DIR="$PWD/.devenv/state/venv"
     REQ_HASH_FILE="$PWD/.devenv/state/kraken-requirements.hash"
     PYTHON_PATH_FILE="$PWD/.devenv/state/kraken-python.path"
-    REQ_HASH="krakenos-v8"
+    REQ_HASH="krakenos-v9"
     CURRENT_PYTHON="$(readlink -f "$(command -v python)")"
 
     if [ ! -x "$VENV_DIR/bin/python" ] || [ ! -f "$PYTHON_PATH_FILE" ] || [ "$(cat "$PYTHON_PATH_FILE" 2>/dev/null)" != "$CURRENT_PYTHON" ]; then
@@ -70,12 +75,17 @@ in
         -e . \
         numpy scipy matplotlib pandas pyvista vtk \
         PyVTK csv342 ipython ipykernel jupyter jupyterlab pyzmq \
-        packaging setuptools basedpyright ruff PyQt5 sip
+        packaging setuptools basedpyright ruff PyQt5 sip \
+        cloudpickle pybind11
       printf '%s\n' "$REQ_HASH" > "$REQ_HASH_FILE"
     fi
 
     if [ -n "''${WAYLAND_DISPLAY:-}" ] || [ -n "''${DISPLAY:-}" ]; then
       export MPLBACKEND=qtagg
+    fi
+
+    if [ -d /home/thinky/Projects/pagmo2/_install/lib64 ]; then
+      export LD_LIBRARY_PATH="/home/thinky/Projects/pagmo2/_install/lib64:$LD_LIBRARY_PATH"
     fi
 
     echo "$GREET"

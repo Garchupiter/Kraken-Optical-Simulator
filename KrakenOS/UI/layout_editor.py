@@ -22,22 +22,44 @@ import numpy as np
 
 import KrakenOS as Kos
 from KrakenOS.Display import Plot2DRays, Plot2DSurf
+from KrakenOS.Optimization import (
+    MeritEvaluator,
+    MeritFunction,
+    OpticalVariable,
+    SpotRMSOperand,
+    WavefrontRMSOperand,
+)
+from KrakenOS.Optimization.adapters.pygmo2_adapter import Pygmo2MeritProblem
 
 
 LAYOUTS_DIR = Path(__file__).resolve().parent.parent / "common_optical_layouts"
 EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "Examples"
-FIELDS = ("label", "surface", "name", "rc", "thickness", "diameter", "glass")
+FIELDS = (
+    "label",
+    "surface",
+    "name",
+    "opt_rc",
+    "rc",
+    "opt_thickness",
+    "thickness",
+    "diameter",
+    "glass",
+)
 COLUMN_LABELS = {
     "label": "#",
     "surface": "Surface",
     "name": "Name",
+    "opt_rc": "Rc*",
     "rc": "Rc [mm]",
+    "opt_thickness": "T*",
     "thickness": "Thickness [mm]",
     "diameter": "Diameter [mm]",
     "glass": "Glass",
 }
 NUMERIC_FIELDS = {"rc", "thickness", "diameter"}
 SURFACE_TYPES = ("Object", "Standard", "Thin Lens", "Grating", "Image")
+MERIT_MODES = ("Spot RMS", "Wavefront RMS", "Spot + Wavefront")
+VARIABLE_MARK_MODES = ("Rc", "Thickness", "Rc + Thickness")
 
 
 class _CapturedExample(Exception):
@@ -51,7 +73,9 @@ class SurfaceRow:
     label: str = "0"
     surface: str = "Standard"
     name: str = "Surface"
+    opt_rc: str = ""
     rc: float = 0.0
+    opt_thickness: str = ""
     thickness: float = 0.0
     diameter: float = 25.0
     glass: str = "AIR"
@@ -95,6 +119,7 @@ class KrakenLayoutEditor(tk.Tk):
         self.analysis_mode = "none"
         self.last_system = None
         self.last_rays = None
+        self.optimization_running = False
 
         self._build_menu()
         self._build_ui()
@@ -185,6 +210,9 @@ class KrakenLayoutEditor(tk.Tk):
         ttk.Button(toolbar, text="Wavefront", command=lambda: self.set_analysis_mode("wavefront")).grid(
             row=0, column=14, padx=2, pady=4
         )
+        ttk.Button(toolbar, text="Start Optimization", command=self.start_optimization).grid(
+            row=0, column=15, padx=(12, 0), pady=4
+        )
 
         main = ttk.Panedwindow(self, orient=tk.VERTICAL)
         main.grid(row=1, column=0, sticky="nsew")
@@ -214,10 +242,17 @@ class KrakenLayoutEditor(tk.Tk):
         self.table = ttk.Treeview(table_frame, columns=FIELDS, show="headings", selectmode="extended")
         for field in FIELDS:
             self.table.heading(field, text=COLUMN_LABELS[field])
-            width = 55 if field == "label" else (140 if field == "surface" else (160 if field == "name" else 110))
+            width = (
+                55 if field == "label"
+                else 42 if field in {"opt_rc", "opt_thickness"}
+                else 140 if field == "surface"
+                else 160 if field == "name"
+                else 110
+            )
             self.table.column(field, width=width, stretch=True, anchor="center")
         self.table.grid(row=0, column=0, sticky="nsew")
         self.table.bind("<Double-1>", self.begin_edit)
+        self.table.tag_configure("optimize", background="#fff4bf")
 
         yscroll = ttk.Scrollbar(table_frame, orient="vertical", command=self.table.yview)
         yscroll.grid(row=0, column=1, sticky="ns")
@@ -275,7 +310,33 @@ class KrakenLayoutEditor(tk.Tk):
         self.aperture_value_var = tk.StringVar(value="1.0")
         ttk.Entry(parent, textvariable=self.aperture_value_var, width=12).grid(row=11, column=0, sticky="ew", pady=(0, 8))
 
-        ttk.Button(parent, text="Refresh", command=self.refresh_plot).grid(row=12, column=0, sticky="ew", pady=(8, 0))
+        ttk.Label(parent, text="Merit function").grid(row=12, column=0, sticky="w", pady=(0, 2))
+        self.merit_mode_var = tk.StringVar(value=MERIT_MODES[0])
+        self.merit_mode_menu = ttk.Combobox(
+            parent,
+            textvariable=self.merit_mode_var,
+            state="readonly",
+            values=MERIT_MODES,
+        )
+        self.merit_mode_menu.grid(row=13, column=0, sticky="ew", pady=(0, 8))
+
+        ttk.Label(parent, text="Mark variable").grid(row=14, column=0, sticky="w", pady=(0, 2))
+        self.variable_mark_mode_var = tk.StringVar(value=VARIABLE_MARK_MODES[0])
+        self.variable_mark_menu = ttk.Combobox(
+            parent,
+            textvariable=self.variable_mark_mode_var,
+            state="readonly",
+            values=VARIABLE_MARK_MODES,
+        )
+        self.variable_mark_menu.grid(row=15, column=0, sticky="ew", pady=(0, 8))
+
+        ttk.Button(parent, text="Mark Selected", command=self.mark_selected_for_optimization).grid(
+            row=16, column=0, sticky="ew", pady=(4, 4)
+        )
+        ttk.Button(parent, text="Clear Marks", command=self.clear_optimization_marks).grid(
+            row=17, column=0, sticky="ew", pady=(0, 4)
+        )
+        ttk.Button(parent, text="Refresh", command=self.refresh_plot).grid(row=18, column=0, sticky="ew", pady=(8, 0))
 
     def _build_results_panel(self, parent) -> None:
         self.results_table = ttk.Treeview(parent, columns=("property", "value"), show="headings", selectmode="none")
@@ -325,7 +386,9 @@ class KrakenLayoutEditor(tk.Tk):
                 SurfaceRow(
                     surface=str(item.get("surface", self._infer_surface_type(item))),
                     name=str(item.get("name", "Surface")),
+                    opt_rc=str(item.get("opt_rc", "")),
                     rc=float(item.get("rc", 0.0)),
+                    opt_thickness=str(item.get("opt_thickness", "")),
                     thickness=float(item.get("thickness", 0.0)),
                     diameter=float(item.get("diameter", 25.0)),
                     glass=str(item.get("glass", "AIR")),
@@ -371,7 +434,8 @@ class KrakenLayoutEditor(tk.Tk):
                     values.append(f"{value:g}")
                 else:
                     values.append(value)
-            self.table.insert("", "end", values=values)
+            tags = ("optimize",) if self._row_has_optimization(row) else ()
+            self.table.insert("", "end", values=values, tags=tags)
         self._refresh_analysis_surface_choices()
 
     def _refresh_analysis_surface_choices(self) -> None:
@@ -392,10 +456,12 @@ class KrakenLayoutEditor(tk.Tk):
                     label=str(values[0]),
                     surface=str(values[1]),
                     name=str(values[2]),
-                    rc=float(values[3]),
-                    thickness=float(values[4]),
-                    diameter=float(values[5]),
-                    glass=str(values[6]),
+                    opt_rc=str(values[3]),
+                    rc=float(values[4]),
+                    opt_thickness=str(values[5]),
+                    thickness=float(values[6]),
+                    diameter=float(values[7]),
+                    glass=str(values[8]),
                 )
             )
         self.rows = rows
@@ -502,6 +568,9 @@ class KrakenLayoutEditor(tk.Tk):
         field = FIELDS[column_index]
         if field == "label":
             return
+        if field in {"opt_rc", "opt_thickness"}:
+            self._toggle_opt_flag(row_id, field)
+            return
         x, y, width, height = self.table.bbox(row_id, column_id)
         current_value = self.table.set(row_id, field)
 
@@ -600,6 +669,39 @@ class KrakenLayoutEditor(tk.Tk):
         if selected == "Examples":
             return
         self.load_example_by_name(selected)
+
+    def _toggle_opt_flag(self, row_id: str, field: str) -> None:
+        value = self.table.set(row_id, field).strip()
+        self.table.set(row_id, field, "" if value == "*" else "*")
+        self._read_rows_from_table()
+        self._normalize_special_rows()
+        self._sync_table()
+
+    @staticmethod
+    def _row_has_optimization(row: SurfaceRow) -> bool:
+        return row.opt_rc == "*" or row.opt_thickness == "*"
+
+    def mark_selected_for_optimization(self) -> None:
+        selected = self.table.selection()
+        if not selected:
+            return
+        mode = self.variable_mark_mode_var.get().strip()
+        for item in selected:
+            index = self.table.index(item)
+            row = self.rows[index]
+            if row.surface in {"Object", "Image"}:
+                continue
+            if mode in {"Rc", "Rc + Thickness"}:
+                row.opt_rc = "*"
+            if mode in {"Thickness", "Rc + Thickness"}:
+                row.opt_thickness = "*"
+        self._sync_table()
+
+    def clear_optimization_marks(self) -> None:
+        for row in self.rows:
+            row.opt_rc = ""
+            row.opt_thickness = ""
+        self._sync_table()
 
     def build_system(self):
         surfaces = []
@@ -886,10 +988,12 @@ class KrakenLayoutEditor(tk.Tk):
     def _update_results(self, system, rays, wavelength: float) -> None:
         items = []
         items.append(("Surface count", str(len(self.rows))))
+        items.append(("Optimized vars", str(len(self._build_optimization_variables()))))
         items.append(("Wavelength [um]", f"{wavelength:.4g}"))
         items.append(("Analysis surface", str(self._analysis_surface_index())))
         items.append(("Aperture type", self._current_aperture_type()))
         items.append(("Aperture value", f"{self._current_aperture_value():.4g}"))
+        items.append(("Merit function", self.merit_mode_var.get()))
 
         total_length = sum(max(float(row.thickness), 0.0) for row in self.rows)
         items.append(("Total length [mm]", f"{total_length:.4g}"))
@@ -932,15 +1036,147 @@ class KrakenLayoutEditor(tk.Tk):
 
         self._set_results(items)
 
+    @staticmethod
+    def _optimization_bounds(parameter: str, value: float) -> tuple[float, float]:
+        if parameter == "Rc":
+            if abs(value) < 1e-6:
+                return (-100.0, 100.0)
+            scale = max(abs(value) * 0.5, 5.0)
+            return (value - scale, value + scale)
+        if parameter == "Thickness":
+            if value <= 0.0:
+                return (0.01, 10.0)
+            lower = max(0.01, value * 0.5)
+            upper = max(lower + 0.5, value * 1.5)
+            return (lower, upper)
+        raise ValueError(f"Unsupported optimization parameter: {parameter}")
+
+    def _build_optimization_variables(self) -> list[OpticalVariable]:
+        variables: list[OpticalVariable] = []
+        for index, row in enumerate(self.rows):
+            if row.surface in {"Object", "Image"}:
+                continue
+            if row.opt_rc == "*" and row.surface == "Standard":
+                lower, upper = self._optimization_bounds("Rc", row.rc)
+                variables.append(
+                    OpticalVariable(index, "Rc", lower, upper, name=f"{row.name} Rc")
+                )
+            if row.opt_thickness == "*":
+                lower, upper = self._optimization_bounds("Thickness", row.thickness)
+                variables.append(
+                    OpticalVariable(index, "Thickness", lower, upper, name=f"{row.name} Thickness")
+                )
+        return variables
+
+    def _build_merit_function(self) -> MeritFunction:
+        merit_mode = self.merit_mode_var.get().strip()
+        operands = []
+        if merit_mode in {"Spot RMS", "Spot + Wavefront"}:
+            operands.append(
+                SpotRMSOperand(
+                    name="Spot RMS",
+                    weight=1.0,
+                    target=0.0,
+                    surface_index=-1,
+                    wavelength=self._current_wavelength(),
+                    ray_count=max(5, self._current_ray_count()),
+                    ray_height_factor=self._current_ray_height_factor(),
+                )
+            )
+        if merit_mode in {"Wavefront RMS", "Spot + Wavefront"}:
+            operands.append(
+                WavefrontRMSOperand(
+                    name="Wavefront RMS",
+                    weight=1e-2 if merit_mode == "Spot + Wavefront" else 1.0,
+                    target=0.0,
+                    surface_index=self._analysis_surface_index(),
+                    wavelength=self._current_wavelength(),
+                    aperture_type=self._current_aperture_type(),
+                    aperture_value=self._current_aperture_value(),
+                    sample_size=9,
+                )
+            )
+        return MeritFunction(operands=operands)
+
+    def start_optimization(self) -> None:
+        if self.optimization_running:
+            return
+        self._read_rows_from_table()
+        variables = self._build_optimization_variables()
+        if not variables:
+            messagebox.showinfo("Optimization", "Mark at least one Rc or Thickness cell for optimization.")
+            return
+
+        try:
+            system = self.build_system()
+        except Exception as exc:
+            messagebox.showerror("Optimization", f"System build failed before optimization: {exc}")
+            return
+
+        merit = self._build_merit_function()
+        if not merit.operands:
+            messagebox.showinfo("Optimization", "Select a merit function before starting optimization.")
+            return
+
+        x0 = []
+        for variable in variables:
+            row = self.rows[variable.surface_index]
+            x0.append(row.rc if variable.parameter == "Rc" else row.thickness)
+
+        evaluator = MeritEvaluator(system.SDT, setup=system.SETUP, merit_function=merit)
+        initial = evaluator.evaluate(variables, x0)
+        self.status_var.set(f"Optimization running: initial merit = {initial.total:.6g}")
+        self.update_idletasks()
+
+        try:
+            import ctypes
+            pagmo_lib = Path(os.path.expanduser("~/Projects/pagmo2/_install/lib64/libpagmo.so"))
+            if pagmo_lib.exists():
+                try:
+                    ctypes.CDLL(str(pagmo_lib), mode=ctypes.RTLD_GLOBAL)
+                except OSError:
+                    pass
+            import pygmo as pg  # type: ignore
+        except Exception as exc:
+            messagebox.showerror("Optimization", f"pygmo is unavailable: {exc}")
+            return
+
+        self.optimization_running = True
+        try:
+            udp = Pygmo2MeritProblem(evaluator=evaluator, variables=variables)
+            problem = pg.problem(udp)
+            population = pg.population(problem, size=12, seed=42)
+            population.push_back(x0)
+            algorithm = pg.algorithm(pg.de(gen=12, seed=42))
+            algorithm.set_verbosity(3)
+            evolved = algorithm.evolve(population)
+            champion_x = evolved.champion_x
+            champion = evaluator.evaluate(variables, champion_x)
+        finally:
+            self.optimization_running = False
+
+        for variable, value in zip(variables, champion_x):
+            row = self.rows[variable.surface_index]
+            if variable.parameter == "Rc":
+                row.rc = float(value)
+            elif variable.parameter == "Thickness":
+                row.thickness = float(value)
+
+        self._sync_table()
+        self.refresh_plot()
+        self.status_var.set(
+            f"Optimization finished: {initial.total:.6g} -> {champion.total:.6g}"
+        )
+        messagebox.showinfo(
+            "Optimization finished",
+            f"Merit improved from {initial.total:.6g} to {champion.total:.6g}.",
+        )
+
     def _sample_ray_heights(self, max_radius: float) -> list[float]:
         if max_radius <= 1e-9:
             return [0.0]
         count = self._current_ray_count()
-        try:
-            factor = float(self.ray_height_factor_var.get())
-        except ValueError:
-            factor = 0.8
-        span = max_radius * max(min(factor, 1.5), 0.05)
+        span = max_radius * self._current_ray_height_factor()
         if count == 1:
             return [0.0]
         return list(np.linspace(-span, span, count))
@@ -950,6 +1186,13 @@ class KrakenLayoutEditor(tk.Tk):
             return max(1, int(self.ray_count_var.get()))
         except ValueError:
             return 5
+
+    def _current_ray_height_factor(self) -> float:
+        try:
+            factor = float(self.ray_height_factor_var.get())
+        except ValueError:
+            factor = 0.8
+        return max(min(factor, 1.5), 0.05)
 
     def _plot_fallback_preview(self, max_radius: float) -> None:
         positions = []
@@ -991,7 +1234,9 @@ class KrakenLayoutEditor(tk.Tk):
                 SurfaceRow(
                     surface=str(item.get("surface", self._infer_surface_type(item))),
                     name=str(item.get("name", "Surface")),
+                    opt_rc=str(item.get("opt_rc", "")),
                     rc=float(item.get("rc", 0.0)),
+                    opt_thickness=str(item.get("opt_thickness", "")),
                     thickness=float(item.get("thickness", 0.0)),
                     diameter=float(item.get("diameter", 25.0)),
                     glass=str(item.get("glass", "AIR")),

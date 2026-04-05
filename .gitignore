@@ -65,6 +65,7 @@ coverage.xml
 
 # Django stuff:
 *.log
+doublet_merit_result.json
 local_settings.py
 db.sqlite3
 db.sqlite3-journal

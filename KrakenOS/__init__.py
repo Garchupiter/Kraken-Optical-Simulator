@@ -294,3 +294,4 @@ from .SurfBlockClass import *
 
 from .PSFMap import *
 from .SphericalPSFCalc import *
+from .Optimization import *
