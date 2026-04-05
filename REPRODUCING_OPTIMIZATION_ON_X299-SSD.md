@@ -179,3 +179,5 @@ These were intentionally left untouched by the optimization work:
 
 - `KrakenOS/Examples/mi_objeto.pkl`
 - `PR_GUIDE.md`
+
+See also: `KRAKEN_LAYOUT_EDITOR_USAGE.md` for day-to-day editor usage.
