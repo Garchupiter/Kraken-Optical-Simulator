@@ -3,7 +3,16 @@ from setuptools import setup
 setup(
     name='KrakenOS',
     version='1.0.0.24',
-    packages=['KrakenOS', 'KrakenOS.AstroAtmosphere', 'KrakenOS.Cat', 'KrakenOS.Examples', 'KrakenOS.Docs', 'KrakenOS.LensCat'],
+    packages=[
+        'KrakenOS',
+        'KrakenOS.AstroAtmosphere',
+        'KrakenOS.Cat',
+        'KrakenOS.Examples',
+        'KrakenOS.Docs',
+        'KrakenOS.LensCat',
+        'KrakenOS.UI',
+        'KrakenOS.common_optical_layouts',
+    ],
 
     install_requires=['pyvista','PyVTK','vtk','numpy','scipy','matplotlib', 'csv342', 'pandas' ],
     package_data={'': ['LICENSE.txt', '../*.AGF', '../*.agf', '../*.stl', '../*.scad', '../*.pdf', '../*.zmx', '../*.ZMX', '../*.csv']},

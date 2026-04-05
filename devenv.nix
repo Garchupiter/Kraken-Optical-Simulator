@@ -30,7 +30,7 @@ in
 
   languages.python = {
     enable = true;
-    package = pkgs.python313;
+    package = pkgs.python313.withPackages (ps: [ ps.tkinter ]);
     uv.enable = true;
   };
 
@@ -42,10 +42,22 @@ in
   enterShell = ''
     VENV_DIR="$PWD/.devenv/state/venv"
     REQ_HASH_FILE="$PWD/.devenv/state/kraken-requirements.hash"
-    REQ_HASH="krakenos-v6"
+    PYTHON_PATH_FILE="$PWD/.devenv/state/kraken-python.path"
+    REQ_HASH="krakenos-v8"
+    CURRENT_PYTHON="$(readlink -f "$(command -v python)")"
 
-    if [ ! -x "$VENV_DIR/bin/python" ]; then
-      python -m venv "$VENV_DIR"
+    if [ ! -x "$VENV_DIR/bin/python" ] || [ ! -f "$PYTHON_PATH_FILE" ] || [ "$(cat "$PYTHON_PATH_FILE" 2>/dev/null)" != "$CURRENT_PYTHON" ]; then
+      rm -rf "$VENV_DIR"
+      python -m venv --system-site-packages "$VENV_DIR"
+      printf '%s\n' "$CURRENT_PYTHON" > "$PYTHON_PATH_FILE"
+      rm -f "$REQ_HASH_FILE"
+    fi
+
+    if ! "$VENV_DIR/bin/python" -c 'import tkinter' >/dev/null 2>&1; then
+      rm -rf "$VENV_DIR"
+      python -m venv --system-site-packages "$VENV_DIR"
+      printf '%s\n' "$CURRENT_PYTHON" > "$PYTHON_PATH_FILE"
+      rm -f "$REQ_HASH_FILE"
     fi
 
     if ! "$VENV_DIR/bin/python" -m pip --version >/dev/null 2>&1; then
