@@ -38,9 +38,7 @@ FIELDS = (
     "label",
     "surface",
     "name",
-    "opt_rc",
     "rc",
-    "opt_thickness",
     "thickness",
     "diameter",
     "glass",
@@ -49,9 +47,7 @@ COLUMN_LABELS = {
     "label": "#",
     "surface": "Surface",
     "name": "Name",
-    "opt_rc": "Rc*",
     "rc": "Rc [mm]",
-    "opt_thickness": "T*",
     "thickness": "Thickness [mm]",
     "diameter": "Diameter [mm]",
     "glass": "Glass",
@@ -59,7 +55,6 @@ COLUMN_LABELS = {
 NUMERIC_FIELDS = {"rc", "thickness", "diameter"}
 SURFACE_TYPES = ("Object", "Standard", "Thin Lens", "Grating", "Image")
 MERIT_MODES = ("Spot RMS", "Wavefront RMS", "Spot + Wavefront")
-VARIABLE_MARK_MODES = ("Rc", "Thickness", "Rc + Thickness")
 
 
 class _CapturedExample(Exception):
@@ -73,9 +68,9 @@ class SurfaceRow:
     label: str = "0"
     surface: str = "Standard"
     name: str = "Surface"
-    opt_rc: str = ""
+    optimize_rc: bool = False
     rc: float = 0.0
-    opt_thickness: str = ""
+    optimize_thickness: bool = False
     thickness: float = 0.0
     diameter: float = 25.0
     glass: str = "AIR"
@@ -103,6 +98,12 @@ def _load_python_title(path: Path) -> str:
     return getattr(module, "TITLE", path.stem.replace("_", " ").title())
 
 
+def _coerce_opt_flag(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    return str(value).strip() in {"*", "1", "true", "True", "yes", "on"}
+
+
 class KrakenLayoutEditor(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
@@ -116,6 +117,8 @@ class KrakenLayoutEditor(tk.Tk):
         self.rows: list[SurfaceRow] = []
         self.editor: tk.Widget | None = None
         self.popup_menu: tk.Menu | None = None
+        self.current_menu_row_id: str | None = None
+        self.current_menu_field: str | None = None
         self.analysis_mode = "none"
         self.last_system = None
         self.last_rays = None
@@ -244,7 +247,6 @@ class KrakenLayoutEditor(tk.Tk):
             self.table.heading(field, text=COLUMN_LABELS[field])
             width = (
                 55 if field == "label"
-                else 42 if field in {"opt_rc", "opt_thickness"}
                 else 140 if field == "surface"
                 else 160 if field == "name"
                 else 110
@@ -252,6 +254,7 @@ class KrakenLayoutEditor(tk.Tk):
             self.table.column(field, width=width, stretch=True, anchor="center")
         self.table.grid(row=0, column=0, sticky="nsew")
         self.table.bind("<Double-1>", self.begin_edit)
+        self.table.bind("<Button-3>", self.show_context_menu)
         self.table.tag_configure("optimize", background="#fff4bf")
 
         yscroll = ttk.Scrollbar(table_frame, orient="vertical", command=self.table.yview)
@@ -310,33 +313,16 @@ class KrakenLayoutEditor(tk.Tk):
         self.aperture_value_var = tk.StringVar(value="1.0")
         ttk.Entry(parent, textvariable=self.aperture_value_var, width=12).grid(row=11, column=0, sticky="ew", pady=(0, 8))
 
-        ttk.Label(parent, text="Merit function").grid(row=12, column=0, sticky="w", pady=(0, 2))
-        self.merit_mode_var = tk.StringVar(value=MERIT_MODES[0])
-        self.merit_mode_menu = ttk.Combobox(
+        ttk.Label(
             parent,
-            textvariable=self.merit_mode_var,
-            state="readonly",
-            values=MERIT_MODES,
-        )
-        self.merit_mode_menu.grid(row=13, column=0, sticky="ew", pady=(0, 8))
-
-        ttk.Label(parent, text="Mark variable").grid(row=14, column=0, sticky="w", pady=(0, 2))
-        self.variable_mark_mode_var = tk.StringVar(value=VARIABLE_MARK_MODES[0])
-        self.variable_mark_menu = ttk.Combobox(
-            parent,
-            textvariable=self.variable_mark_mode_var,
-            state="readonly",
-            values=VARIABLE_MARK_MODES,
-        )
-        self.variable_mark_menu.grid(row=15, column=0, sticky="ew", pady=(0, 8))
-
-        ttk.Button(parent, text="Mark Selected", command=self.mark_selected_for_optimization).grid(
-            row=16, column=0, sticky="ew", pady=(4, 4)
-        )
+            text="Right-click Rc/Thickness cells to mark optimization variables.",
+            wraplength=180,
+            justify="left",
+        ).grid(row=12, column=0, sticky="ew", pady=(4, 8))
         ttk.Button(parent, text="Clear Marks", command=self.clear_optimization_marks).grid(
-            row=17, column=0, sticky="ew", pady=(0, 4)
+            row=13, column=0, sticky="ew", pady=(0, 4)
         )
-        ttk.Button(parent, text="Refresh", command=self.refresh_plot).grid(row=18, column=0, sticky="ew", pady=(8, 0))
+        ttk.Button(parent, text="Refresh", command=self.refresh_plot).grid(row=14, column=0, sticky="ew", pady=(8, 0))
 
     def _build_results_panel(self, parent) -> None:
         self.results_table = ttk.Treeview(parent, columns=("property", "value"), show="headings", selectmode="none")
@@ -386,9 +372,9 @@ class KrakenLayoutEditor(tk.Tk):
                 SurfaceRow(
                     surface=str(item.get("surface", self._infer_surface_type(item))),
                     name=str(item.get("name", "Surface")),
-                    opt_rc=str(item.get("opt_rc", "")),
+                    optimize_rc=_coerce_opt_flag(item.get("optimize_rc", item.get("opt_rc", ""))),
                     rc=float(item.get("rc", 0.0)),
-                    opt_thickness=str(item.get("opt_thickness", "")),
+                    optimize_thickness=_coerce_opt_flag(item.get("optimize_thickness", item.get("opt_thickness", ""))),
                     thickness=float(item.get("thickness", 0.0)),
                     diameter=float(item.get("diameter", 25.0)),
                     glass=str(item.get("glass", "AIR")),
@@ -427,13 +413,15 @@ class KrakenLayoutEditor(tk.Tk):
         self.table.delete(*self.table.get_children())
         for index, row in enumerate(self.rows):
             row.label = str(index)
-            values = []
-            for field in FIELDS:
-                value = getattr(row, field)
-                if field in NUMERIC_FIELDS:
-                    values.append(f"{value:g}")
-                else:
-                    values.append(value)
+            values = [
+                row.label,
+                row.surface,
+                row.name,
+                self._format_numeric_cell("rc", row),
+                self._format_numeric_cell("thickness", row),
+                f"{row.diameter:g}",
+                row.glass,
+            ]
             tags = ("optimize",) if self._row_has_optimization(row) else ()
             self.table.insert("", "end", values=values, tags=tags)
         self._refresh_analysis_surface_choices()
@@ -447,6 +435,19 @@ class KrakenLayoutEditor(tk.Tk):
         if current not in options:
             self.analysis_surface_var.set("Auto")
 
+    @staticmethod
+    def _parse_numeric_display(value: str) -> float:
+        return float(value.replace("*", "").strip())
+
+    @staticmethod
+    def _format_numeric_cell(field: str, row: SurfaceRow) -> str:
+        value = row.rc if field == "rc" else row.thickness
+        mark = row.optimize_rc if field == "rc" else row.optimize_thickness
+        text = f"{value:g}"
+        if mark:
+            text += " *"
+        return text
+
     def _read_rows_from_table(self) -> None:
         rows: list[SurfaceRow] = []
         for item in self.table.get_children():
@@ -456,12 +457,12 @@ class KrakenLayoutEditor(tk.Tk):
                     label=str(values[0]),
                     surface=str(values[1]),
                     name=str(values[2]),
-                    opt_rc=str(values[3]),
-                    rc=float(values[4]),
-                    opt_thickness=str(values[5]),
-                    thickness=float(values[6]),
-                    diameter=float(values[7]),
-                    glass=str(values[8]),
+                    optimize_rc=self.rows[len(rows)].optimize_rc if len(rows) < len(self.rows) else False,
+                    rc=self._parse_numeric_display(str(values[3])),
+                    optimize_thickness=self.rows[len(rows)].optimize_thickness if len(rows) < len(self.rows) else False,
+                    thickness=self._parse_numeric_display(str(values[4])),
+                    diameter=float(values[5]),
+                    glass=str(values[6]),
                 )
             )
         self.rows = rows
@@ -568,11 +569,10 @@ class KrakenLayoutEditor(tk.Tk):
         field = FIELDS[column_index]
         if field == "label":
             return
-        if field in {"opt_rc", "opt_thickness"}:
-            self._toggle_opt_flag(row_id, field)
-            return
         x, y, width, height = self.table.bbox(row_id, column_id)
         current_value = self.table.set(row_id, field)
+        if field in {"rc", "thickness"}:
+            current_value = current_value.replace("*", "").strip()
 
         if self.editor is not None:
             self.editor.destroy()
@@ -598,6 +598,35 @@ class KrakenLayoutEditor(tk.Tk):
         editor.focus_set()
         editor.bind("<FocusOut>", lambda e: self._finish_edit(row_id, field, quiet=True))
         self.editor = editor
+
+    def show_context_menu(self, event: tk.Event) -> None:
+        row_id = self.table.identify_row(event.y)
+        column_id = self.table.identify_column(event.x)
+        if not row_id or not column_id:
+            return
+        column_index = int(column_id.replace("#", "")) - 1
+        field = FIELDS[column_index]
+        if field not in {"rc", "thickness"}:
+            return
+        row_index = self.table.index(row_id)
+        row = self.rows[row_index]
+        if row.surface in {"Object", "Image"}:
+            return
+        if self.popup_menu is not None:
+            self.popup_menu.destroy()
+        self.current_menu_row_id = row_id
+        self.current_menu_field = field
+        marked = row.optimize_rc if field == "rc" else row.optimize_thickness
+        menu = tk.Menu(self, tearoff=0)
+        menu.add_command(
+            label="Unselect from optimize" if marked else "Select to optimize",
+            command=self.toggle_current_optimization_cell,
+        )
+        self.popup_menu = menu
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
 
     def _finish_edit(self, row_id: str, field: str, quiet: bool = False) -> None:
         if self.editor is None:
@@ -670,37 +699,31 @@ class KrakenLayoutEditor(tk.Tk):
             return
         self.load_example_by_name(selected)
 
-    def _toggle_opt_flag(self, row_id: str, field: str) -> None:
-        value = self.table.set(row_id, field).strip()
-        self.table.set(row_id, field, "" if value == "*" else "*")
-        self._read_rows_from_table()
-        self._normalize_special_rows()
-        self._sync_table()
-
     @staticmethod
     def _row_has_optimization(row: SurfaceRow) -> bool:
-        return row.opt_rc == "*" or row.opt_thickness == "*"
+        return row.optimize_rc or row.optimize_thickness
 
-    def mark_selected_for_optimization(self) -> None:
-        selected = self.table.selection()
-        if not selected:
+    def toggle_current_optimization_cell(self) -> None:
+        if self.current_menu_row_id is None or self.current_menu_field is None:
             return
-        mode = self.variable_mark_mode_var.get().strip()
-        for item in selected:
-            index = self.table.index(item)
-            row = self.rows[index]
-            if row.surface in {"Object", "Image"}:
-                continue
-            if mode in {"Rc", "Rc + Thickness"}:
-                row.opt_rc = "*"
-            if mode in {"Thickness", "Rc + Thickness"}:
-                row.opt_thickness = "*"
+        index = self.table.index(self.current_menu_row_id)
+        row = self.rows[index]
+        if self.current_menu_field == "rc":
+            row.optimize_rc = not row.optimize_rc
+        elif self.current_menu_field == "thickness":
+            row.optimize_thickness = not row.optimize_thickness
         self._sync_table()
+        self.refresh_plot()
+        if self.popup_menu is not None:
+            self.popup_menu.destroy()
+            self.popup_menu = None
+        self.current_menu_row_id = None
+        self.current_menu_field = None
 
     def clear_optimization_marks(self) -> None:
         for row in self.rows:
-            row.opt_rc = ""
-            row.opt_thickness = ""
+            row.optimize_rc = False
+            row.optimize_thickness = False
         self._sync_table()
 
     def build_system(self):
@@ -993,7 +1016,6 @@ class KrakenLayoutEditor(tk.Tk):
         items.append(("Analysis surface", str(self._analysis_surface_index())))
         items.append(("Aperture type", self._current_aperture_type()))
         items.append(("Aperture value", f"{self._current_aperture_value():.4g}"))
-        items.append(("Merit function", self.merit_mode_var.get()))
 
         total_length = sum(max(float(row.thickness), 0.0) for row in self.rows)
         items.append(("Total length [mm]", f"{total_length:.4g}"))
@@ -1056,20 +1078,19 @@ class KrakenLayoutEditor(tk.Tk):
         for index, row in enumerate(self.rows):
             if row.surface in {"Object", "Image"}:
                 continue
-            if row.opt_rc == "*" and row.surface == "Standard":
+            if row.optimize_rc and row.surface == "Standard":
                 lower, upper = self._optimization_bounds("Rc", row.rc)
                 variables.append(
                     OpticalVariable(index, "Rc", lower, upper, name=f"{row.name} Rc")
                 )
-            if row.opt_thickness == "*":
+            if row.optimize_thickness:
                 lower, upper = self._optimization_bounds("Thickness", row.thickness)
                 variables.append(
                     OpticalVariable(index, "Thickness", lower, upper, name=f"{row.name} Thickness")
                 )
         return variables
 
-    def _build_merit_function(self) -> MeritFunction:
-        merit_mode = self.merit_mode_var.get().strip()
+    def _build_merit_function(self, merit_mode: str) -> MeritFunction:
         operands = []
         if merit_mode in {"Spot RMS", "Spot + Wavefront"}:
             operands.append(
@@ -1098,6 +1119,36 @@ class KrakenLayoutEditor(tk.Tk):
             )
         return MeritFunction(operands=operands)
 
+    def _ask_optimization_options(self) -> str | None:
+        dialog = tk.Toplevel(self)
+        dialog.title("Optimization Setup")
+        dialog.transient(self)
+        dialog.grab_set()
+        dialog.resizable(False, False)
+
+        ttk.Label(dialog, text="Optimize against").grid(row=0, column=0, sticky="w", padx=12, pady=(12, 4))
+        merit_var = tk.StringVar(value=MERIT_MODES[0])
+        merit_menu = ttk.Combobox(dialog, textvariable=merit_var, state="readonly", values=MERIT_MODES, width=24)
+        merit_menu.grid(row=1, column=0, sticky="ew", padx=12, pady=(0, 12))
+
+        result = {"value": None}
+
+        def accept():
+            result["value"] = merit_var.get().strip()
+            dialog.destroy()
+
+        def cancel():
+            dialog.destroy()
+
+        buttons = ttk.Frame(dialog)
+        buttons.grid(row=2, column=0, sticky="ew", padx=12, pady=(0, 12))
+        ttk.Button(buttons, text="Start", command=accept).pack(side="left")
+        ttk.Button(buttons, text="Cancel", command=cancel).pack(side="left", padx=(8, 0))
+
+        merit_menu.focus_set()
+        self.wait_window(dialog)
+        return result["value"]
+
     def start_optimization(self) -> None:
         if self.optimization_running:
             return
@@ -1113,7 +1164,11 @@ class KrakenLayoutEditor(tk.Tk):
             messagebox.showerror("Optimization", f"System build failed before optimization: {exc}")
             return
 
-        merit = self._build_merit_function()
+        merit_mode = self._ask_optimization_options()
+        if merit_mode is None:
+            return
+
+        merit = self._build_merit_function(merit_mode)
         if not merit.operands:
             messagebox.showinfo("Optimization", "Select a merit function before starting optimization.")
             return
@@ -1234,9 +1289,9 @@ class KrakenLayoutEditor(tk.Tk):
                 SurfaceRow(
                     surface=str(item.get("surface", self._infer_surface_type(item))),
                     name=str(item.get("name", "Surface")),
-                    opt_rc=str(item.get("opt_rc", "")),
+                    optimize_rc=_coerce_opt_flag(item.get("optimize_rc", item.get("opt_rc", ""))),
                     rc=float(item.get("rc", 0.0)),
-                    opt_thickness=str(item.get("opt_thickness", "")),
+                    optimize_thickness=_coerce_opt_flag(item.get("optimize_thickness", item.get("opt_thickness", ""))),
                     thickness=float(item.get("thickness", 0.0)),
                     diameter=float(item.get("diameter", 25.0)),
                     glass=str(item.get("glass", "AIR")),

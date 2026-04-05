@@ -147,13 +147,14 @@ devenv shell -- bash -lc 'python -m KrakenOS.UI.layout_editor'
 
 Current optimization UI behavior:
 
-- mark optimization variables by toggling `Rc*` and `T*`
-- or select rows and use `Mark Selected`
-- choose merit function:
+- right-click an `Rc` or `Thickness` cell
+- choose `Select to optimize`
+- the numeric cell is highlighted and gets a trailing `*`
+- click `Start Optimization`
+- choose the merit function in the popup:
   - `Spot RMS`
   - `Wavefront RMS`
   - `Spot + Wavefront`
-- click `Start Optimization`
 
 ## Notes
 
