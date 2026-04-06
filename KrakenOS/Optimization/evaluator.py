@@ -12,7 +12,11 @@ import KrakenOS as Kos
 from .merit import MeritFunction, MeritResult, OperandResult
 from .operands import (
     EffectiveFocalLengthOperand,
+    EntrancePupilPositionOperand,
+    ExitPupilPositionOperand,
     InvalidTracePenaltyOperand,
+    MagnificationOperand,
+    MTFAtFrequencyOperand,
     SpotRMSOperand,
     ThicknessPenaltyOperand,
     WavefrontRMSOperand,
@@ -112,8 +116,57 @@ class MeritEvaluator:
                 metadata={},
             )
 
+        if isinstance(operand, MagnificationOperand):
+            _, _, _, a, _, _, _, _, _, _, _, _, _ = system.Parax(operand.wavelength)
+            value = float(a)
+            residual = value - operand.target
+            return OperandResult(
+                name=operand.resolved_name(),
+                value=value,
+                target=operand.target,
+                residual=residual,
+                weighted=operand.weight * residual * residual,
+                metadata={},
+            )
+
+        if isinstance(operand, EntrancePupilPositionOperand):
+            value, metadata = self._pupil_position(system, operand, which="entrance")
+            residual = value - operand.target
+            return OperandResult(
+                name=operand.resolved_name(),
+                value=value,
+                target=operand.target,
+                residual=residual,
+                weighted=operand.weight * residual * residual,
+                metadata=metadata,
+            )
+
+        if isinstance(operand, ExitPupilPositionOperand):
+            value, metadata = self._pupil_position(system, operand, which="exit")
+            residual = value - operand.target
+            return OperandResult(
+                name=operand.resolved_name(),
+                value=value,
+                target=operand.target,
+                residual=residual,
+                weighted=operand.weight * residual * residual,
+                metadata=metadata,
+            )
+
         if isinstance(operand, WavefrontRMSOperand):
             value, metadata = self._wavefront_rms(system, operand)
+            residual = value - operand.target
+            return OperandResult(
+                name=operand.resolved_name(),
+                value=value,
+                target=operand.target,
+                residual=residual,
+                weighted=operand.weight * residual * residual,
+                metadata=metadata,
+            )
+
+        if isinstance(operand, MTFAtFrequencyOperand):
+            value, metadata = self._mtf_at_frequency(system, operand)
             residual = value - operand.target
             return OperandResult(
                 name=operand.resolved_name(),
@@ -154,15 +207,25 @@ class MeritEvaluator:
 
     def _spot_rms(self, system, operand: SpotRMSOperand):
         rays = Kos.raykeeper(system)
-        max_radius = max((float(surface.Diameter) / 2.0 for surface in system.SDT), default=1.0)
-        span = max_radius * max(min(operand.ray_height_factor, 1.5), 0.05)
-        ray_count = max(1, int(operand.ray_count))
-        heights = [0.0] if ray_count == 1 else np.linspace(-span, span, ray_count)
-
-        for y0 in heights:
-            system.Trace([0.0, float(y0), 0.0], [0.0, 0.0, 1.0], operand.wavelength)
-            rays.push()
-
+        pupil = Kos.PupilCalc(
+            system,
+            operand.surface_index,
+            operand.wavelength,
+            "EPD",
+            max(
+                0.01,
+                2.0
+                * max((float(surface.Diameter) / 2.0 for surface in system.SDT), default=1.0)
+                * max(min(operand.ray_height_factor, 1.5), 0.05),
+            ),
+        )
+        pupil.Samp = max(2, int(operand.ray_count))
+        pupil.Ptype = "hexapolar"
+        pupil.FieldType = operand.field_type
+        pupil.FieldX = float(operand.field_x)
+        pupil.FieldY = float(operand.field_y)
+        x, y, z, L, M, N = pupil.Pattern2Field()
+        Kos.TraceLoop(x, y, z, L, M, N, operand.wavelength, rays, clean=1)
         X, Y, Z, L, M, N = rays.pick(operand.surface_index)
         if X.size == 0:
             raise RuntimeError("No valid rays reached the requested surface")
@@ -171,7 +234,9 @@ class MeritEvaluator:
             "centroid_x": float(cen_x),
             "centroid_y": float(cen_y),
             "surface_index": operand.surface_index,
-            "ray_count": ray_count,
+            "ray_count": int(pupil.Samp),
+            "field_type": operand.field_type,
+            "field_y": float(operand.field_y),
         }
 
     def _wavefront_rms(self, system, operand: WavefrontRMSOperand):
@@ -202,6 +267,89 @@ class MeritEvaluator:
             "sample_size": int(operand.sample_size),
             "peak_to_valley": float(p2v),
             "sample_count": int(finite_phase.size),
+        }
+
+    def _pupil_position(self, system, operand, which: str):
+        pupil = Kos.PupilCalc(
+            system,
+            operand.surface_index,
+            operand.wavelength,
+            operand.aperture_type,
+            operand.aperture_value,
+        )
+        if which == "entrance":
+            value = float(pupil.PosPupInp[2])
+            radius = float(pupil.RadPupInp)
+        else:
+            value = float(pupil.PosPupOut[2])
+            radius = float(pupil.RadPupOut)
+        return value, {
+            "surface_index": operand.surface_index,
+            "aperture_type": operand.aperture_type,
+            "aperture_value": float(operand.aperture_value),
+            "radius": radius,
+            "which": which,
+        }
+
+    def _mtf_at_frequency(self, system, operand: MTFAtFrequencyOperand):
+        rays = Kos.raykeeper(system)
+        pupil = Kos.PupilCalc(system, max(0, operand.surface_index), operand.wavelength, "EPD", max(
+            0.01, 2.0 * max((float(surface.Diameter) / 2.0 for surface in system.SDT), default=1.0)
+        ))
+        pupil.Samp = max(8, int(operand.ray_count))
+        pupil.Ptype = "hexapolar"
+        pupil.FieldType = operand.field_type
+        pupil.FieldX = float(operand.field_x)
+        pupil.FieldY = float(operand.field_y)
+        x, y, z, L, M, N = pupil.Pattern2Field()
+        Kos.TraceLoop(x, y, z, L, M, N, operand.wavelength, rays, clean=1)
+        X, Y, _Z, _L, _M, _N = rays.pick(-1)
+        x_local = np.asarray(X, dtype=float)
+        y_local = np.asarray(Y, dtype=float)
+        finite = np.isfinite(x_local) & np.isfinite(y_local)
+        x_local = x_local[finite]
+        y_local = y_local[finite]
+        if x_local.size < 4:
+            raise RuntimeError("Not enough image-plane ray samples for MTF")
+        span_x = max(float(np.ptp(x_local)), 1e-3)
+        span_y = max(float(np.ptp(y_local)), 1e-3)
+        span = max(span_x, span_y) * 1.25
+        bins = 128
+        hist, xedges, yedges = np.histogram2d(
+            x_local,
+            y_local,
+            bins=bins,
+            range=[[-span / 2.0, span / 2.0], [-span / 2.0, span / 2.0]],
+        )
+        psf = hist / max(np.sum(hist), 1.0)
+        otf = np.fft.fftshift(np.fft.fft2(psf))
+        mtf = np.abs(otf)
+        mtf /= max(float(np.max(mtf)), 1e-12)
+        dx = float(xedges[1] - xedges[0])
+        freq = np.fft.fftshift(np.fft.fftfreq(bins, d=dx))
+        center = bins // 2
+        positive = freq[center:]
+        tangential = np.asarray(mtf[center, center:], dtype=float)
+        sagittal = np.asarray(mtf[center:, center], dtype=float)
+        count = min(len(positive), len(tangential), len(sagittal))
+        positive = positive[:count]
+        tangential = tangential[:count]
+        sagittal = sagittal[:count]
+        mtf_mode = str(getattr(operand, "mode", "average")).strip().lower()
+        if mtf_mode == "tangential":
+            curve = tangential
+        elif mtf_mode == "sagittal":
+            curve = sagittal
+        else:
+            curve = 0.5 * (tangential + sagittal)
+            mtf_mode = "average"
+        value = float(np.interp(float(operand.frequency), positive, curve, left=curve[0], right=curve[-1]))
+        return value, {
+            "frequency": float(operand.frequency),
+            "mode": mtf_mode,
+            "ray_count": int(x_local.size),
+            "field_type": operand.field_type,
+            "field_y": float(operand.field_y),
         }
 
     @staticmethod

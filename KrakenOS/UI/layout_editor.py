@@ -16,6 +16,7 @@ import os
 from pathlib import Path
 import re
 import tkinter as tk
+import tkinter.font as tkfont
 from tkinter import filedialog, messagebox, ttk
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -23,13 +24,14 @@ from matplotlib.figure import Figure
 import numpy as np
 
 import KrakenOS as Kos
-from KrakenOS.Display import Plot2DRays, Plot2DSurf
+import pyvista as pv
+from KrakenOS.Display import Plot2DRays, Plot2DSurf, plot3d, rayplot3d
 from KrakenOS.Optimization import (
+    OPERAND_REGISTRY,
+    VARIABLE_REGISTRY,
     MeritEvaluator,
     MeritFunction,
     OpticalVariable,
-    SpotRMSOperand,
-    WavefrontRMSOperand,
 )
 from KrakenOS.Optimization.adapters.pygmo2_adapter import Pygmo2MeritProblem
 
@@ -43,6 +45,13 @@ FIELDS = (
     "rc",
     "thickness",
     "diameter",
+    "tilt_x",
+    "tilt_y",
+    "tilt_z",
+    "desp_x",
+    "desp_y",
+    "desp_z",
+    "axis_move",
     "glass",
 )
 COLUMN_LABELS = {
@@ -52,11 +61,28 @@ COLUMN_LABELS = {
     "rc": "Rc [mm]",
     "thickness": "Thickness [mm]",
     "diameter": "Diameter [mm]",
+    "tilt_x": "TiltX [deg]",
+    "tilt_y": "TiltY [deg]",
+    "tilt_z": "TiltZ [deg]",
+    "desp_x": "DespX [mm]",
+    "desp_y": "DespY [mm]",
+    "desp_z": "DespZ [mm]",
+    "axis_move": "AxisMove",
     "glass": "Glass",
 }
-NUMERIC_FIELDS = {"rc", "thickness", "diameter"}
-SURFACE_TYPES = ("Object", "Standard", "Thin Lens", "Grating", "Image")
-MERIT_MODES = ("Spot RMS", "Wavefront RMS", "Spot + Wavefront")
+NUMERIC_FIELDS = {
+    "rc",
+    "thickness",
+    "diameter",
+    "tilt_x",
+    "tilt_y",
+    "tilt_z",
+    "desp_x",
+    "desp_y",
+    "desp_z",
+    "axis_move",
+}
+SURFACE_TYPES = ("Object", "Standard", "Mirror", "Thin Lens", "Grating", "Image")
 
 
 class _CapturedExample(Exception):
@@ -77,6 +103,13 @@ class SurfaceRow:
     optimize_thickness_bounds: tuple[float, float] | None = None
     thickness: float = 0.0
     diameter: float = 25.0
+    tilt_x: float = 0.0
+    tilt_y: float = 0.0
+    tilt_z: float = 0.0
+    desp_x: float = 0.0
+    desp_y: float = 0.0
+    desp_z: float = 0.0
+    axis_move: float = 0.0
     glass: str = "AIR"
 
 
@@ -137,6 +170,19 @@ class KrakenLayoutEditor(tk.Tk):
         self.optimization_running = False
         self.optimization_cancel_requested = False
         self.optimization_context: dict | None = None
+        self.operand_weight_vars: dict[str, tk.StringVar] = {}
+        self.operand_target_vars: dict[str, tk.StringVar] = {}
+        self.operand_wavelength_vars: dict[str, tk.StringVar] = {}
+        self.operand_field_vars: dict[str, tk.StringVar] = {}
+        self.operand_field_x_vars: dict[str, tk.StringVar] = {}
+        self.operand_field_y_vars: dict[str, tk.StringVar] = {}
+        self.operand_surface_vars: dict[str, tk.StringVar] = {}
+        self.operand_aperture_type_vars: dict[str, tk.StringVar] = {}
+        self.operand_aperture_value_vars: dict[str, tk.StringVar] = {}
+        self.operand_frequency_vars: dict[str, tk.StringVar] = {}
+        self.operand_mtf_mode_vars: dict[str, tk.StringVar] = {}
+        self.operand_control_widgets: dict[str, dict[str, tuple[tk.Widget, ...]]] = {}
+        self.operand_setup_frames: dict[str, tk.Widget] = {}
         self._spinner_phase = 0
         self._spinner_after_id: str | None = None
         self._refresh_after_id: str | None = None
@@ -145,6 +191,7 @@ class KrakenLayoutEditor(tk.Tk):
         self._cell_border_parts: list[tk.Frame] = []
         self._grid_overlays: list[tk.Frame] = []
         self._grid_after_id: str | None = None
+        self._initial_layout_passes = 0
 
         self._build_menu()
         self._build_ui()
@@ -172,8 +219,8 @@ class KrakenLayoutEditor(tk.Tk):
 
     def _build_ui(self) -> None:
         self.columnconfigure(0, weight=1)
-        self.rowconfigure(1, weight=1)
-        self.rowconfigure(2, weight=0)
+        self.rowconfigure(0, weight=1)
+        self.rowconfigure(1, weight=0)
 
         style = ttk.Style(self)
         style.configure(
@@ -197,81 +244,15 @@ class KrakenLayoutEditor(tk.Tk):
             foreground=[("selected", "black")],
         )
 
-        toolbar = ttk.Frame(self, padding=8)
-        toolbar.grid(row=0, column=0, sticky="ew")
-        toolbar.columnconfigure(0, weight=0)
-        toolbar.columnconfigure(1, weight=0)
-        toolbar.columnconfigure(2, weight=0)
-        toolbar.columnconfigure(3, weight=1)
+        main = ttk.Panedwindow(self, orient=tk.HORIZONTAL)
+        main.grid(row=0, column=0, sticky="nsew")
+        self.main_pane = main
 
-        self.layout_var = tk.StringVar(value="Common Optical Layout")
-        self.layout_menu = ttk.Combobox(
-            toolbar,
-            textvariable=self.layout_var,
-            state="readonly",
-            width=30,
-        )
-        self.layout_menu.grid(row=0, column=0, padx=(0, 8), pady=4, sticky="w")
-        self.layout_menu.bind("<<ComboboxSelected>>", self._on_layout_selected)
+        left_panel = ttk.Panedwindow(main, orient=tk.VERTICAL)
+        main.add(left_panel, weight=2)
 
-        self.example_var = tk.StringVar(value="Examples")
-        self.example_menu = ttk.Combobox(
-            toolbar,
-            textvariable=self.example_var,
-            state="readonly",
-            width=34,
-        )
-        self.example_menu.grid(row=0, column=1, padx=(0, 8), pady=4, sticky="w")
-        self.example_menu.bind("<<ComboboxSelected>>", self._on_example_selected)
-
-        ttk.Button(toolbar, text="Add surface", command=self.add_surface).grid(
-            row=0, column=2, padx=4, pady=4
-        )
-        ttk.Button(toolbar, text="Delete", command=self.delete_selected).grid(
-            row=0, column=3, padx=4, pady=4, sticky="w"
-        )
-        ttk.Button(toolbar, text="Duplicate", command=self.duplicate_selected).grid(
-            row=0, column=4, padx=4, pady=4, sticky="w"
-        )
-        ttk.Button(toolbar, text="Flip", command=self.flip_selected).grid(
-            row=0, column=5, padx=4, pady=4, sticky="w"
-        )
-        ttk.Button(toolbar, text="▲", width=3, command=self.move_up).grid(
-            row=0, column=6, padx=(12, 2), pady=4
-        )
-        ttk.Button(toolbar, text="▼", width=3, command=self.move_down).grid(
-            row=0, column=7, padx=2, pady=4
-        )
-        ttk.Button(toolbar, text="Layout", command=lambda: self.set_analysis_mode("none")).grid(
-            row=0, column=8, padx=(12, 2), pady=4
-        )
-        ttk.Button(toolbar, text="Spot", command=lambda: self.set_analysis_mode("spot")).grid(
-            row=0, column=9, padx=2, pady=4
-        )
-        ttk.Button(toolbar, text="RMS", command=lambda: self.set_analysis_mode("rms")).grid(
-            row=0, column=10, padx=2, pady=4
-        )
-        ttk.Button(toolbar, text="Pupil", command=lambda: self.set_analysis_mode("pupil")).grid(
-            row=0, column=11, padx=2, pady=4
-        )
-        ttk.Button(toolbar, text="Seidel", command=lambda: self.set_analysis_mode("seidel")).grid(
-            row=0, column=12, padx=2, pady=4
-        )
-        ttk.Button(toolbar, text="Wavefront", command=lambda: self.set_analysis_mode("wavefront")).grid(
-            row=0, column=13, padx=2, pady=4
-        )
-        ttk.Button(toolbar, text="Start Optimization", command=self.start_optimization).grid(
-            row=0, column=14, padx=(12, 0), pady=4
-        )
-        ttk.Button(toolbar, text="Stop", command=self.stop_optimization).grid(
-            row=0, column=15, padx=(4, 0), pady=4
-        )
-
-        main = ttk.Panedwindow(self, orient=tk.VERTICAL)
-        main.grid(row=1, column=0, sticky="nsew")
-
-        top = ttk.Panedwindow(main, orient=tk.HORIZONTAL)
-        main.add(top, weight=2)
+        top = ttk.Panedwindow(left_panel, orient=tk.HORIZONTAL)
+        left_panel.add(top, weight=1)
 
         controls = ttk.LabelFrame(top, text="Display", padding=8)
         controls.columnconfigure(0, weight=1)
@@ -279,31 +260,71 @@ class KrakenLayoutEditor(tk.Tk):
 
         table_frame = ttk.Frame(top, padding=8)
         table_frame.columnconfigure(0, weight=1)
-        table_frame.rowconfigure(0, weight=1)
+        table_frame.rowconfigure(1, weight=1)
         top.add(table_frame, weight=3)
 
-        results = ttk.LabelFrame(top, text="Information", padding=8)
+        plot_frame = ttk.Frame(left_panel, padding=8)
+        plot_frame.columnconfigure(0, weight=1)
+        plot_frame.rowconfigure(1, weight=1)
+        left_panel.add(plot_frame, weight=4)
+
+        right_panel = ttk.Panedwindow(main, orient=tk.VERTICAL)
+        main.add(right_panel, weight=1)
+
+        info_stack = ttk.Panedwindow(right_panel, orient=tk.VERTICAL)
+        right_panel.add(info_stack, weight=3)
+
+        results = ttk.LabelFrame(info_stack, text="Information", padding=8)
         results.columnconfigure(0, weight=1)
         results.rowconfigure(0, weight=1)
-        top.add(results, weight=2)
+        info_stack.add(results, weight=3)
 
-        plot_frame = ttk.Frame(main, padding=8)
-        plot_frame.columnconfigure(0, weight=1)
-        plot_frame.rowconfigure(0, weight=1)
-        main.add(plot_frame, weight=3)
+        optimization = ttk.LabelFrame(info_stack, text="Optimization", padding=8)
+        optimization.columnconfigure(0, weight=1)
+        optimization.rowconfigure(2, weight=0)
+        info_stack.add(optimization, weight=2)
 
-        bottom = ttk.Panedwindow(main, orient=tk.HORIZONTAL)
-        main.add(bottom, weight=1)
+        bottom = ttk.Panedwindow(right_panel, orient=tk.VERTICAL)
+        right_panel.add(bottom, weight=1)
+
+        progress_frame = ttk.LabelFrame(bottom, text="Progress", padding=8)
+        progress_frame.columnconfigure(0, weight=1)
+        progress_frame.rowconfigure(1, weight=1)
+        bottom.add(progress_frame, weight=1)
 
         debug_frame = ttk.LabelFrame(bottom, text="Debug", padding=8)
         debug_frame.columnconfigure(0, weight=1)
         debug_frame.rowconfigure(0, weight=1)
         bottom.add(debug_frame, weight=1)
 
-        progress_frame = ttk.LabelFrame(bottom, text="Progress", padding=8)
-        progress_frame.columnconfigure(0, weight=1)
-        progress_frame.rowconfigure(1, weight=1)
-        bottom.add(progress_frame, weight=1)
+        table_toolbar = ttk.Frame(table_frame)
+        table_toolbar.grid(row=0, column=0, sticky="ew", pady=(0, 6))
+        ttk.Button(table_toolbar, text="Add surface", command=self.add_surface).pack(side="left")
+        ttk.Button(table_toolbar, text="Delete", command=self.delete_selected).pack(side="left", padx=(6, 0))
+        ttk.Button(table_toolbar, text="Duplicate", command=self.duplicate_selected).pack(side="left", padx=(6, 0))
+        ttk.Button(table_toolbar, text="Flip", command=self.flip_selected).pack(side="left", padx=(6, 0))
+        ttk.Button(table_toolbar, text="▲", width=3, command=self.move_up).pack(side="left", padx=(10, 0))
+        ttk.Button(table_toolbar, text="▼", width=3, command=self.move_down).pack(side="left", padx=(4, 0))
+
+        self.layout_var = tk.StringVar(value="Common Optical Layout")
+        self.layout_menu = ttk.Combobox(
+            table_toolbar,
+            textvariable=self.layout_var,
+            state="readonly",
+            width=28,
+        )
+        self.layout_menu.pack(side="left", padx=(12, 0))
+        self.layout_menu.bind("<<ComboboxSelected>>", self._on_layout_selected)
+
+        self.example_var = tk.StringVar(value="Examples")
+        self.example_menu = ttk.Combobox(
+            table_toolbar,
+            textvariable=self.example_var,
+            state="readonly",
+            width=28,
+        )
+        self.example_menu.pack(side="left", padx=(8, 0))
+        self.example_menu.bind("<<ComboboxSelected>>", self._on_example_selected)
 
         self.table = ttk.Treeview(
             table_frame,
@@ -318,10 +339,13 @@ class KrakenLayoutEditor(tk.Tk):
                 55 if field == "label"
                 else 140 if field == "surface"
                 else 160 if field == "name"
+                else 95 if field in {"tilt_x", "tilt_y", "tilt_z"}
+                else 95 if field in {"desp_x", "desp_y", "desp_z"}
+                else 85 if field == "axis_move"
                 else 110
             )
             self.table.column(field, width=width, stretch=True, anchor="center")
-        self.table.grid(row=0, column=0, sticky="nsew")
+        self.table.grid(row=1, column=0, sticky="nsew")
         self.table.bind("<Button-1>", self._on_table_click, add="+")
         self.table.bind("<Double-1>", self.begin_edit)
         self.table.bind("<Button-3>", self.show_context_menu)
@@ -334,6 +358,14 @@ class KrakenLayoutEditor(tk.Tk):
         self.table.bind("<Button-4>", self._schedule_table_grid_update, add="+")
         self.table.bind("<Button-5>", self._update_active_cell_border, add="+")
         self.table.bind("<Button-5>", self._schedule_table_grid_update, add="+")
+        self.table.bind("<Left>", self._move_active_cell)
+        self.table.bind("<Right>", self._move_active_cell)
+        self.table.bind("<Up>", self._move_active_cell)
+        self.table.bind("<Down>", self._move_active_cell)
+        self.table.bind("<KP_Left>", self._move_active_cell)
+        self.table.bind("<KP_Right>", self._move_active_cell)
+        self.table.bind("<KP_Up>", self._move_active_cell)
+        self.table.bind("<KP_Down>", self._move_active_cell)
         self.table.tag_configure("optimize", background="#fff4bf")
 
         border_color = "#4a89ff"
@@ -346,18 +378,41 @@ class KrakenLayoutEditor(tk.Tk):
         self._hide_active_cell_border()
 
         yscroll = ttk.Scrollbar(table_frame, orient="vertical", command=self.table.yview)
-        yscroll.grid(row=0, column=1, sticky="ns")
+        yscroll.grid(row=1, column=1, sticky="ns")
         self.table.configure(yscrollcommand=lambda first, last: self._on_table_scroll(yscroll, first, last))
+        xscroll = ttk.Scrollbar(table_frame, orient="horizontal", command=self.table.xview)
+        xscroll.grid(row=2, column=0, sticky="ew")
+        self.table.configure(xscrollcommand=xscroll.set)
 
         self._build_controls_panel(controls)
         self._build_results_panel(results)
+        self._build_optimization_panel(optimization)
+
+        plot_toolbar = ttk.Frame(plot_frame)
+        plot_toolbar.grid(row=0, column=0, sticky="ew", pady=(0, 6))
+        ttk.Button(plot_toolbar, text="Open 3D", command=self.open_3d_view).pack(side="left")
+        ttk.Button(plot_toolbar, text="2D", command=lambda: self.set_analysis_mode("none")).pack(side="left", padx=(6, 0))
+        ttk.Button(plot_toolbar, text="Spot", command=lambda: self.set_analysis_mode("spot")).pack(side="left", padx=(6, 0))
+        ttk.Button(plot_toolbar, text="PSF", command=lambda: self.set_analysis_mode("psf")).pack(side="left", padx=(6, 0))
+        ttk.Button(plot_toolbar, text="RMS", command=lambda: self.set_analysis_mode("rms")).pack(side="left", padx=(6, 0))
+        ttk.Button(plot_toolbar, text="FC/Dist", command=lambda: self.set_analysis_mode("field_curvature")).pack(side="left", padx=(6, 0))
+        ttk.Button(plot_toolbar, text="Pupil", command=lambda: self.set_analysis_mode("pupil")).pack(side="left", padx=(6, 0))
+        ttk.Button(plot_toolbar, text="Seidel", command=lambda: self.set_analysis_mode("seidel")).pack(side="left", padx=(6, 0))
+        ttk.Button(plot_toolbar, text="Wavefront", command=lambda: self.set_analysis_mode("wavefront")).pack(side="left", padx=(6, 0))
+        ttk.Button(plot_toolbar, text="MTF", command=lambda: self.set_analysis_mode("mtf")).pack(side="left", padx=(6, 0))
+        ttk.Checkbutton(
+            plot_toolbar,
+            text="Show PP / EP / XP",
+            variable=self.show_cardinals_var,
+            command=self.refresh_plot,
+        ).pack(side="left", padx=(12, 0))
 
         self.figure = Figure(figsize=(7, 5), dpi=100)
         self.ax = self.figure.add_subplot(111)
         self.canvas = FigureCanvasTkAgg(self.figure, master=plot_frame)
-        self.canvas.get_tk_widget().grid(row=0, column=0, sticky="nsew")
+        self.canvas.get_tk_widget().grid(row=1, column=0, sticky="nsew")
 
-        self.debug_text = tk.Text(debug_frame, wrap="word", height=8)
+        self.debug_text = tk.Text(debug_frame, wrap="word", height=8, width=24)
         self.debug_text.grid(row=0, column=0, sticky="nsew")
         debug_scroll = ttk.Scrollbar(debug_frame, orient="vertical", command=self.debug_text.yview)
         debug_scroll.grid(row=0, column=1, sticky="ns")
@@ -382,7 +437,7 @@ class KrakenLayoutEditor(tk.Tk):
             row=0, column=2, sticky="e"
         )
 
-        self.progress_text = tk.Text(progress_frame, wrap="word", height=8)
+        self.progress_text = tk.Text(progress_frame, wrap="word", height=8, width=24)
         self.progress_text.grid(row=1, column=0, sticky="nsew")
         progress_scroll = ttk.Scrollbar(progress_frame, orient="vertical", command=self.progress_text.yview)
         progress_scroll.grid(row=1, column=1, sticky="ns")
@@ -390,8 +445,10 @@ class KrakenLayoutEditor(tk.Tk):
 
         self.status_var = tk.StringVar(value="Ready")
         ttk.Label(self, textvariable=self.status_var, anchor="w").grid(
-            row=2, column=0, sticky="ew", padx=8, pady=(0, 2)
+            row=1, column=0, sticky="ew", padx=8, pady=(0, 2)
         )
+        self.after_idle(self._set_initial_pane_layout)
+        self.bind("<Configure>", self._maybe_refresh_initial_pane_layout, add="+")
 
     def _build_controls_panel(self, parent) -> None:
         parent.columnconfigure(0, weight=1)
@@ -456,16 +513,6 @@ class KrakenLayoutEditor(tk.Tk):
         self.aperture_type_menu.grid(row=7, column=1, sticky="ew", pady=(0, 8), padx=(8, 0))
         self.aperture_type_menu.bind("<<ComboboxSelected>>", lambda _e: self.refresh_plot())
 
-        ttk.Label(parent, text="Merit function").grid(row=8, column=1, sticky="w", pady=(0, 2), padx=(8, 0))
-        self.merit_mode_var = tk.StringVar(value=MERIT_MODES[0])
-        self.merit_mode_menu = ttk.Combobox(
-            parent,
-            textvariable=self.merit_mode_var,
-            state="readonly",
-            values=MERIT_MODES,
-        )
-        self.merit_mode_menu.grid(row=9, column=1, sticky="ew", pady=(0, 8), padx=(8, 0))
-
         ttk.Label(parent, text="Aperture value").grid(row=8, column=0, sticky="w", pady=(0, 2))
         self.aperture_value_var = tk.StringVar(value="1.0")
         ttk.Entry(parent, textvariable=self.aperture_value_var, width=12).grid(
@@ -473,12 +520,6 @@ class KrakenLayoutEditor(tk.Tk):
         )
 
         self.show_cardinals_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(
-            parent,
-            text="Show PP / EP / XP",
-            variable=self.show_cardinals_var,
-            command=self.refresh_plot,
-        ).grid(row=10, column=0, sticky="w", pady=(0, 8))
 
         for variable in (
             self.field_count_var,
@@ -489,17 +530,233 @@ class KrakenLayoutEditor(tk.Tk):
             self.aperture_value_var,
         ):
             variable.trace_add("write", self._schedule_refresh_plot)
+    def _build_optimization_panel(self, parent) -> None:
+        parent.columnconfigure(0, weight=1)
+        parent.columnconfigure(1, weight=1)
+
+        button_row = ttk.Frame(parent)
+        button_row.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 8))
+        ttk.Button(button_row, text="Start Optimization", command=self.start_optimization).pack(side="left")
+        ttk.Button(button_row, text="Stop", command=self.stop_optimization).pack(side="left", padx=(8, 0))
+
+        ttk.Label(parent, text="Merit operands").grid(row=1, column=0, sticky="w", pady=(0, 2))
+        self.merit_mode_list = tk.Listbox(
+            parent,
+            exportselection=False,
+            selectmode="extended",
+            height=min(4, max(2, len(OPERAND_REGISTRY))),
+            width=14,
+        )
+        for spec in OPERAND_REGISTRY.values():
+            self.merit_mode_list.insert("end", spec.label)
+        if OPERAND_REGISTRY:
+            self.merit_mode_list.selection_set(0)
+        self.merit_mode_list.grid(row=2, column=0, sticky="nsew", pady=(0, 8), padx=(0, 8))
+        self.merit_mode_list.bind("<<ListboxSelect>>", lambda _e: self._update_operand_setup_visibility())
+
+        setup_holder = ttk.Frame(parent, height=320)
+        setup_holder.grid(row=2, column=1, sticky="nsew", pady=(0, 8))
+        setup_holder.grid_propagate(False)
+        setup_holder.columnconfigure(0, weight=1)
+        setup_holder.rowconfigure(0, weight=1)
+
+        setup_frame = ttk.Frame(setup_holder)
+        setup_frame.grid(row=0, column=0, sticky="nsew")
+        setup_frame.columnconfigure(0, weight=1)
+        ttk.Label(setup_frame, text="Operand setup").grid(row=0, column=0, sticky="w", pady=(0, 2))
+
+        for idx, spec in enumerate(OPERAND_REGISTRY.values(), start=1):
+            card = ttk.LabelFrame(setup_frame, text=spec.label, padding=6)
+            card.grid(row=idx, column=0, sticky="ew", pady=(0, 8))
+            card.columnconfigure(1, weight=1)
+            control_widgets: dict[str, tuple[tk.Widget, ...]] = {}
+
+            weight_var = tk.StringVar(value=f"{spec.default_weight:g}")
+            self.operand_weight_vars[spec.label] = weight_var
+            weight_label = ttk.Label(card, text="Weight")
+            weight_label.grid(row=0, column=0, sticky="w")
+            weight_entry = ttk.Entry(card, textvariable=weight_var, width=6)
+            weight_entry.grid(row=0, column=1, sticky="ew", padx=(6, 0), pady=(0, 4))
+            self._bind_deferred_refresh(weight_entry)
+            control_widgets["weight"] = (weight_label, weight_entry)
+
+            target_var = tk.StringVar(value=f"{spec.default_target:g}")
+            self.operand_target_vars[spec.label] = target_var
+            target_label = ttk.Label(card, text="Target")
+            target_label.grid(row=1, column=0, sticky="w")
+            target_entry = ttk.Entry(card, textvariable=target_var, width=6)
+            target_entry.grid(row=1, column=1, sticky="ew", padx=(6, 0), pady=(0, 4))
+            self._bind_deferred_refresh(target_entry)
+            control_widgets["target"] = (target_label, target_entry)
+
+            wavelength_var = tk.StringVar(value=self.wavelength_var.get())
+            self.operand_wavelength_vars[spec.label] = wavelength_var
+            wavelength_label = ttk.Label(card, text="Wvl")
+            wavelength_label.grid(row=2, column=0, sticky="w")
+            wavelength_entry = ttk.Entry(card, textvariable=wavelength_var, width=6)
+            wavelength_entry.grid(row=2, column=1, sticky="ew", padx=(6, 0), pady=(0, 4))
+            self._bind_deferred_refresh(wavelength_entry)
+            control_widgets["wavelength"] = (wavelength_label, wavelength_entry)
+
+            field_var = tk.StringVar(value="0")
+            self.operand_field_vars[spec.label] = field_var
+            field_label = ttk.Label(card, text="Field")
+            field_label.grid(row=3, column=0, sticky="w")
+            field_entry = ttk.Entry(card, textvariable=field_var, width=6)
+            field_entry.grid(row=3, column=1, sticky="ew", padx=(6, 0), pady=(0, 4))
+            self._bind_deferred_refresh(field_entry)
+            control_widgets["field"] = (field_label, field_entry)
+
+            surface_row = 4
+            aperture_type_row = 5
+            aperture_value_row = 6
+            frequency_row = 7
+            mode_row = 8
+
+            if spec.label == "MTF @ freq":
+                field_x_var = tk.StringVar(value="0")
+                field_y_var = tk.StringVar(value="0")
+                self.operand_field_x_vars[spec.label] = field_x_var
+                self.operand_field_y_vars[spec.label] = field_y_var
+                field_x_label = ttk.Label(card, text="Field X")
+                field_x_label.grid(row=3, column=0, sticky="w")
+                field_x_entry = ttk.Entry(card, textvariable=field_x_var, width=6)
+                field_x_entry.grid(row=3, column=1, sticky="ew", padx=(6, 0), pady=(0, 4))
+                self._bind_deferred_refresh(field_x_entry)
+                field_y_label = ttk.Label(card, text="Field Y")
+                field_y_label.grid(row=4, column=0, sticky="w")
+                field_y_entry = ttk.Entry(card, textvariable=field_y_var, width=6)
+                field_y_entry.grid(row=4, column=1, sticky="ew", padx=(6, 0), pady=(0, 4))
+                self._bind_deferred_refresh(field_y_entry)
+                control_widgets["field_xy"] = (field_x_label, field_x_entry, field_y_label, field_y_entry)
+                field_label.grid_remove()
+                field_entry.grid_remove()
+                surface_row = 5
+                aperture_type_row = 6
+                aperture_value_row = 7
+                frequency_row = 8
+                mode_row = 9
+
+            surface_var = tk.StringVar(value="Auto")
+            self.operand_surface_vars[spec.label] = surface_var
+            surface_label = ttk.Label(card, text="Surf")
+            surface_label.grid(row=surface_row, column=0, sticky="w")
+            surface_menu = ttk.Combobox(card, textvariable=surface_var, state="readonly", width=6, values=["Auto"])
+            surface_menu.grid(row=surface_row, column=1, sticky="ew", padx=(6, 0), pady=(0, 4))
+            surface_menu.bind("<<ComboboxSelected>>", lambda _e: self.refresh_plot())
+            control_widgets["surface"] = (surface_label, surface_menu)
+
+            aperture_type_var = tk.StringVar(value=self.aperture_type_var.get())
+            self.operand_aperture_type_vars[spec.label] = aperture_type_var
+            aperture_type_label = ttk.Label(card, text="Aper")
+            aperture_type_label.grid(row=aperture_type_row, column=0, sticky="w")
+            aperture_type_menu = ttk.Combobox(
+                card,
+                textvariable=aperture_type_var,
+                state="readonly",
+                width=6,
+                values=["STOP", "EPD"],
+            )
+            aperture_type_menu.grid(row=aperture_type_row, column=1, sticky="ew", padx=(6, 0), pady=(0, 4))
+            aperture_type_menu.bind("<<ComboboxSelected>>", lambda _e: self.refresh_plot())
+            control_widgets["aperture"] = (aperture_type_label, aperture_type_menu)
+
+            aperture_value_var = tk.StringVar(value=self.aperture_value_var.get())
+            self.operand_aperture_value_vars[spec.label] = aperture_value_var
+            aperture_value_label = ttk.Label(card, text="AVal")
+            aperture_value_label.grid(row=aperture_value_row, column=0, sticky="w")
+            aperture_value_entry = ttk.Entry(card, textvariable=aperture_value_var, width=6)
+            aperture_value_entry.grid(row=aperture_value_row, column=1, sticky="ew", padx=(6, 0), pady=(0, 0))
+            self._bind_deferred_refresh(aperture_value_entry)
+            control_widgets["aperture_value"] = (aperture_value_label, aperture_value_entry)
+
+            if spec.label == "MTF @ freq":
+                frequency_var = tk.StringVar(value="50")
+                self.operand_frequency_vars[spec.label] = frequency_var
+                frequency_label = ttk.Label(card, text="Freq")
+                frequency_label.grid(row=frequency_row, column=0, sticky="w")
+                frequency_entry = ttk.Entry(card, textvariable=frequency_var, width=6)
+                frequency_entry.grid(row=frequency_row, column=1, sticky="ew", padx=(6, 0), pady=(0, 0))
+                self._bind_deferred_refresh(frequency_entry)
+                control_widgets["frequency"] = (frequency_label, frequency_entry)
+
+                mtf_mode_var = tk.StringVar(value="Average")
+                self.operand_mtf_mode_vars[spec.label] = mtf_mode_var
+                mode_label = ttk.Label(card, text="Mode")
+                mode_label.grid(row=mode_row, column=0, sticky="w")
+                mtf_mode_menu = ttk.Combobox(
+                    card,
+                    textvariable=mtf_mode_var,
+                    state="readonly",
+                    width=8,
+                    values=["Average", "Tangential", "Sagittal"],
+                )
+                mtf_mode_menu.grid(row=mode_row, column=1, sticky="ew", padx=(6, 0), pady=(4, 0))
+                mtf_mode_menu.bind("<<ComboboxSelected>>", lambda _e: self.refresh_plot())
+                control_widgets["mtf_mode"] = (mode_label, mtf_mode_menu)
+
+            self.operand_control_widgets[spec.label] = control_widgets
+            self.operand_setup_frames[spec.label] = card
+            self._apply_operand_control_visibility(spec.label)
+
+        self._update_operand_setup_visibility()
 
     def _build_results_panel(self, parent) -> None:
         self.results_table = ttk.Treeview(parent, columns=("property", "value"), show="headings", selectmode="none")
         self.results_table.heading("property", text="Property")
         self.results_table.heading("value", text="Value")
-        self.results_table.column("property", width=180, anchor="w")
-        self.results_table.column("value", width=140, anchor="w")
+        self.results_table.column("property", width=96, anchor="w", stretch=False)
+        self.results_table.column("value", width=40, anchor="w", stretch=True)
         self.results_table.grid(row=0, column=0, sticky="nsew")
         scroll = ttk.Scrollbar(parent, orient="vertical", command=self.results_table.yview)
         scroll.grid(row=0, column=1, sticky="ns")
         self.results_table.configure(yscrollcommand=scroll.set)
+
+    def _bind_deferred_refresh(self, widget: tk.Widget) -> None:
+        widget.bind("<Return>", lambda _e: self.refresh_plot())
+        widget.bind("<Tab>", lambda _e: self.refresh_plot())
+        widget.bind("<FocusOut>", lambda _e: self.refresh_plot())
+
+    def _apply_operand_control_visibility(self, label: str) -> None:
+        spec = self._merit_spec_for_label(label)
+        if spec is None:
+            return
+        visible_controls = set(spec.controls)
+        widget_groups = self.operand_control_widgets.get(label, {})
+        for control_name, widgets in widget_groups.items():
+            for widget in widgets:
+                if control_name in visible_controls:
+                    widget.grid()
+                else:
+                    widget.grid_remove()
+
+    def _update_operand_setup_visibility(self) -> None:
+        if not hasattr(self, "merit_mode_list"):
+            return
+        selected = {self.merit_mode_list.get(i) for i in self.merit_mode_list.curselection()}
+        for label, frame in self.operand_setup_frames.items():
+            visible = label in selected
+            if visible:
+                frame.grid()
+            else:
+                frame.grid_remove()
+
+    def _set_initial_pane_layout(self) -> None:
+        self.update_idletasks()
+        total_width = self.main_pane.winfo_width()
+        if total_width < 300:
+            self.after(100, self._set_initial_pane_layout)
+            return
+        try:
+            self.main_pane.sashpos(0, int(total_width * 0.80))
+            self._initial_layout_passes += 1
+        except Exception:
+            self.after(100, self._set_initial_pane_layout)
+
+    def _maybe_refresh_initial_pane_layout(self, _event=None) -> None:
+        if self._initial_layout_passes >= 40:
+            return
+        self.after(100, self._set_initial_pane_layout)
 
     def load_layouts(self) -> None:
         self.layout_files = {}
@@ -527,6 +784,34 @@ class KrakenLayoutEditor(tk.Tk):
         self.analysis_mode = mode
         self.refresh_plot()
 
+    def open_3d_view(self) -> None:
+        try:
+            wavelength = self._current_wavelength()
+            system = self.build_system()
+            rays = Kos.raykeeper(system)
+            max_radius = max((max(row.diameter / 2.0, 0.5) for row in self.rows), default=1.0)
+            self._trace_preview_rays(system, rays, wavelength, max_radius)
+            self.last_system = system
+            self.last_rays = rays
+            plotter = pv.Plotter(shape=(1, 1), title="KrakenOS 3D", notebook=False)
+            plot3d(system, 0, plotter, 0.99)
+            rayplot3d(rays, 0, plotter, 0.99, 0)
+            plotter.add_axes(line_width=4)
+            cx, cy, cz = plotter.center
+            plotter.set_focus([cx, cy, cz])
+            plotter.camera_position = [-1.0, 0.5, 1.0]
+            plotter.set_viewup([0, 1.0, 0])
+            plotter.enable_anti_aliasing()
+            plotter.set_background("white", top="white")
+            plotter.add_text("KrakenOS", position="upper_left", font_size=20, color="royalblue")
+            plotter.show_grid(font_size=6, color="black")
+            plotter.show(auto_close=True, interactive=True, interactive_update=False)
+            self.status_var.set("Opened Kraken 3D view")
+            self.append_debug("Opened Kraken 3D view (close with window X, Alt+F4, or q)")
+        except Exception as exc:
+            self.append_debug(f"3D view error: {exc}")
+            self.status_var.set(f"3D view failed: {exc}")
+
     def load_layout_by_name(self, name: str) -> None:
         path = self.layout_files.get(name)
         if path is None:
@@ -534,7 +819,7 @@ class KrakenLayoutEditor(tk.Tk):
         self.current_layout_file = path
         try:
             info = _load_python_data(path)
-            self.rows = [
+            loaded_rows = [
                 SurfaceRow(
                     surface=str(item.get("surface", self._infer_surface_type(item))),
                     name=str(item.get("name", "Surface")),
@@ -545,18 +830,33 @@ class KrakenLayoutEditor(tk.Tk):
                     optimize_thickness_bounds=_coerce_bounds(item.get("optimize_thickness_bounds")),
                     thickness=float(item.get("thickness", 0.0)),
                     diameter=float(item.get("diameter", 25.0)),
+                    tilt_x=float(item.get("tilt_x", 0.0)),
+                    tilt_y=float(item.get("tilt_y", 0.0)),
+                    tilt_z=float(item.get("tilt_z", 0.0)),
+                    desp_x=float(item.get("desp_x", 0.0)),
+                    desp_y=float(item.get("desp_y", 0.0)),
+                    desp_z=float(item.get("desp_z", 0.0)),
+                    axis_move=float(item.get("axis_move", 0.0)),
                     glass=str(item.get("glass", "AIR")),
                 )
                 for item in info["surfaces"]
             ]
         except Exception:
             surfaces = self._extract_surfaces_from_example(path)
-            self.rows = [self._row_from_surface(surface, index, len(surfaces)) for index, surface in enumerate(surfaces)]
+            loaded_rows = [self._row_from_surface(surface, index, len(surfaces)) for index, surface in enumerate(surfaces)]
+
+        loaded_rows = self._normalized_rows_copy(loaded_rows)
+        if self.rows:
+            self.rows = self._append_layout_rows(self.rows, loaded_rows)
+        else:
+            self.rows = loaded_rows
+
         self._normalize_special_rows()
         self._sync_table()
         self.refresh_plot()
         self.layout_var.set(name)
-        self.status_var.set(f"Loaded {name}")
+        self.example_var.set("Examples")
+        self.status_var.set(f"Appended {name}")
 
     def load_example_by_name(self, name: str) -> None:
         path = self.example_files.get(name)
@@ -565,7 +865,6 @@ class KrakenLayoutEditor(tk.Tk):
         try:
             surfaces = self._extract_surfaces_from_example(path)
         except Exception as exc:
-            self.example_var.set("Examples")
             self.status_var.set(f"Failed to load example {name}: {exc}")
             return
         self.current_layout_file = None
@@ -574,8 +873,21 @@ class KrakenLayoutEditor(tk.Tk):
         self._apply_example_display_defaults(path)
         self._sync_table()
         self.refresh_plot()
+        self.layout_var.set("Common Optical Layout")
         self.example_var.set(name)
         self.status_var.set(f"Loaded example {name}")
+
+    def _on_layout_selected(self, _event: tk.Event) -> None:
+        selected = self.layout_var.get().strip()
+        if selected == "Common Optical Layout":
+            return
+        self.load_layout_by_name(selected)
+
+    def _on_example_selected(self, _event: tk.Event) -> None:
+        selected = self.example_var.get().strip()
+        if selected == "Examples":
+            return
+        self.load_example_by_name(selected)
 
     def _sync_table(self) -> None:
         self.table.delete(*self.table.get_children())
@@ -588,11 +900,19 @@ class KrakenLayoutEditor(tk.Tk):
                 self._format_numeric_cell("rc", row),
                 self._format_numeric_cell("thickness", row),
                 f"{row.diameter:g}",
+                f"{row.tilt_x:g}",
+                f"{row.tilt_y:g}",
+                f"{row.tilt_z:g}",
+                f"{row.desp_x:g}",
+                f"{row.desp_y:g}",
+                f"{row.desp_z:g}",
+                f"{row.axis_move:g}",
                 row.glass,
             ]
             tags = ("optimize",) if self._row_has_optimization(row) else ()
             self.table.insert("", "end", values=values, tags=tags)
         self._refresh_analysis_surface_choices()
+        self._refresh_operand_surface_choices()
         self._sync_object_controls()
 
     def _refresh_analysis_surface_choices(self) -> None:
@@ -609,6 +929,31 @@ class KrakenLayoutEditor(tk.Tk):
     @staticmethod
     def _parse_numeric_display(value: str) -> float:
         return float(value.replace("*", "").strip())
+
+    @staticmethod
+    def _normalized_rows_copy(rows: list[SurfaceRow]) -> list[SurfaceRow]:
+        copied = [SurfaceRow(**asdict(row)) for row in rows]
+        if copied:
+            copied[0].surface = "Object"
+            if not copied[0].name or copied[0].name == "Surface":
+                copied[0].name = "Object"
+            copied[-1].surface = "Image"
+            if not copied[-1].name or copied[-1].name == "Surface":
+                copied[-1].name = "Image"
+        return copied
+
+    @staticmethod
+    def _append_layout_rows(existing_rows: list[SurfaceRow], layout_rows: list[SurfaceRow]) -> list[SurfaceRow]:
+        base = [SurfaceRow(**asdict(row)) for row in existing_rows]
+        additions = [SurfaceRow(**asdict(row)) for row in layout_rows[1:-1]]
+        if not additions:
+            return base
+        insert_at = len(base)
+        if base and base[-1].surface == "Image":
+            insert_at -= 1
+        for offset, row in enumerate(additions):
+            base.insert(insert_at + offset, row)
+        return base
 
     @staticmethod
     def _format_numeric_cell(field: str, row: SurfaceRow) -> str:
@@ -635,7 +980,14 @@ class KrakenLayoutEditor(tk.Tk):
                     optimize_thickness_bounds=self.rows[len(rows)].optimize_thickness_bounds if len(rows) < len(self.rows) else None,
                     thickness=self._parse_numeric_display(str(values[4])),
                     diameter=float(values[5]),
-                    glass=str(values[6]),
+                    tilt_x=float(values[6]),
+                    tilt_y=float(values[7]),
+                    tilt_z=float(values[8]),
+                    desp_x=float(values[9]),
+                    desp_y=float(values[10]),
+                    desp_z=float(values[11]),
+                    axis_move=float(values[12]),
+                    glass=str(values[13]),
                 )
             )
         self.rows = rows
@@ -644,12 +996,81 @@ class KrakenLayoutEditor(tk.Tk):
     def _on_table_click(self, event: tk.Event) -> None:
         row_id = self.table.identify_row(event.y)
         column_id = self.table.identify_column(event.x)
+        self.table.focus_set()
         if not row_id or not column_id:
             self._active_cell = None
             self._hide_active_cell_border()
             return
         self._active_cell = (row_id, column_id)
+        self.table.focus(row_id)
+        self.table.selection_set(row_id)
         self.after_idle(self._update_active_cell_border)
+
+    def _move_active_cell(self, event: tk.Event) -> str:
+        self.table.focus_set()
+        children = list(self.table.get_children())
+        if not children:
+            return "break"
+        if self._active_cell is None:
+            row_id = children[0]
+            column_id = "#2"
+        else:
+            row_id, column_id = self._active_cell
+            if row_id not in children:
+                row_id = children[0]
+            column_index = int(column_id.replace("#", ""))
+            row_index = children.index(row_id)
+            if event.keysym == "Left":
+                column_index = max(2, column_index - 1)
+            elif event.keysym == "Right":
+                column_index = min(len(FIELDS), column_index + 1)
+            elif event.keysym == "Up":
+                row_index = max(0, row_index - 1)
+            elif event.keysym == "Down":
+                row_index = min(len(children) - 1, row_index + 1)
+            row_id = children[row_index]
+            column_id = f"#{column_index}"
+        self._active_cell = (row_id, column_id)
+        self.table.focus(row_id)
+        self.table.selection_set(row_id)
+        self._ensure_active_cell_visible(row_id, column_id)
+        self.after_idle(self._update_active_cell_border)
+        return "break"
+
+    def _ensure_active_cell_visible(self, row_id: str, column_id: str) -> None:
+        self.table.see(row_id)
+        self.update_idletasks()
+        columns = list(self.table["columns"])
+        target_bbox = self.table.bbox(row_id, column_id)
+        if target_bbox:
+            x, _y, width, _height = target_bbox
+            visible_width = max(self.table.winfo_width(), 1)
+            if x >= 0 and (x + width) <= visible_width:
+                return
+
+        total_width = 0
+        target_left = 0
+        target_width = 0
+        target_field = FIELDS[int(column_id.replace("#", "")) - 1]
+        for field in columns:
+            width = int(self.table.column(field, "width"))
+            if field == target_field:
+                target_left = total_width
+                target_width = width
+            total_width += width
+        if total_width <= 0:
+            return
+        visible_width = max(self.table.winfo_width(), 1)
+        view_left, _view_right = self.table.xview()
+        visible_left = view_left * total_width
+        visible_right = visible_left + visible_width
+        if target_left < visible_left:
+            desired_left = max(0.0, target_left - 16.0)
+            self.table.xview_moveto(desired_left / total_width)
+        elif target_left + target_width > visible_right:
+            desired_left = max(0.0, target_left + target_width - visible_width + 16.0)
+            self.table.xview_moveto(min(1.0, desired_left / total_width))
+        self.update_idletasks()
 
     def _hide_active_cell_border(self) -> None:
         for part in self._cell_border_parts:
@@ -727,6 +1148,29 @@ class KrakenLayoutEditor(tk.Tk):
             self._grid_overlays.append(row_line)
 
         self.after_idle(self._update_active_cell_border)
+
+    def _refresh_operand_surface_choices(self) -> None:
+        values = ["Auto"]
+        for index, row in enumerate(self.rows):
+            if row.surface in {"Object", "Image"}:
+                continue
+            values.append(f"{index}: {row.name}")
+        for label, var in self.operand_surface_vars.items():
+            current = var.get().strip() if var.get() else "Auto"
+            if current not in values:
+                var.set("Auto")
+        for widget in self.winfo_children():
+            self._apply_surface_values_to_descendants(widget, values)
+
+    def _apply_surface_values_to_descendants(self, widget, values) -> None:
+        if isinstance(widget, ttk.Combobox):
+            textvar = widget.cget("textvariable")
+            for var in self.operand_surface_vars.values():
+                if str(var) == textvar:
+                    widget["values"] = values
+                    break
+        for child in widget.winfo_children():
+            self._apply_surface_values_to_descendants(child, values)
 
     def _sync_object_controls(self) -> None:
         return
@@ -870,21 +1314,22 @@ class KrakenLayoutEditor(tk.Tk):
             return
         column_index = int(column_id.replace("#", "")) - 1
         field = FIELDS[column_index]
-        if field not in {"rc", "thickness"}:
+        spec = self._variable_spec_for_field(field)
+        if spec is None:
             return
         row_index = self.table.index(row_id)
         row = self.rows[row_index]
-        if row.surface in {"Object", "Image"}:
+        if row.surface in {"Object", "Image"} or not spec.is_supported(row):
             return
         if self.popup_menu is not None:
             self.popup_menu.destroy()
         self.current_menu_row_id = row_id
         self.current_menu_field = field
-        marked = row.optimize_rc if field == "rc" else row.optimize_thickness
-        bounds = row.optimize_rc_bounds if field == "rc" else row.optimize_thickness_bounds
+        marked = spec.is_enabled(row)
+        bounds = spec.get_bounds(row)
         menu = tk.Menu(self, tearoff=0)
         menu.add_command(
-            label="Unselect from optimize" if marked else "Select to optimize",
+            label=f"{'Unselect' if marked else 'Select'} {spec.label} for optimization",
             command=self.toggle_current_optimization_cell,
         )
         menu.add_separator()
@@ -948,24 +1393,23 @@ class KrakenLayoutEditor(tk.Tk):
     def _apply_choice(self, row_id: str, field: str, value: str) -> None:
         self.table.set(row_id, field, value)
         self._read_rows_from_table()
+        if field == "surface":
+            index = self.table.index(row_id)
+            row = self.rows[index]
+            if value == "Mirror":
+                row.glass = "MIRROR"
+                if abs(row.axis_move) < 1e-9:
+                    row.axis_move = 2.0
+                if abs(row.tilt_x) < 1e-9 and abs(row.tilt_y) < 1e-9 and abs(row.tilt_z) < 1e-9:
+                    row.tilt_x = 45.0
+            elif row.surface not in {"Object", "Image"} and row.glass == "MIRROR":
+                row.glass = "AIR"
         self._normalize_special_rows()
         self._sync_table()
         self.refresh_plot()
         if self.popup_menu is not None:
             self.popup_menu.destroy()
             self.popup_menu = None
-
-    def _on_layout_selected(self, _event: tk.Event) -> None:
-        selected = self.layout_var.get().strip()
-        if selected == "Common Optical Layout":
-            return
-        self.load_layout_by_name(selected)
-
-    def _on_example_selected(self, _event: tk.Event) -> None:
-        selected = self.example_var.get().strip()
-        if selected == "Examples":
-            return
-        self.load_example_by_name(selected)
 
     @staticmethod
     def _row_has_optimization(row: SurfaceRow) -> bool:
@@ -976,10 +1420,10 @@ class KrakenLayoutEditor(tk.Tk):
             return
         index = self.table.index(self.current_menu_row_id)
         row = self.rows[index]
-        if self.current_menu_field == "rc":
-            row.optimize_rc = not row.optimize_rc
-        elif self.current_menu_field == "thickness":
-            row.optimize_thickness = not row.optimize_thickness
+        spec = self._variable_spec_for_field(self.current_menu_field)
+        if spec is None:
+            return
+        spec.set_enabled(row, not spec.is_enabled(row))
         self._sync_table()
         self.refresh_plot()
         if self.popup_menu is not None:
@@ -993,12 +1437,15 @@ class KrakenLayoutEditor(tk.Tk):
             return
         index = self.table.index(self.current_menu_row_id)
         row = self.rows[index]
-        current = row.optimize_rc_bounds if self.current_menu_field == "rc" else row.optimize_thickness_bounds
-        current_value = row.rc if self.current_menu_field == "rc" else row.thickness
-        default_bounds = current or self._optimization_bounds(self.current_menu_field.capitalize() if self.current_menu_field == "rc" else "Thickness", current_value)
+        spec = self._variable_spec_for_field(self.current_menu_field)
+        if spec is None:
+            return
+        current = spec.get_bounds(row)
+        current_value = spec.value_from_row(row)
+        default_bounds = current or spec.default_bounds(current_value)
 
         dialog = tk.Toplevel(self)
-        dialog.title(f"Bounds for {row.name} {self.current_menu_field}")
+        dialog.title(f"Bounds for {row.name} {spec.label}")
         dialog.transient(self)
         dialog.grab_set()
         dialog.resizable(False, False)
@@ -1021,12 +1468,9 @@ class KrakenLayoutEditor(tk.Tk):
             if lower >= upper:
                 self.append_debug("Optimization bounds rejected: lower must be less than upper.")
                 return
-            if self.current_menu_field == "rc":
-                row.optimize_rc_bounds = (lower, upper)
-            else:
-                row.optimize_thickness_bounds = (lower, upper)
+            spec.set_bounds(row, (lower, upper))
             self.append_progress(
-                f"Bounds set for row {index} {self.current_menu_field}: [{lower:g}, {upper:g}]"
+                f"Bounds set for row {index} {spec.label}: [{lower:g}, {upper:g}]"
             )
             dialog.destroy()
 
@@ -1047,11 +1491,11 @@ class KrakenLayoutEditor(tk.Tk):
             return
         index = self.table.index(self.current_menu_row_id)
         row = self.rows[index]
-        if self.current_menu_field == "rc":
-            row.optimize_rc_bounds = None
-        else:
-            row.optimize_thickness_bounds = None
-        self.append_progress(f"Bounds cleared for row {index} {self.current_menu_field}.")
+        spec = self._variable_spec_for_field(self.current_menu_field)
+        if spec is None:
+            return
+        spec.set_bounds(row, None)
+        self.append_progress(f"Bounds cleared for row {index} {spec.label}.")
         if self.popup_menu is not None:
             self.popup_menu.destroy()
             self.popup_menu = None
@@ -1078,8 +1522,17 @@ class KrakenLayoutEditor(tk.Tk):
             surface.Thickness = row.thickness
             surface.Diameter = clear_aperture if row.surface in {"Object", "Image"} else row.diameter
             surface.Glass = row.glass
+            surface.TiltX = row.tilt_x
+            surface.TiltY = row.tilt_y
+            surface.TiltZ = row.tilt_z
+            surface.DespX = row.desp_x
+            surface.DespY = row.desp_y
+            surface.DespZ = row.desp_z
+            surface.AxisMove = row.axis_move
             surface.Nm_Pos = self._name_offset(row)
             surface.Drawing = 0.0 if row.surface in {"Object", "Image"} else 1.0
+            if row.surface == "Mirror":
+                surface.Glass = "MIRROR"
             if row.surface == "Thin Lens":
                 surface.Thin_Lens = row.rc if row.rc != 0 else 100.0
                 surface.Rc = 0.0
@@ -1110,6 +1563,37 @@ class KrakenLayoutEditor(tk.Tk):
             return 1.0
         return value
 
+    def _current_mtf_frequency(self) -> float:
+        var = self.operand_frequency_vars.get("MTF @ freq")
+        if var is None:
+            return 50.0
+        try:
+            value = float(var.get())
+        except ValueError:
+            return 50.0
+        return max(0.0, value)
+
+    def _operand_mtf_mode(self, label: str) -> str:
+        var = self.operand_mtf_mode_vars.get(label)
+        if var is None:
+            return "average"
+        value = var.get().strip().lower()
+        if value in {"tangential", "sagittal", "average"}:
+            return value
+        return "average"
+
+    def _mtf_analysis_settings(self) -> dict[str, float | int | str]:
+        label = "MTF @ freq"
+        return {
+            "wavelength": self._operand_wavelength(label),
+            "surface_index": self._operand_surface_index(label),
+            "aperture_type": self._operand_aperture_type(label),
+            "aperture_value": self._operand_aperture_value(label),
+            "field_type": self._operand_field_type(label),
+            "field_x": self._operand_field_x(label),
+            "field_y": self._operand_field_y(label),
+        }
+
     @staticmethod
     def _name_offset(row: SurfaceRow) -> tuple[float, float]:
         if row.surface not in {"Object", "Image"}:
@@ -1139,7 +1623,7 @@ class KrakenLayoutEditor(tk.Tk):
             self.ax = self.figure.add_subplot(111)
             analysis_ax = None
         else:
-            gs = self.figure.add_gridspec(1, 2, width_ratios=[3, 2], wspace=0.28)
+            gs = self.figure.add_gridspec(1, 2, width_ratios=[4.2, 1.35], wspace=0.22)
             self.ax = self.figure.add_subplot(gs[0])
             analysis_ax = self.figure.add_subplot(gs[1])
 
@@ -1162,7 +1646,11 @@ class KrakenLayoutEditor(tk.Tk):
             surf_line_count = len(self.ax.lines)
             self._style_embedded_plot(surf_line_count)
             self._draw_colored_rays(rays)
-            self._set_plot_limits_from_layout(max_radius)
+            if self._has_off_axis_geometry():
+                self._set_plot_limits_from_drawn_data()
+                self.ax.set_aspect("equal", adjustable="box")
+            else:
+                self._set_plot_limits_from_layout(max_radius)
             self._draw_input_ray_overlay(max_radius)
             self._draw_reference_plane_labels()
             optics_info = self._collect_optics_info(system, rays, wavelength)
@@ -1185,9 +1673,12 @@ class KrakenLayoutEditor(tk.Tk):
         self.ax.grid(True, alpha=0.2)
         self.ax.set_xlabel("Z [mm]")
         self.ax.set_ylabel("Y [mm]")
-        self.ax.set_title("KrakenOS Layout")
-        self.figure.subplots_adjust(left=0.07, right=0.98, bottom=0.11, top=0.92, wspace=0.28)
+        self.ax.set_title("")
+        self.figure.subplots_adjust(left=0.07, right=0.98, bottom=0.15, top=0.92, wspace=0.28)
+        self.figure.text(0.5, 0.035, "KrakenOS Layout", ha="center", va="center")
         self.canvas.draw_idle()
+        if self._initial_layout_passes < 40:
+            self.after(50, self._set_initial_pane_layout)
 
     def _plot_analysis(self, analysis_ax, system, rays, wavelength: float) -> None:
         if analysis_ax is None:
@@ -1199,7 +1690,7 @@ class KrakenLayoutEditor(tk.Tk):
         except Exception:
             X = Y = Z = L = M = N = np.asarray([])
 
-        if X.size == 0:
+        if X.size == 0 and self.analysis_mode in {"spot", "rms"}:
             analysis_ax.text(0.5, 0.5, "No ray data", ha="center", va="center")
             analysis_ax.set_axis_off()
             return
@@ -1218,6 +1709,62 @@ class KrakenLayoutEditor(tk.Tk):
             analysis_ax.grid(True, alpha=0.2)
             return
 
+        if self.analysis_mode == "psf":
+            try:
+                self._begin_analysis_progress("PSF analysis")
+                field_type = "angle" if self._current_object_mode() == "Infinity" else "height"
+                field_y = self._current_field_angle_deg() if field_type == "angle" else self._current_field_height()
+                self._update_analysis_progress("Tracing rays", 1, 3)
+                psf_rays = self._build_analysis_rays(
+                    system,
+                    wavelength,
+                    sample_count=max(48, self._current_ray_count() * 10),
+                    pattern="hexapolar",
+                    surface_index=self._analysis_surface_index(),
+                    aperture_type=self._current_aperture_type(),
+                    aperture_value=self._current_aperture_value(),
+                    field_type=field_type,
+                    field_x=0.0,
+                    field_y=field_y,
+                )
+                self._update_analysis_progress("Building PSF image", 2, 3)
+                x_local, y_local, _z_local, _l_local, _m_local, _n_local = self._pick_image_plane_data(psf_rays)
+                x_local = np.asarray(x_local, dtype=float)
+                y_local = np.asarray(y_local, dtype=float)
+                finite = np.isfinite(x_local) & np.isfinite(y_local)
+                x_local = x_local[finite]
+                y_local = y_local[finite]
+                if x_local.size < 4:
+                    raise RuntimeError("Not enough image-plane samples for PSF")
+                span_x = max(float(np.ptp(x_local)), 1e-3)
+                span_y = max(float(np.ptp(y_local)), 1e-3)
+                span = max(span_x, span_y) * 1.25
+                bins = 128
+                hist, xedges, yedges = np.histogram2d(
+                    x_local,
+                    y_local,
+                    bins=bins,
+                    range=[[-span / 2.0, span / 2.0], [-span / 2.0, span / 2.0]],
+                )
+                psf = hist.T
+                psf /= max(float(np.max(psf)), 1e-12)
+                extent = [float(xedges[0]), float(xedges[-1]), float(yedges[0]), float(yedges[-1])]
+                image = analysis_ax.imshow(psf, origin="lower", extent=extent, cmap="inferno", aspect="equal")
+                analysis_ax.set_title(f"Geometric PSF  |  {field_type}={field_y:.3g}  |  {wavelength:.4g} um")
+                analysis_ax.set_xlabel("X [mm]")
+                analysis_ax.set_ylabel("Y [mm]")
+                analysis_ax.grid(False)
+                self.figure.colorbar(image, ax=analysis_ax, fraction=0.046, pad=0.04, label="Normalized intensity")
+                self.append_debug(f"PSF analysis ok: rays={x_local.size}, bins={bins}")
+                self._update_analysis_progress("Rendering", 3, 3)
+                self._finish_analysis_progress("PSF analysis", success=True)
+            except Exception as exc:
+                self.append_debug(f"PSF analysis error: {exc}")
+                analysis_ax.text(0.5, 0.5, "PSF analysis unavailable", ha="center", va="center")
+                analysis_ax.set_axis_off()
+                self._finish_analysis_progress("PSF analysis", success=False)
+            return
+
         if self.analysis_mode == "rms":
             rms, cenX, cenY = Kos.RMS(X, Y, Z, L, M, N)
             radii = np.sqrt((X - cenX) ** 2 + (Y - cenY) ** 2)
@@ -1231,6 +1778,8 @@ class KrakenLayoutEditor(tk.Tk):
 
         if self.analysis_mode == "pupil":
             try:
+                self._begin_analysis_progress("Pupil analysis")
+                self._update_analysis_progress("Building pupil", 1, 2)
                 pupil = Kos.PupilCalc(
                     system,
                     self._analysis_surface_index(),
@@ -1252,13 +1801,18 @@ class KrakenLayoutEditor(tk.Tk):
                 analysis_ax.set_title("Pupil Summary")
                 analysis_ax.set_xlabel("mm")
                 analysis_ax.grid(True, axis="x", alpha=0.2)
+                self._update_analysis_progress("Rendering", 2, 2)
+                self._finish_analysis_progress("Pupil analysis", success=True)
             except Exception:
                 analysis_ax.text(0.5, 0.5, "Pupil analysis unavailable", ha="center", va="center")
                 analysis_ax.set_axis_off()
+                self._finish_analysis_progress("Pupil analysis", success=False)
             return
 
         if self.analysis_mode == "seidel":
             try:
+                self._begin_analysis_progress("Seidel analysis")
+                self._update_analysis_progress("Building pupil", 1, 3)
                 pupil = Kos.PupilCalc(
                     system,
                     self._analysis_surface_index(),
@@ -1266,6 +1820,7 @@ class KrakenLayoutEditor(tk.Tk):
                     self._current_aperture_type(),
                     self._current_aperture_value(),
                 )
+                self._update_analysis_progress("Computing coefficients", 2, 3)
                 seidel = Kos.Seidel(pupil)
                 values = np.asarray(seidel.SCW_TOTAL, dtype=float)
                 labels = seidel.SCW_NM
@@ -1274,13 +1829,18 @@ class KrakenLayoutEditor(tk.Tk):
                 analysis_ax.set_title("Seidel Coefficients in Waves")
                 analysis_ax.set_ylabel("Waves")
                 analysis_ax.grid(True, axis="y", alpha=0.2)
+                self._update_analysis_progress("Rendering", 3, 3)
+                self._finish_analysis_progress("Seidel analysis", success=True)
             except Exception:
                 analysis_ax.text(0.5, 0.5, "Seidel analysis unavailable", ha="center", va="center")
                 analysis_ax.set_axis_off()
+                self._finish_analysis_progress("Seidel analysis", success=False)
             return
 
         if self.analysis_mode == "wavefront":
             try:
+                self._begin_analysis_progress("Wavefront analysis")
+                self._update_analysis_progress("Building pupil", 1, 3)
                 pupil = Kos.PupilCalc(
                     system,
                     self._analysis_surface_index(),
@@ -1289,6 +1849,7 @@ class KrakenLayoutEditor(tk.Tk):
                     self._current_aperture_value(),
                 )
                 pupil.Samp = max(6, min(16, int(np.sqrt(max(1, self._current_ray_count())) * 3)))
+                self._update_analysis_progress("Computing phase", 2, 3)
                 px, py, phase, p2v = Kos.Phase(pupil)
                 scatter = analysis_ax.scatter(py, px, c=phase, cmap="RdBu_r", s=20)
                 analysis_ax.set_title(f"Wavefront  |  P2V = {float(p2v):.4g}")
@@ -1297,9 +1858,471 @@ class KrakenLayoutEditor(tk.Tk):
                 analysis_ax.set_aspect("equal", adjustable="box")
                 analysis_ax.grid(True, alpha=0.2)
                 self.figure.colorbar(scatter, ax=analysis_ax, fraction=0.046, pad=0.04, label="Waves")
+                self._update_analysis_progress("Rendering", 3, 3)
+                self._finish_analysis_progress("Wavefront analysis", success=True)
             except Exception:
                 analysis_ax.text(0.5, 0.5, "Wavefront analysis unavailable", ha="center", va="center")
                 analysis_ax.set_axis_off()
+                self._finish_analysis_progress("Wavefront analysis", success=False)
+            return
+
+        if self.analysis_mode == "field_curvature":
+            try:
+                self._begin_analysis_progress("Field curvature / distortion")
+                field_type = "angle" if self._current_object_mode() == "Infinity" else "height"
+                field_limit = self._current_field_angle_deg() if field_type == "angle" else self._current_field_height()
+                if field_limit <= 1e-9:
+                    field_limit = 5.0 if field_type == "angle" else max(self._current_field_height(), 0.5)
+                field_sample_count = max(11, self._current_field_count())
+                field_samples = list(np.linspace(-field_limit, field_limit, field_sample_count))
+                self.append_debug(
+                    f"Field curvature/distortion sampling: type={field_type}, limit={field_limit:.4g}, count={field_sample_count}"
+                )
+                sample_count = max(18, self._current_ray_count() * 3)
+                axis_results: dict[str, dict[str, np.ndarray]] = {}
+                axis_defs = {
+                    "X": {"color_fc": "#1f77b4", "color_dist": "#6baed6", "marker_fc": "o", "marker_dist": "s"},
+                    "Y": {"color_fc": "#d62728", "color_dist": "#ff9896", "marker_fc": "^", "marker_dist": "D"},
+                }
+                total_steps = len(field_samples) * 2
+                completed_steps = 0
+
+                for axis_name in ("X", "Y"):
+                    measured_fields: list[float] = []
+                    image_heights: list[float] = []
+                    focus_shifts: list[float] = []
+                    for field_value in field_samples:
+                        completed_steps += 1
+                        self._update_analysis_progress(
+                            f"Sampling {axis_name}-field",
+                            completed_steps,
+                            total_steps,
+                        )
+                        field_x = field_value if axis_name == "X" else 0.0
+                        field_y = field_value if axis_name == "Y" else 0.0
+                        sample_rays = self._build_analysis_rays(
+                            system,
+                            wavelength,
+                            sample_count=sample_count,
+                            pattern="hexapolar",
+                            surface_index=self._analysis_surface_index(),
+                            aperture_type=self._current_aperture_type(),
+                            aperture_value=self._current_aperture_value(),
+                            field_type=field_type,
+                            field_x=field_x,
+                            field_y=field_y,
+                        )
+                        x_local, y_local, _z_local, l_local, m_local, n_local = self._pick_image_plane_data(sample_rays)
+                        x_local = np.asarray(x_local, dtype=float)
+                        y_local = np.asarray(y_local, dtype=float)
+                        l_local = np.asarray(l_local, dtype=float)
+                        m_local = np.asarray(m_local, dtype=float)
+                        n_local = np.asarray(n_local, dtype=float)
+                        finite = (
+                            np.isfinite(x_local)
+                            & np.isfinite(y_local)
+                            & np.isfinite(l_local)
+                            & np.isfinite(m_local)
+                            & np.isfinite(n_local)
+                        )
+                        x_local = x_local[finite]
+                        y_local = y_local[finite]
+                        l_local = l_local[finite]
+                        m_local = m_local[finite]
+                        n_local = n_local[finite]
+                        if x_local.size < 4:
+                            continue
+
+                        slopes_x = l_local / np.where(np.abs(n_local) < 1e-9, np.sign(n_local) * 1e-9 + 1e-9, n_local)
+                        slopes_y = m_local / np.where(np.abs(n_local) < 1e-9, np.sign(n_local) * 1e-9 + 1e-9, n_local)
+
+                        if axis_name == "X":
+                            image_height = float(np.mean(x_local))
+                            denom = float(np.sum(slopes_x**2))
+                            focus_shift = 0.0 if denom <= 1e-12 else -float(np.sum(x_local * slopes_x) / denom)
+                        else:
+                            image_height = float(np.mean(y_local))
+                            denom = float(np.sum(slopes_y**2))
+                            focus_shift = 0.0 if denom <= 1e-12 else -float(np.sum(y_local * slopes_y) / denom)
+
+                        measured_fields.append(field_value)
+                        image_heights.append(image_height)
+                        focus_shifts.append(focus_shift)
+
+                    if len(measured_fields) < 2:
+                        continue
+
+                    fields = np.asarray(measured_fields, dtype=float)
+                    heights = np.asarray(image_heights, dtype=float)
+                    focus = np.asarray(focus_shifts, dtype=float)
+                    abs_fields = np.abs(fields)
+                    abs_heights = np.abs(heights)
+                    mask = abs_fields > 1e-9
+                    if np.count_nonzero(mask) >= 2:
+                        slope = float(np.dot(abs_fields[mask], abs_heights[mask]) / max(np.dot(abs_fields[mask], abs_fields[mask]), 1e-12))
+                        ideal = slope * abs_fields
+                        distortion = np.zeros_like(abs_heights)
+                        valid = ideal > 1e-12
+                        distortion[valid] = (abs_heights[valid] - ideal[valid]) / ideal[valid] * 100.0
+                    else:
+                        distortion = np.zeros_like(abs_heights)
+
+                    axis_results[axis_name] = {
+                        "fields": abs_fields,
+                        "focus": focus,
+                        "distortion": distortion,
+                    }
+
+                if not axis_results:
+                    raise RuntimeError("Not enough field samples for field-curvature/distortion")
+
+                ax2 = analysis_ax.twinx()
+                legend_lines = []
+                legend_labels = []
+                for axis_name, data in axis_results.items():
+                    style = axis_defs[axis_name]
+                    line_fc, = analysis_ax.plot(
+                        data["fields"],
+                        data["focus"],
+                        color=style["color_fc"],
+                        marker=style["marker_fc"],
+                        linewidth=0.0,
+                        markersize=4.5,
+                        label=f"{axis_name} focus",
+                    )
+                    line_dist, = ax2.plot(
+                        data["fields"],
+                        data["distortion"],
+                        color=style["color_dist"],
+                        marker=style["marker_dist"],
+                        linewidth=0.0,
+                        markersize=4.0,
+                        label=f"{axis_name} distortion",
+                    )
+                    if len(data["fields"]) >= 4:
+                        smooth_fields = np.linspace(float(np.min(data["fields"])), float(np.max(data["fields"])), 200)
+                        focus_degree = min(3, len(data["fields"]) - 1)
+                        dist_degree = min(3, len(data["distortion"]) - 1)
+                        try:
+                            focus_poly = np.poly1d(np.polyfit(data["fields"], data["focus"], deg=focus_degree))
+                            dist_poly = np.poly1d(np.polyfit(data["fields"], data["distortion"], deg=dist_degree))
+                            analysis_ax.plot(
+                                smooth_fields,
+                                focus_poly(smooth_fields),
+                                color=style["color_fc"],
+                                linewidth=2.0,
+                                alpha=0.9,
+                            )
+                            ax2.plot(
+                                smooth_fields,
+                                dist_poly(smooth_fields),
+                                color=style["color_dist"],
+                                linewidth=1.8,
+                                linestyle="--",
+                                alpha=0.9,
+                            )
+                        except Exception:
+                            analysis_ax.plot(
+                                data["fields"],
+                                data["focus"],
+                                color=style["color_fc"],
+                                linewidth=2.0,
+                                alpha=0.9,
+                            )
+                            ax2.plot(
+                                data["fields"],
+                                data["distortion"],
+                                color=style["color_dist"],
+                                linewidth=1.8,
+                                linestyle="--",
+                                alpha=0.9,
+                            )
+                    else:
+                        analysis_ax.plot(
+                            data["fields"],
+                            data["focus"],
+                            color=style["color_fc"],
+                            linewidth=2.0,
+                            alpha=0.9,
+                        )
+                        ax2.plot(
+                            data["fields"],
+                            data["distortion"],
+                            color=style["color_dist"],
+                            linewidth=1.8,
+                            linestyle="--",
+                            alpha=0.9,
+                        )
+                    legend_lines.extend([line_fc, line_dist])
+                    legend_labels.extend([f"{axis_name} focus", f"{axis_name} distortion"])
+
+                analysis_ax.set_title(f"Field Curvature / Distortion  |  {field_type}")
+                analysis_ax.set_xlabel("Field")
+                analysis_ax.set_ylabel("Best-focus shift [mm]", color="#2c3e50")
+                ax2.set_ylabel("Distortion [%]", color="#2c3e50")
+                analysis_ax.grid(True, alpha=0.2)
+                analysis_ax.legend(legend_lines, legend_labels, loc="best", fontsize=8)
+                self.append_debug(
+                    "Field curvature/distortion ok: "
+                    + ", ".join(f"{axis}={len(data['fields'])}" for axis, data in axis_results.items())
+                )
+                self._finish_analysis_progress("Field curvature / distortion", success=True)
+            except Exception as exc:
+                self.append_debug(f"Field curvature/distortion error: {exc}")
+                analysis_ax.text(0.5, 0.5, "Field curvature/distortion unavailable", ha="center", va="center")
+                analysis_ax.set_axis_off()
+                self._finish_analysis_progress("Field curvature / distortion", success=False)
+            return
+
+        if self.analysis_mode == "mtf":
+            try:
+                self._begin_analysis_progress("MTF analysis")
+                mtf_settings = self._mtf_analysis_settings()
+                wavelength = float(mtf_settings["wavelength"])
+                self._update_analysis_progress("Preparing pupil", 1, 4)
+                pupil = Kos.PupilCalc(
+                    system,
+                    int(mtf_settings["surface_index"]),
+                    wavelength,
+                    str(mtf_settings["aperture_type"]),
+                    float(mtf_settings["aperture_value"]),
+                )
+                pupil.FieldType = str(mtf_settings["field_type"])
+                pupil.FieldX = float(mtf_settings["field_x"])
+                pupil.FieldY = float(mtf_settings["field_y"])
+                px, py, phase, _p2v = Kos.Phase(pupil)
+                px = np.asarray(px, dtype=float)
+                py = np.asarray(py, dtype=float)
+                phase = np.asarray(phase, dtype=float)
+                finite = np.isfinite(px) & np.isfinite(py) & np.isfinite(phase)
+                px = px[finite]
+                py = py[finite]
+                phase = phase[finite]
+                if px.size < 6:
+                    raise RuntimeError("Not enough finite pupil samples for MTF fitting")
+
+                zcoef = None
+                used_terms = None
+                last_error = None
+                self._update_analysis_progress("Fitting Zernike terms", 2, 4)
+                for term_count in (15, 10, 6, 4):
+                    if px.size <= term_count:
+                        continue
+                    try:
+                        coef_seed = np.ones(term_count)
+                        zcoef, _mat, _rms_chief, _rms_centroid, _fitting_error = Kos.Zernike_Fitting(
+                            px,
+                            py,
+                            phase,
+                            coef_seed,
+                        )
+                        used_terms = term_count
+                        break
+                    except Exception as exc:
+                        last_error = exc
+                if zcoef is None:
+                    raise RuntimeError(f"Zernike fit failed: {last_error}")
+
+                focal = max(0.01, float(getattr(pupil, "EFFL", 0.0)))
+                diameter = max(0.01, 2.0 * float(getattr(pupil, "RadPupInp", 1.0)))
+                mtf = Kos.calculate_mtf(
+                    np.asarray(zcoef, dtype=float),
+                    focal,
+                    diameter,
+                    wavelength,
+                    pixels=256,
+                    PupilSample=4,
+                )
+                samples = int(mtf.shape[0])
+                freq_max = diameter / max(wavelength * 1e-3, 1e-9)
+                freq = np.linspace(0.0, freq_max, samples // 2) / 10.0
+                tangential = np.asarray(mtf[samples // 2, samples // 2:], dtype=float)
+                sagittal = np.asarray(mtf[samples // 2:, samples // 2], dtype=float)
+                count = min(len(freq), len(tangential), len(sagittal))
+                mtf_mode = self._operand_mtf_mode("MTF @ freq")
+                tan_label = "Tangential"
+                sag_label = "Sagittal"
+                tan_style = {"linewidth": 2.2, "alpha": 1.0}
+                sag_style = {"linewidth": 2.2, "alpha": 1.0}
+                if mtf_mode == "tangential":
+                    sag_style = {"linewidth": 1.2, "alpha": 0.35}
+                    tan_label = "Tangential (selected)"
+                elif mtf_mode == "sagittal":
+                    tan_style = {"linewidth": 1.2, "alpha": 0.35}
+                    sag_label = "Sagittal (selected)"
+                analysis_ax.plot(
+                    freq[:count],
+                    tangential[:count],
+                    label=tan_label,
+                    color="#1f77b4",
+                    **tan_style,
+                )
+                analysis_ax.plot(
+                    freq[:count],
+                    sagittal[:count],
+                    label=sag_label,
+                    color="#d62728",
+                    **sag_style,
+                )
+                analysis_ax.set_title(
+                    f"Diffraction MTF  |  {pupil.FieldType}=({float(mtf_settings['field_x']):.3g}, {float(mtf_settings['field_y']):.3g})  |  {wavelength:.4g} um"
+                )
+                analysis_ax.set_xlabel("Spatial frequency [cycles/mm]")
+                analysis_ax.set_ylabel("MTF")
+                analysis_ax.set_ylim(0.0, 1.05)
+                analysis_ax.grid(True, alpha=0.2)
+                analysis_ax.legend(loc="upper right", fontsize=8)
+                self.append_debug(f"MTF analysis ok: terms={used_terms}, samples={px.size}")
+                self._update_analysis_progress("Rendering diffraction MTF", 4, 4)
+                self._finish_analysis_progress("MTF analysis", success=True)
+            except Exception as exc:
+                self.append_debug(f"MTF diffraction path failed: {exc}")
+                try:
+                    self._update_analysis_progress("Building geometric fallback", 3, 4)
+                    dense_count = max(24, self._current_ray_count() * 6)
+                    mtf_rays = self._build_analysis_rays(
+                        system,
+                        wavelength,
+                        sample_count=dense_count,
+                        pattern="hexapolar",
+                        surface_index=int(mtf_settings["surface_index"]),
+                        aperture_type=str(mtf_settings["aperture_type"]),
+                        aperture_value=float(mtf_settings["aperture_value"]),
+                        field_type=str(mtf_settings["field_type"]),
+                        field_x=float(mtf_settings["field_x"]),
+                        field_y=float(mtf_settings["field_y"]),
+                    )
+                    x_local, y_local, _z_local, _l_local, _m_local, _n_local = self._pick_image_plane_data(mtf_rays)
+                    x_local = np.asarray(x_local, dtype=float)
+                    y_local = np.asarray(y_local, dtype=float)
+                    finite = np.isfinite(x_local) & np.isfinite(y_local)
+                    x_local = x_local[finite]
+                    y_local = y_local[finite]
+                    if x_local.size < 4:
+                        raise RuntimeError("Not enough image-plane ray samples for geometric MTF")
+
+                    span_x = max(float(np.ptp(x_local)), 1e-3)
+                    span_y = max(float(np.ptp(y_local)), 1e-3)
+                    span = max(span_x, span_y) * 1.25
+                    if span <= 0:
+                        span = 1.0
+                    bins = 128
+                    hist, xedges, yedges = np.histogram2d(
+                        x_local,
+                        y_local,
+                        bins=bins,
+                        range=[[-span / 2.0, span / 2.0], [-span / 2.0, span / 2.0]],
+                    )
+                    psf = hist / max(np.sum(hist), 1.0)
+                    otf = np.fft.fftshift(np.fft.fft2(psf))
+                    mtf = np.abs(otf)
+                    mtf /= max(float(np.max(mtf)), 1e-12)
+
+                    dx = float(xedges[1] - xedges[0])
+                    freq = np.fft.fftshift(np.fft.fftfreq(bins, d=dx))
+                    center = bins // 2
+                    positive = freq[center:]
+                    tangential = mtf[center, center:]
+                    sagittal = mtf[center:, center]
+                    count = min(len(positive), len(tangential), len(sagittal))
+
+                    plot_freq = positive[:count]
+                    plot_tan = tangential[:count]
+                    plot_sag = sagittal[:count]
+                    target_freq = self._current_mtf_frequency()
+                    mtf_mode = self._operand_mtf_mode("MTF @ freq")
+                    tan_value = float(np.interp(target_freq, plot_freq, plot_tan, left=plot_tan[0], right=plot_tan[-1]))
+                    sag_value = float(np.interp(target_freq, plot_freq, plot_sag, left=plot_sag[0], right=plot_sag[-1]))
+                    if mtf_mode == "tangential":
+                        selected_value = tan_value
+                        selected_color = "#1f77b4"
+                        selected_label = "Tangential"
+                    elif mtf_mode == "sagittal":
+                        selected_value = sag_value
+                        selected_color = "#d62728"
+                        selected_label = "Sagittal"
+                    else:
+                        selected_value = 0.5 * (tan_value + sag_value)
+                        selected_color = "#2c3e50"
+                        selected_label = "Average"
+                    tan_label = "Tangential"
+                    sag_label = "Sagittal"
+                    tan_style = {"linewidth": 2.2, "alpha": 1.0}
+                    sag_style = {"linewidth": 2.2, "alpha": 1.0}
+                    if mtf_mode == "tangential":
+                        sag_style = {"linewidth": 1.2, "alpha": 0.35}
+                        tan_label = "Tangential (selected)"
+                    elif mtf_mode == "sagittal":
+                        tan_style = {"linewidth": 1.2, "alpha": 0.35}
+                        sag_label = "Sagittal (selected)"
+                    analysis_ax.plot(
+                        plot_freq,
+                        plot_tan,
+                        label=tan_label,
+                        color="#1f77b4",
+                        **tan_style,
+                    )
+                    analysis_ax.plot(
+                        plot_freq,
+                        plot_sag,
+                        label=sag_label,
+                        color="#d62728",
+                        **sag_style,
+                    )
+                    analysis_ax.axvline(target_freq, color="#2c3e50", linewidth=1.0, linestyle="--", alpha=0.8)
+                    analysis_ax.scatter(
+                        [target_freq],
+                        [tan_value],
+                        color="#1f77b4",
+                        s=32 if mtf_mode == "tangential" else 20,
+                        alpha=1.0 if mtf_mode != "sagittal" else 0.45,
+                        zorder=4,
+                    )
+                    analysis_ax.scatter(
+                        [target_freq],
+                        [sag_value],
+                        color="#d62728",
+                        s=32 if mtf_mode == "sagittal" else 20,
+                        alpha=1.0 if mtf_mode != "tangential" else 0.45,
+                        zorder=4,
+                    )
+                    analysis_ax.scatter(
+                        [target_freq],
+                        [selected_value],
+                        color=selected_color,
+                        edgecolors="white",
+                        linewidths=0.8,
+                        s=48,
+                        zorder=5,
+                    )
+                    analysis_ax.set_title(
+                        f"Geometric MTF  |  {mtf_settings['field_type']}=({float(mtf_settings['field_x']):.3g}, {float(mtf_settings['field_y']):.3g})  |  {wavelength:.4g} um"
+                    )
+                    analysis_ax.set_xlabel("Spatial frequency [cycles/mm]")
+                    analysis_ax.set_ylabel("MTF")
+                    analysis_ax.set_ylim(0.0, 1.05)
+                    xmax = min(float(plot_freq[-1]), max(100.0, target_freq * 2.5))
+                    analysis_ax.set_xlim(0.0, xmax)
+                    analysis_ax.grid(True, alpha=0.2)
+                    analysis_ax.legend(loc="upper right", fontsize=8)
+                    analysis_ax.text(
+                        0.02,
+                        0.02,
+                        f"{target_freq:.1f} cy/mm\\n{selected_label}={selected_value:.3f}\\nT={tan_value:.3f}  S={sag_value:.3f}",
+                        transform=analysis_ax.transAxes,
+                        ha="left",
+                        va="bottom",
+                        fontsize=8,
+                        bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.75, "pad": 1.5},
+                    )
+                    self.append_debug(f"MTF fallback ok: rays={x_local.size}, bins={bins}, pupil_samp={dense_count}")
+                    self._update_analysis_progress("Rendering geometric MTF", 4, 4)
+                    self._finish_analysis_progress("MTF analysis", success=True)
+                except Exception as fallback_exc:
+                    self.append_debug(f"MTF analysis error: {fallback_exc}")
+                    analysis_ax.text(0.5, 0.5, "MTF analysis unavailable", ha="center", va="center")
+                    analysis_ax.set_axis_off()
+                    self._finish_analysis_progress("MTF analysis", success=False)
             return
 
     def _analysis_surface_index(self) -> int:
@@ -1378,6 +2401,13 @@ class KrakenLayoutEditor(tk.Tk):
         return [cmap[i % len(cmap)] for i in range(count)]
 
     def _draw_colored_rays(self, rays) -> None:
+        if self._has_off_axis_geometry():
+            before = len(self.ax.lines)
+            Plot2DRays(rays, 0, 0, self.ax, 0)
+            for line in self.ax.lines[before:]:
+                line.set_linewidth(1.8)
+                line.set_alpha(0.95)
+            return
         ray_count = max(1, self._preview_field_ray_count)
         field_count = max(1, self._current_field_count())
         colors = self._field_colors(field_count)
@@ -1388,6 +2418,17 @@ class KrakenLayoutEditor(tk.Tk):
             field_index = min(index // ray_count, field_count - 1)
             color = colors[field_index]
             self.ax.plot(points[:, 2], points[:, 1], color=color, linewidth=1.8, alpha=0.95)
+
+    def _has_off_axis_geometry(self) -> bool:
+        for row in self.rows:
+            if row.surface == "Mirror":
+                return True
+            if any(
+                abs(value) > 1e-9
+                for value in (row.tilt_x, row.tilt_y, row.tilt_z, row.desp_x, row.desp_y, row.desp_z, row.axis_move)
+            ):
+                return True
+        return False
 
     def _draw_reference_plane_labels(self) -> None:
         if not self.rows:
@@ -1452,6 +2493,27 @@ class KrakenLayoutEditor(tk.Tk):
         self.ax.set_xlim(-margin_x, total_length + margin_x)
         self.ax.set_ylim(-(max_radius + margin_y), max_radius + margin_y)
 
+    def _set_plot_limits_from_drawn_data(self) -> None:
+        x_values: list[float] = []
+        y_values: list[float] = []
+        for line in self.ax.lines:
+            xdata = np.asarray(line.get_xdata(orig=False), dtype=float)
+            ydata = np.asarray(line.get_ydata(orig=False), dtype=float)
+            finite = np.isfinite(xdata) & np.isfinite(ydata)
+            if np.any(finite):
+                x_values.extend(xdata[finite].tolist())
+                y_values.extend(ydata[finite].tolist())
+        if not x_values or not y_values:
+            return
+        x_min = min(x_values)
+        x_max = max(x_values)
+        y_min = min(y_values)
+        y_max = max(y_values)
+        span_x = max(x_max - x_min, 1.0)
+        span_y = max(y_max - y_min, 1.0)
+        self.ax.set_xlim(x_min - 0.08 * span_x, x_max + 0.08 * span_x)
+        self.ax.set_ylim(y_min - 0.12 * span_y, y_max + 0.12 * span_y)
+
     def _draw_input_ray_overlay(self, max_radius: float) -> None:
         if not self.rows:
             return
@@ -1508,8 +2570,12 @@ class KrakenLayoutEditor(tk.Tk):
 
     def _set_results(self, items) -> None:
         self.results_table.delete(*self.results_table.get_children())
+        measure = tkfont.nametofont("TkDefaultFont").measure
+        property_width = measure("Property") + 18
         for key, value in items:
             self.results_table.insert("", "end", values=(key, value))
+            property_width = max(property_width, measure(str(key)) + 18)
+        self.results_table.column("property", width=min(property_width, 150), anchor="w", stretch=False)
 
     def append_debug(self, message: str) -> None:
         if not message:
@@ -1524,6 +2590,36 @@ class KrakenLayoutEditor(tk.Tk):
         self.progress_text.insert("end", message.rstrip() + "\n")
         self.progress_text.see("end")
         self.update_idletasks()
+
+    def _begin_analysis_progress(self, label: str) -> None:
+        if self.optimization_running:
+            return
+        self.progress_spinner_var.set("...")
+        self.progress_percent_var.set("working")
+        self.progress_bar_var.set(0.0)
+        self.append_progress(f"{label} started.")
+
+    def _update_analysis_progress(self, label: str, done: int | None = None, total: int | None = None) -> None:
+        if self.optimization_running:
+            return
+        frames = ("|", "/", "-", "\\")
+        self.progress_spinner_var.set(frames[self._spinner_phase % len(frames)])
+        self._spinner_phase += 1
+        if done is not None and total is not None and total > 0:
+            percent = max(0.0, min(100.0, (done / total) * 100.0))
+            self.progress_percent_var.set(f"{int(percent)}% ({done}/{total})")
+            self.progress_bar_var.set(percent)
+        else:
+            self.progress_percent_var.set(label)
+        self.update_idletasks()
+
+    def _finish_analysis_progress(self, label: str, success: bool = True) -> None:
+        if self.optimization_running:
+            return
+        self.progress_spinner_var.set("ok" if success else "err")
+        self.progress_percent_var.set("100%" if success else "failed")
+        self.progress_bar_var.set(100.0 if success else 0.0)
+        self.append_progress(f"{label} {'completed' if success else 'failed'}.")
 
     def _update_progress_indicators(self) -> None:
         if not self.optimization_running or self.optimization_context is None:
@@ -1547,32 +2643,58 @@ class KrakenLayoutEditor(tk.Tk):
             pass
         return rays.pick(-1)
 
-    def _build_analysis_rays(self, system, wavelength: float):
+    def _build_analysis_rays(
+        self,
+        system,
+        wavelength: float,
+        sample_count: int | None = None,
+        pattern: str = "hexapolar",
+        *,
+        surface_index: int | None = None,
+        aperture_type: str | None = None,
+        aperture_value: float | None = None,
+        field_type: str | None = None,
+        field_x: float | None = None,
+        field_y: float | None = None,
+    ):
         rays = Kos.raykeeper(system)
         pupil = Kos.PupilCalc(
             system,
-            self._analysis_surface_index(),
+            self._analysis_surface_index() if surface_index is None else int(surface_index),
             wavelength,
-            self._current_aperture_type(),
-            self._current_aperture_value(),
+            self._current_aperture_type() if aperture_type is None else str(aperture_type),
+            self._current_aperture_value() if aperture_value is None else float(aperture_value),
         )
-        pupil.Samp = max(2, self._current_ray_count())
-        pupil.Ptype = "hexapolar"
+        pupil.Samp = max(2, int(sample_count if sample_count is not None else self._current_ray_count()))
+        pupil.Ptype = pattern
 
         clean = 1
-        if self._current_object_mode() == "Infinity":
+        resolved_field_type = field_type or ("angle" if self._current_object_mode() == "Infinity" else "height")
+        resolved_field_x = 0.0 if field_x is None else float(field_x)
+        resolved_field_y = field_y
+        if resolved_field_type == "angle":
             pupil.FieldType = "angle"
-            for field_value in self._sample_field_values(self._current_field_angle_deg()):
-                pupil.FieldX = 0.0
-                pupil.FieldY = float(field_value)
+            field_values = (
+                [float(resolved_field_y)]
+                if resolved_field_y is not None
+                else self._sample_field_values(self._current_field_angle_deg())
+            )
+            for value in field_values:
+                pupil.FieldX = resolved_field_x
+                pupil.FieldY = float(value)
                 x, y, z, L, M, N = pupil.Pattern2Field()
                 Kos.TraceLoop(x, y, z, L, M, N, wavelength, rays, clean=clean)
                 clean = 0
         else:
             pupil.FieldType = "height"
-            for field_value in self._sample_field_values(self._current_field_height()):
-                pupil.FieldX = 0.0
-                pupil.FieldY = float(field_value)
+            field_values = (
+                [float(resolved_field_y)]
+                if resolved_field_y is not None
+                else self._sample_field_values(self._current_field_height())
+            )
+            for value in field_values:
+                pupil.FieldX = resolved_field_x
+                pupil.FieldY = float(value)
                 x, y, z, L, M, N = pupil.Pattern2Field()
                 Kos.TraceLoop(x, y, z, L, M, N, wavelength, rays, clean=clean)
                 clean = 0
@@ -1716,63 +2838,151 @@ class KrakenLayoutEditor(tk.Tk):
 
     @staticmethod
     def _optimization_bounds(parameter: str, value: float) -> tuple[float, float]:
-        if parameter == "Rc":
-            if abs(value) < 1e-6:
-                return (-100.0, 100.0)
-            scale = max(abs(value) * 0.5, 5.0)
-            return (value - scale, value + scale)
-        if parameter == "Thickness":
-            if value <= 0.0:
-                return (0.01, 10.0)
-            lower = max(0.01, value * 0.5)
-            upper = max(lower + 0.5, value * 1.5)
-            return (lower, upper)
+        for spec in VARIABLE_REGISTRY.values():
+            if spec.parameter == parameter:
+                return spec.default_bounds(value)
         raise ValueError(f"Unsupported optimization parameter: {parameter}")
+
+    @staticmethod
+    def _variable_spec_for_field(field: str):
+        return VARIABLE_REGISTRY.get(field)
+
+    @staticmethod
+    def _merit_spec_for_label(label: str):
+        for spec in OPERAND_REGISTRY.values():
+            if spec.label == label:
+                return spec
+        return None
+
+    def _selected_operand_specs(self) -> list:
+        if not hasattr(self, "merit_mode_list"):
+            return []
+        labels = [self.merit_mode_list.get(i) for i in self.merit_mode_list.curselection()]
+        specs = []
+        for label in labels:
+            spec = self._merit_spec_for_label(label)
+            if spec is not None:
+                specs.append(spec)
+        return specs
+
+    def _operand_weight(self, label: str) -> float:
+        var = self.operand_weight_vars.get(label)
+        if var is None:
+            spec = self._merit_spec_for_label(label)
+            return 1.0 if spec is None else spec.default_weight
+        try:
+            return float(var.get())
+        except ValueError:
+            spec = self._merit_spec_for_label(label)
+            return 1.0 if spec is None else spec.default_weight
+
+    def _operand_target(self, label: str) -> float:
+        var = self.operand_target_vars.get(label)
+        if var is None:
+            spec = self._merit_spec_for_label(label)
+            return 0.0 if spec is None else spec.default_target
+        try:
+            return float(var.get())
+        except ValueError:
+            spec = self._merit_spec_for_label(label)
+            return 0.0 if spec is None else spec.default_target
+
+    def _operand_wavelength(self, label: str) -> float:
+        var = self.operand_wavelength_vars.get(label)
+        if var is None:
+            return self._current_wavelength()
+        try:
+            return float(var.get())
+        except ValueError:
+            return self._current_wavelength()
+
+    def _operand_field(self, label: str) -> float:
+        var = self.operand_field_vars.get(label)
+        if var is None:
+            return 0.0
+        try:
+            return float(var.get())
+        except ValueError:
+            return 0.0
+
+    def _operand_field_x(self, label: str) -> float:
+        var = self.operand_field_x_vars.get(label)
+        if var is None:
+            return 0.0
+        try:
+            return float(var.get())
+        except ValueError:
+            return 0.0
+
+    def _operand_field_y(self, label: str) -> float:
+        var = self.operand_field_y_vars.get(label)
+        if var is not None:
+            try:
+                return float(var.get())
+            except ValueError:
+                return 0.0
+        return self._operand_field(label)
+
+    def _operand_field_type(self, label: str) -> str:
+        return "angle" if self._current_object_mode() == "Infinity" else "height"
+
+    def _operand_surface_index(self, label: str) -> int:
+        var = self.operand_surface_vars.get(label)
+        if var is None:
+            return self._analysis_surface_index()
+        value = var.get().strip()
+        if not value or value == "Auto":
+            return self._analysis_surface_index()
+        try:
+            return int(value.split(":", 1)[0].strip())
+        except ValueError:
+            return self._analysis_surface_index()
+
+    def _operand_aperture_type(self, label: str) -> str:
+        var = self.operand_aperture_type_vars.get(label)
+        if var is None:
+            return self._current_aperture_type()
+        value = var.get().strip().upper()
+        return value if value in {"STOP", "EPD"} else self._current_aperture_type()
+
+    def _operand_aperture_value(self, label: str) -> float:
+        var = self.operand_aperture_value_vars.get(label)
+        if var is None:
+            return self._current_aperture_value()
+        try:
+            value = float(var.get())
+        except ValueError:
+            return self._current_aperture_value()
+        return value if value != 0.0 else self._current_aperture_value()
 
     def _build_optimization_variables(self) -> list[OpticalVariable]:
         variables: list[OpticalVariable] = []
         for index, row in enumerate(self.rows):
             if row.surface in {"Object", "Image"}:
                 continue
-            if row.optimize_rc and row.surface == "Standard":
-                lower, upper = row.optimize_rc_bounds or self._optimization_bounds("Rc", row.rc)
+            for spec in VARIABLE_REGISTRY.values():
+                if not spec.is_supported(row) or not spec.is_enabled(row):
+                    continue
+                value = spec.value_from_row(row)
+                lower, upper = spec.get_bounds(row) or spec.default_bounds(value)
                 variables.append(
-                    OpticalVariable(index, "Rc", lower, upper, name=f"{row.name} Rc")
-                )
-            if row.optimize_thickness:
-                lower, upper = row.optimize_thickness_bounds or self._optimization_bounds("Thickness", row.thickness)
-                variables.append(
-                    OpticalVariable(index, "Thickness", lower, upper, name=f"{row.name} Thickness")
+                    OpticalVariable(
+                        index,
+                        spec.parameter,
+                        lower,
+                        upper,
+                        name=f"{row.name} {spec.label}",
+                    )
                 )
         return variables
 
-    def _build_merit_function(self, merit_mode: str) -> MeritFunction:
+    def _build_merit_function(self) -> MeritFunction:
+        selected_specs = self._selected_operand_specs()
+        if not selected_specs:
+            return MeritFunction(operands=[])
         operands = []
-        if merit_mode in {"Spot RMS", "Spot + Wavefront"}:
-            operands.append(
-                SpotRMSOperand(
-                    name="Spot RMS",
-                    weight=1.0,
-                    target=0.0,
-                    surface_index=-1,
-                    wavelength=self._current_wavelength(),
-                    ray_count=max(5, self._current_ray_count()),
-                    ray_height_factor=self._current_ray_height_factor(),
-                )
-            )
-        if merit_mode in {"Wavefront RMS", "Spot + Wavefront"}:
-            operands.append(
-                WavefrontRMSOperand(
-                    name="Wavefront RMS",
-                    weight=1e-2 if merit_mode == "Spot + Wavefront" else 1.0,
-                    target=0.0,
-                    surface_index=self._analysis_surface_index(),
-                    wavelength=self._current_wavelength(),
-                    aperture_type=self._current_aperture_type(),
-                    aperture_value=self._current_aperture_value(),
-                    sample_size=9,
-                )
-            )
+        for spec in selected_specs:
+            operands.extend(spec.build_merit_function(self).operands)
         return MeritFunction(operands=operands)
 
     def start_optimization(self) -> None:
@@ -1790,8 +3000,8 @@ class KrakenLayoutEditor(tk.Tk):
             self.append_progress(f"Optimization aborted: system build failed: {exc}")
             return
 
-        merit_mode = self.merit_mode_var.get().strip()
-        merit = self._build_merit_function(merit_mode)
+        merit_specs = self._selected_operand_specs()
+        merit = self._build_merit_function()
         if not merit.operands:
             self.append_progress("Optimization aborted: no merit operands selected.")
             return
@@ -1804,7 +3014,10 @@ class KrakenLayoutEditor(tk.Tk):
         evaluator = MeritEvaluator(system.SDT, setup=system.SETUP, merit_function=merit)
         initial = evaluator.evaluate(variables, x0)
         self.status_var.set(f"Optimization running: initial merit = {initial.total:.6g}")
-        self.append_progress(f"Optimization start | merit mode: {merit_mode}")
+        self.append_progress(
+            "Optimization start | operands: "
+            + ", ".join(spec.label for spec in merit_specs)
+        )
         self.append_progress(f"Variables: {', '.join(v.normalized_name() for v in variables)}")
         self.append_progress(f"Initial merit: {initial.total:.6g}")
         self.update_idletasks()
@@ -1996,16 +3209,20 @@ class KrakenLayoutEditor(tk.Tk):
         else:
             rays.clean()
             field_values = self._sample_field_values(self._current_field_height())
-            fan_angles = self._sample_fan_angles_deg()
-            object_z = 0.0
+            pupil_samples = self._sample_ray_heights(self._entrance_radius(max_radius))
+            object_distance = self._current_object_distance()
             for field_value in field_values:
-                origin = [0.0, float(field_value), object_z]
-                for angle_deg in fan_angles:
-                    angle_rad = np.deg2rad(angle_deg)
-                    direction = [0.0, float(np.sin(angle_rad)), float(np.cos(angle_rad))]
-                    system.Trace(origin, direction, wavelength)
+                origin = np.array([0.0, float(field_value), 0.0], dtype=float)
+                for pupil_y in pupil_samples:
+                    target = np.array([0.0, float(pupil_y), object_distance], dtype=float)
+                    direction = target - origin
+                    norm = np.linalg.norm(direction)
+                    if norm <= 1e-12:
+                        continue
+                    direction /= norm
+                    system.Trace(origin.tolist(), direction.tolist(), wavelength)
                     rays.push()
-            self._preview_field_ray_count = len(fan_angles)
+            self._preview_field_ray_count = len(pupil_samples)
         system.Vignetting(0)
 
     def _current_ray_count(self) -> int:
@@ -2123,9 +3340,18 @@ class KrakenLayoutEditor(tk.Tk):
                     f"    {var_name}.Rc = {float(row.rc)!r}",
                     f"    {var_name}.Thickness = {float(row.thickness)!r}",
                     f"    {var_name}.Diameter = {float(row.diameter)!r}",
+                    f"    {var_name}.TiltX = {float(row.tilt_x)!r}",
+                    f"    {var_name}.TiltY = {float(row.tilt_y)!r}",
+                    f"    {var_name}.TiltZ = {float(row.tilt_z)!r}",
+                    f"    {var_name}.DespX = {float(row.desp_x)!r}",
+                    f"    {var_name}.DespY = {float(row.desp_y)!r}",
+                    f"    {var_name}.DespZ = {float(row.desp_z)!r}",
+                    f"    {var_name}.AxisMove = {float(row.axis_move)!r}",
                     f"    {var_name}.Glass = {row.glass!r}",
                 ]
             )
+            if row.surface == "Mirror":
+                lines.append(f"    {var_name}.Glass = 'MIRROR'")
             if row.optimize_rc:
                 lines.append(f"    {var_name}.optimize_rc = True")
             if row.optimize_rc_bounds is not None:
@@ -2148,6 +3374,13 @@ class KrakenLayoutEditor(tk.Tk):
                 f"'rc': {float(row.rc)!r}, "
                 f"'thickness': {float(row.thickness)!r}, "
                 f"'diameter': {float(row.diameter)!r}, "
+                f"'tilt_x': {float(row.tilt_x)!r}, "
+                f"'tilt_y': {float(row.tilt_y)!r}, "
+                f"'tilt_z': {float(row.tilt_z)!r}, "
+                f"'desp_x': {float(row.desp_x)!r}, "
+                f"'desp_y': {float(row.desp_y)!r}, "
+                f"'desp_z': {float(row.desp_z)!r}, "
+                f"'axis_move': {float(row.axis_move)!r}, "
                 f"'glass': {row.glass!r}, "
                 f"'optimize_rc': {row.optimize_rc!r}, "
                 f"'optimize_rc_bounds': {rc_bounds_repr}, "
@@ -2174,7 +3407,16 @@ class KrakenLayoutEditor(tk.Tk):
                 "        s.Rc = spec['rc']",
                 "        s.Thickness = spec['thickness']",
                 "        s.Diameter = clear_aperture if spec['surface'] in {'Object', 'Image'} else spec['diameter']",
+                "        s.TiltX = spec.get('tilt_x', 0.0)",
+                "        s.TiltY = spec.get('tilt_y', 0.0)",
+                "        s.TiltZ = spec.get('tilt_z', 0.0)",
+                "        s.DespX = spec.get('desp_x', 0.0)",
+                "        s.DespY = spec.get('desp_y', 0.0)",
+                "        s.DespZ = spec.get('desp_z', 0.0)",
+                "        s.AxisMove = spec.get('axis_move', 0.0)",
                 "        s.Glass = spec['glass']",
+                "        if spec['surface'] == 'Mirror':",
+                "            s.Glass = 'MIRROR'",
                 "        s.Drawing = 0.0 if spec['surface'] in {'Object', 'Image'} else 1.0",
                 "        if spec['surface'] == 'Thin Lens':",
                 "            s.Thin_Lens = spec['rc'] if spec['rc'] != 0 else 100.0",
@@ -2260,6 +3502,8 @@ class KrakenLayoutEditor(tk.Tk):
             surface_type = "Thin Lens"
         elif getattr(surface, "Diff_Ord", 0.0) != 0:
             surface_type = "Grating"
+        elif str(getattr(surface, "Glass", "AIR")).upper() == "MIRROR":
+            surface_type = "Mirror"
 
         rc_value = float(getattr(surface, "Rc", 0.0))
         if surface_type == "Thin Lens":
@@ -2271,6 +3515,13 @@ class KrakenLayoutEditor(tk.Tk):
             rc=rc_value,
             thickness=float(getattr(surface, "Thickness", 0.0)),
             diameter=float(getattr(surface, "Diameter", 25.0)),
+            tilt_x=float(getattr(surface, "TiltX", 0.0)),
+            tilt_y=float(getattr(surface, "TiltY", 0.0)),
+            tilt_z=float(getattr(surface, "TiltZ", 0.0)),
+            desp_x=float(getattr(surface, "DespX", 0.0)),
+            desp_y=float(getattr(surface, "DespY", 0.0)),
+            desp_z=float(getattr(surface, "DespZ", 0.0)),
+            axis_move=float(getattr(surface, "AxisMove", 0.0)),
             glass=str(getattr(surface, "Glass", "AIR")),
         )
 
@@ -2283,6 +3534,9 @@ class KrakenLayoutEditor(tk.Tk):
             return "Object"
         if name == "image":
             return "Image"
+        glass = str(item.get("glass", "AIR")).strip().upper()
+        if glass == "MIRROR":
+            return "Mirror"
         return "Standard"
 
     def _normalize_special_rows(self) -> None:

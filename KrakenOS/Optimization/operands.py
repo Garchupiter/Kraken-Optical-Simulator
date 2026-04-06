@@ -20,11 +20,35 @@ class SpotRMSOperand(MeritOperand):
     wavelength: float = 0.55
     ray_count: int = 11
     ray_height_factor: float = 0.8
+    field_type: str = "angle"
+    field_x: float = 0.0
+    field_y: float = 0.0
 
 
 @dataclass(frozen=True)
 class EffectiveFocalLengthOperand(MeritOperand):
     wavelength: float = 0.55
+
+
+@dataclass(frozen=True)
+class MagnificationOperand(MeritOperand):
+    wavelength: float = 0.55
+
+
+@dataclass(frozen=True)
+class EntrancePupilPositionOperand(MeritOperand):
+    surface_index: int = 1
+    wavelength: float = 0.55
+    aperture_type: str = "EPD"
+    aperture_value: float = 10.0
+
+
+@dataclass(frozen=True)
+class ExitPupilPositionOperand(MeritOperand):
+    surface_index: int = 1
+    wavelength: float = 0.55
+    aperture_type: str = "EPD"
+    aperture_value: float = 10.0
 
 
 @dataclass(frozen=True)
@@ -35,6 +59,18 @@ class WavefrontRMSOperand(MeritOperand):
     aperture_value: float = 10.0
     sample_size: int = 9
     pattern: str = "hexapolar"
+    field_type: str = "angle"
+    field_x: float = 0.0
+    field_y: float = 0.0
+
+
+@dataclass(frozen=True)
+class MTFAtFrequencyOperand(MeritOperand):
+    surface_index: int = -1
+    wavelength: float = 0.55
+    frequency: float = 50.0
+    ray_count: int = 30
+    mode: str = "average"
     field_type: str = "angle"
     field_x: float = 0.0
     field_y: float = 0.0
