@@ -1,4 +1,4 @@
-TITLE = "Flat Mirror 45 Deg"
+TITLE = "Double Mirror Fold"
 
 SURFACES = [
     {
@@ -6,7 +6,7 @@ SURFACES = [
         "name": "Object",
         "rc": 0.0,
         "thickness": 20.0,
-        "diameter": 30.0,
+        "diameter": 20.0,
         "tilt_x": 0.0,
         "tilt_y": 0.0,
         "tilt_z": 0.0,
@@ -18,11 +18,26 @@ SURFACES = [
     },
     {
         "surface": "Mirror",
-        "name": "Mirror 45",
+        "name": "Mirror 1",
         "rc": 0.0,
-        "thickness": 0.0,
+        "thickness": 80.0,
         "diameter": 30.0,
         "tilt_x": 45.0,
+        "tilt_y": 0.0,
+        "tilt_z": 0.0,
+        "desp_x": 0.0,
+        "desp_y": 0.0,
+        "desp_z": 0.0,
+        "axis_move": 0.0,
+        "glass": "MIRROR",
+    },
+    {
+        "surface": "Mirror",
+        "name": "Mirror 2",
+        "rc": 0.0,
+        "thickness": 80.0,
+        "diameter": 30.0,
+        "tilt_x": -45.0,
         "tilt_y": 0.0,
         "tilt_z": 0.0,
         "desp_x": 0.0,
@@ -36,7 +51,7 @@ SURFACES = [
         "name": "Image",
         "rc": 0.0,
         "thickness": 0.0,
-        "diameter": 12.0,
+        "diameter": 20.0,
         "tilt_x": 0.0,
         "tilt_y": 0.0,
         "tilt_z": 0.0,

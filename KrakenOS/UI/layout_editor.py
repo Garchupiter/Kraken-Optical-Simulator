@@ -18,6 +18,7 @@ import re
 import tkinter as tk
 import tkinter.font as tkfont
 from tkinter import filedialog, messagebox, ttk
+import warnings
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
@@ -38,6 +39,7 @@ from KrakenOS.Optimization.adapters.pygmo2_adapter import Pygmo2MeritProblem
 
 LAYOUTS_DIR = Path(__file__).resolve().parent.parent / "common_optical_layouts"
 EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "Examples"
+DEFAULT_LAYOUT_TITLE = "Double Mirror Fold"
 FIELDS = (
     "label",
     "surface",
@@ -192,13 +194,22 @@ class KrakenLayoutEditor(tk.Tk):
         self._grid_overlays: list[tk.Frame] = []
         self._grid_after_id: str | None = None
         self._initial_layout_passes = 0
+        self._last_field_type = "Angle"
+        self._field_defaults_initialized = False
+        self._field_type_defaults = {
+            "Angle": "5.0",
+            "Object Height": "5.0",
+            "Paraxial Image Height": "5.0",
+            "Real Image Height": "5.0",
+        }
 
         self._build_menu()
         self._build_ui()
         self.load_layouts()
         self.load_examples()
         if self.layout_names:
-            self.load_layout_by_name(self.layout_names[0])
+            initial_layout = DEFAULT_LAYOUT_TITLE if DEFAULT_LAYOUT_TITLE in self.layout_files else self.layout_names[0]
+            self.load_layout_by_name(initial_layout)
 
     def _build_menu(self) -> None:
         menubar = tk.Menu(self)
@@ -254,14 +265,26 @@ class KrakenLayoutEditor(tk.Tk):
         top = ttk.Panedwindow(left_panel, orient=tk.HORIZONTAL)
         left_panel.add(top, weight=1)
 
-        controls = ttk.LabelFrame(top, text="Display", padding=8)
+        control_stack = ttk.Frame(top, padding=8)
+        control_stack.columnconfigure(0, weight=1)
+        control_stack.rowconfigure(0, weight=0)
+        control_stack.rowconfigure(1, weight=0)
+        top.add(control_stack, weight=1)
+
+        controls = ttk.LabelFrame(control_stack, text="Display", padding=8)
+        controls.grid(row=0, column=0, sticky="ew")
         controls.columnconfigure(0, weight=1)
-        top.add(controls, weight=1)
+        controls.columnconfigure(1, weight=1)
+
+        field_panel = ttk.LabelFrame(control_stack, text="Field", padding=8)
+        field_panel.grid(row=1, column=0, sticky="ew", pady=(8, 0))
+        field_panel.columnconfigure(0, weight=1)
+        field_panel.columnconfigure(1, weight=1)
 
         table_frame = ttk.Frame(top, padding=8)
         table_frame.columnconfigure(0, weight=1)
         table_frame.rowconfigure(1, weight=1)
-        top.add(table_frame, weight=3)
+        top.add(table_frame, weight=4)
 
         plot_frame = ttk.Frame(left_panel, padding=8)
         plot_frame.columnconfigure(0, weight=1)
@@ -385,6 +408,7 @@ class KrakenLayoutEditor(tk.Tk):
         self.table.configure(xscrollcommand=xscroll.set)
 
         self._build_controls_panel(controls)
+        self._build_field_panel(field_panel)
         self._build_results_panel(results)
         self._build_optimization_panel(optimization)
 
@@ -455,7 +479,7 @@ class KrakenLayoutEditor(tk.Tk):
         parent.columnconfigure(1, weight=1)
 
         ttk.Label(parent, text="Object mode").grid(row=0, column=0, sticky="w", pady=(0, 2))
-        self.object_mode_var = tk.StringVar(value="Finite")
+        self.object_mode_var = tk.StringVar(value="Infinity")
         self.object_mode_menu = ttk.Combobox(
             parent,
             textvariable=self.object_mode_var,
@@ -463,7 +487,7 @@ class KrakenLayoutEditor(tk.Tk):
             values=["Finite", "Infinity"],
         )
         self.object_mode_menu.grid(row=1, column=0, sticky="ew", pady=(0, 8))
-        self.object_mode_menu.bind("<<ComboboxSelected>>", lambda _e: self.refresh_plot())
+        self.object_mode_menu.bind("<<ComboboxSelected>>", self._on_object_mode_changed)
 
         ttk.Label(parent, text="Wavelength [um]").grid(row=0, column=1, sticky="w", pady=(0, 2), padx=(8, 0))
         self.wavelength_var = tk.StringVar(value="0.55")
@@ -471,9 +495,16 @@ class KrakenLayoutEditor(tk.Tk):
             row=1, column=1, sticky="ew", pady=(0, 8), padx=(8, 0)
         )
 
-        ttk.Label(parent, text="Field count").grid(row=2, column=0, sticky="w", pady=(0, 2))
-        self.field_count_var = tk.StringVar(value="1")
-        ttk.Entry(parent, textvariable=self.field_count_var, width=12).grid(row=3, column=0, sticky="ew", pady=(0, 8))
+        ttk.Label(parent, text="Orientation").grid(row=2, column=0, sticky="w", pady=(0, 2))
+        self.display_orientation_var = tk.StringVar(value="Vertical")
+        self.display_orientation_menu = ttk.Combobox(
+            parent,
+            textvariable=self.display_orientation_var,
+            state="readonly",
+            values=["Vertical", "Horizontal"],
+        )
+        self.display_orientation_menu.grid(row=3, column=0, sticky="ew", pady=(0, 8))
+        self.display_orientation_menu.bind("<<ComboboxSelected>>", lambda _e: self.refresh_plot())
 
         ttk.Label(parent, text="Ray fan count").grid(row=2, column=1, sticky="w", pady=(0, 2), padx=(8, 0))
         self.ray_count_var = tk.StringVar(value="5")
@@ -481,15 +512,11 @@ class KrakenLayoutEditor(tk.Tk):
             row=3, column=1, sticky="ew", pady=(0, 8), padx=(8, 0)
         )
 
-        ttk.Label(parent, text="Pupil factor").grid(row=4, column=1, sticky="w", pady=(0, 2), padx=(8, 0))
+        ttk.Label(parent, text="Pupil factor").grid(row=4, column=0, sticky="w", pady=(0, 2))
         self.ray_height_factor_var = tk.StringVar(value="0.8")
         ttk.Entry(parent, textvariable=self.ray_height_factor_var, width=12).grid(
-            row=5, column=1, sticky="ew", pady=(0, 8), padx=(8, 0)
+            row=5, column=0, sticky="ew", pady=(0, 8)
         )
-
-        ttk.Label(parent, text="Max field angle [deg]").grid(row=4, column=0, sticky="w", pady=(0, 2))
-        self.field_angle_var = tk.StringVar(value="5.0")
-        ttk.Entry(parent, textvariable=self.field_angle_var, width=12).grid(row=5, column=0, sticky="ew", pady=(0, 8))
 
         ttk.Label(parent, text="Analysis stop surface").grid(row=6, column=0, sticky="w", pady=(0, 2))
         self.analysis_surface_var = tk.StringVar(value="Auto")
@@ -516,20 +543,64 @@ class KrakenLayoutEditor(tk.Tk):
         ttk.Label(parent, text="Aperture value").grid(row=8, column=0, sticky="w", pady=(0, 2))
         self.aperture_value_var = tk.StringVar(value="1.0")
         ttk.Entry(parent, textvariable=self.aperture_value_var, width=12).grid(
-            row=9, column=0, sticky="ew", pady=(0, 8)
+            row=9, column=0, sticky="ew"
         )
 
         self.show_cardinals_var = tk.BooleanVar(value=True)
 
         for variable in (
-            self.field_count_var,
-            self.field_angle_var,
             self.wavelength_var,
             self.ray_count_var,
             self.ray_height_factor_var,
             self.aperture_value_var,
         ):
             variable.trace_add("write", self._schedule_refresh_plot)
+
+    def _build_field_panel(self, parent) -> None:
+        parent.columnconfigure(0, weight=1)
+        parent.columnconfigure(1, weight=1)
+
+        ttk.Label(parent, text="Field type").grid(row=0, column=0, sticky="w", pady=(0, 2))
+        self.field_type_var = tk.StringVar(value="Angle")
+        self.field_type_menu = ttk.Combobox(
+            parent,
+            textvariable=self.field_type_var,
+            state="readonly",
+            values=["Angle", "Object Height", "Paraxial Image Height", "Real Image Height"],
+        )
+        self.field_type_menu.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(0, 8))
+        self.field_type_menu.bind("<<ComboboxSelected>>", self._on_field_type_changed)
+
+        self.field_mode_note_var = tk.StringVar(value="")
+        ttk.Label(parent, textvariable=self.field_mode_note_var, foreground="#475569", justify="left").grid(
+            row=2, column=0, columnspan=2, sticky="ew", pady=(0, 6)
+        )
+
+        self.field_value_label_var = tk.StringVar(value="Angle [deg]")
+        ttk.Label(parent, textvariable=self.field_value_label_var).grid(row=3, column=0, sticky="w", pady=(0, 2))
+        self.field_value_var = tk.StringVar(value="5.0")
+        ttk.Entry(parent, textvariable=self.field_value_var, width=12).grid(
+            row=4, column=0, sticky="ew", pady=(0, 8)
+        )
+
+        ttk.Label(parent, text="Field count").grid(row=3, column=1, sticky="w", pady=(0, 2), padx=(8, 0))
+        self.field_count_var = tk.StringVar(value="1")
+        ttk.Entry(parent, textvariable=self.field_count_var, width=12).grid(
+            row=4, column=1, sticky="ew", pady=(0, 8), padx=(8, 0)
+        )
+
+        self.field_warning_var = tk.StringVar(value="")
+        ttk.Label(parent, textvariable=self.field_warning_var, foreground="#b45309", justify="left").grid(
+            row=5, column=0, columnspan=2, sticky="ew", pady=(0, 4)
+        )
+        self.field_summary_var = tk.StringVar(value="")
+        ttk.Label(parent, textvariable=self.field_summary_var, justify="left").grid(
+            row=6, column=0, columnspan=2, sticky="ew"
+        )
+
+        for variable in (self.field_count_var, self.field_value_var):
+            variable.trace_add("write", self._schedule_refresh_plot)
+        self._sync_field_mode_ui()
     def _build_optimization_panel(self, parent) -> None:
         parent.columnconfigure(0, weight=1)
         parent.columnconfigure(1, weight=1)
@@ -768,7 +839,10 @@ class KrakenLayoutEditor(tk.Tk):
             except Exception:
                 continue
             self.layout_files[title] = path
-        self.layout_names = sorted(self.layout_files)
+        self.layout_names = sorted(
+            self.layout_files,
+            key=lambda name: (0 if name == DEFAULT_LAYOUT_TITLE else 1, name.lower()),
+        )
         self.layout_menu["values"] = ["Common Optical Layout", *self.layout_names]
         self.layout_var.set("Common Optical Layout")
 
@@ -850,6 +924,8 @@ class KrakenLayoutEditor(tk.Tk):
             self.rows = self._append_layout_rows(self.rows, loaded_rows)
         else:
             self.rows = loaded_rows
+            self._apply_initial_field_defaults()
+            self._apply_initial_layout_view_defaults(name)
 
         self._normalize_special_rows()
         self._sync_table()
@@ -1173,7 +1249,100 @@ class KrakenLayoutEditor(tk.Tk):
             self._apply_surface_values_to_descendants(child, values)
 
     def _sync_object_controls(self) -> None:
-        return
+        if not hasattr(self, "field_summary_var"):
+            return
+        self._sync_field_mode_ui()
+        metrics = self._field_metrics()
+        self.field_summary_var.set(
+            "Angle: {angle:.3g} deg\nObject: {obj:.3g} mm\nParaxial image: {parax:.3g} mm\nReal image: {real:.3g} mm".format(
+                angle=metrics["angle_deg"],
+                obj=metrics["object_height"],
+                parax=metrics["paraxial_image_height"],
+                real=metrics["real_image_height"],
+            )
+        )
+        warning = ""
+        if self.rows and self._current_object_mode() == "Finite":
+            object_radius = max(float(self.rows[0].diameter) / 2.0, 0.0)
+            if abs(metrics["object_height"]) > object_radius + 1e-9:
+                warning = f"Field exceeds object radius ({object_radius:.3g} mm)."
+        self.field_warning_var.set(warning)
+
+    def _on_object_mode_changed(self, _event=None) -> None:
+        self._sync_field_default_from_current_type()
+        self._sync_field_mode_ui()
+        self.refresh_plot()
+
+    def _apply_initial_field_defaults(self) -> None:
+        if self._field_defaults_initialized or not hasattr(self, "field_type_var"):
+            return
+        if self._current_object_mode() == "Infinity":
+            self.field_type_var.set("Angle")
+            self._last_field_type = "Angle"
+            self._field_type_defaults["Angle"] = "0.0"
+            self.field_value_var.set("0.0")
+        else:
+            self.field_type_var.set("Object Height")
+            self._last_field_type = "Object Height"
+            self._field_type_defaults["Object Height"] = "0.0"
+            self.field_value_var.set("0.0")
+        self._field_defaults_initialized = True
+        self._sync_field_mode_ui()
+
+    def _apply_initial_layout_view_defaults(self, name: str) -> None:
+        if not hasattr(self, "display_orientation_var"):
+            return
+        if name == DEFAULT_LAYOUT_TITLE:
+            self.display_orientation_var.set("Horizontal")
+
+    def _on_field_type_changed(self, _event=None) -> None:
+        self._sync_field_default_from_current_type()
+        self._sync_field_mode_ui()
+        self.refresh_plot()
+
+    def _sync_field_default_from_current_type(self) -> None:
+        if not hasattr(self, "field_value_var"):
+            return
+        previous_type = getattr(self, "_last_field_type", self._current_field_type())
+        field_type = self._current_field_type()
+        current_text = self.field_value_var.get().strip()
+        if current_text:
+            self._field_type_defaults[previous_type] = current_text
+        default_text = self._field_type_defaults.get(field_type, "0.0")
+        self._last_field_type = field_type
+        if current_text != default_text:
+            self.field_value_var.set(default_text)
+
+    def _sync_field_mode_ui(self) -> None:
+        if not hasattr(self, "field_type_menu"):
+            return
+        if self._current_object_mode() == "Infinity":
+            values = [
+                "Angle",
+                "Paraxial Image Height",
+                "Real Image Height",
+                "Object Height",
+            ]
+            note = "Preferred: Angle for infinity object. Image-height modes are derived targets."
+        else:
+            values = [
+                "Object Height",
+                "Paraxial Image Height",
+                "Real Image Height",
+                "Angle",
+            ]
+            note = "Preferred: Object Height for finite object. Angle remains available as a derived field."
+        self.field_type_menu["values"] = values
+        if hasattr(self, "field_mode_note_var"):
+            self.field_mode_note_var.set(note)
+        if hasattr(self, "field_value_label_var"):
+            label_map = {
+                "Angle": "Angle [deg]",
+                "Object Height": "Object Height [mm]",
+                "Paraxial Image Height": "Paraxial Image Height [mm]",
+                "Real Image Height": "Real Image Height [mm]",
+            }
+            self.field_value_label_var.set(label_map.get(self._current_field_type(), "Field value"))
 
     def add_surface(self) -> None:
         insert_at = len(self.rows)
@@ -1398,8 +1567,6 @@ class KrakenLayoutEditor(tk.Tk):
             row = self.rows[index]
             if value == "Mirror":
                 row.glass = "MIRROR"
-                if abs(row.axis_move) < 1e-9:
-                    row.axis_move = 2.0
                 if abs(row.tilt_x) < 1e-9 and abs(row.tilt_y) < 1e-9 and abs(row.tilt_z) < 1e-9:
                     row.tilt_x = 45.0
             elif row.surface not in {"Object", "Image"} and row.glass == "MIRROR":
@@ -1530,7 +1697,7 @@ class KrakenLayoutEditor(tk.Tk):
             surface.DespZ = row.desp_z
             surface.AxisMove = row.axis_move
             surface.Nm_Pos = self._name_offset(row)
-            surface.Drawing = 0.0 if row.surface in {"Object", "Image"} else 1.0
+            surface.Drawing = 0.0 if row.surface in {"Object", "Image", "Mirror"} else 1.0
             if row.surface == "Mirror":
                 surface.Glass = "MIRROR"
             if row.surface == "Thin Lens":
@@ -1627,36 +1794,63 @@ class KrakenLayoutEditor(tk.Tk):
             self.ax = self.figure.add_subplot(gs[0])
             analysis_ax = self.figure.add_subplot(gs[1])
 
+        if self._is_folded_mirror_preview_mode():
+            self._plot_folded_mirror_preview(analysis_ax)
+            self.ax.grid(True, alpha=0.2)
+            self.ax.set_xlabel("Fold X [mm]")
+            self.ax.set_ylabel("Fold Y [mm]")
+            self.ax.set_title("")
+            self.figure.subplots_adjust(left=0.07, right=0.98, bottom=0.15, top=0.92, wspace=0.28)
+            self.figure.text(0.5, 0.035, "KrakenOS Layout", ha="center", va="center")
+            self._sync_object_controls()
+            self.canvas.draw_idle()
+            return
+
         try:
             wavelength = self._current_wavelength()
             capture = io.StringIO()
-            with redirect_stdout(capture), redirect_stderr(capture):
-                system = self.build_system()
-                if getattr(system.Pr3D, "ExistSolid", 0) == 0:
-                    original_build = system.BUILD
-                    system.BUILD = 1
-                    system.build()
-                    system.BUILD = original_build
-                rays = Kos.raykeeper(system)
-                self._trace_preview_rays(system, rays, wavelength, max_radius)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", RuntimeWarning)
+                with redirect_stdout(capture), redirect_stderr(capture):
+                    system = self.build_system()
+                    if getattr(system.Pr3D, "ExistSolid", 0) == 0:
+                        original_build = system.BUILD
+                        system.BUILD = 1
+                        system.build()
+                        system.BUILD = original_build
+                    rays = Kos.raykeeper(system)
+                    self._trace_preview_rays(system, rays, wavelength, max_radius)
             self.append_debug(capture.getvalue())
             self.last_system = system
             self.last_rays = rays
-            Plot2DSurf(system, 0, self.ax)
+            if self._has_native_drawn_surfaces():
+                Plot2DSurf(system, 0, self.ax)
+            self._draw_custom_mirror_surfaces()
+            self._apply_display_orientation_to_lines()
             surf_line_count = len(self.ax.lines)
             self._style_embedded_plot(surf_line_count)
-            self._draw_colored_rays(rays)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", RuntimeWarning)
+                self._draw_colored_rays(rays)
+            self._apply_display_orientation_to_lines(surf_line_count)
             if self._has_off_axis_geometry():
+                self._set_plot_limits_from_drawn_data()
+                self.ax.set_aspect("equal", adjustable="box")
+            elif self._current_display_orientation() == "Horizontal":
                 self._set_plot_limits_from_drawn_data()
                 self.ax.set_aspect("equal", adjustable="box")
             else:
                 self._set_plot_limits_from_layout(max_radius)
             self._draw_input_ray_overlay(max_radius)
             self._draw_reference_plane_labels()
-            optics_info = self._collect_optics_info(system, rays, wavelength)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", RuntimeWarning)
+                optics_info = self._collect_optics_info(system, rays, wavelength)
             self._draw_optics_markers(optics_info)
-            self._plot_analysis(analysis_ax, system, rays, wavelength)
-            self._update_results(system, rays, wavelength, optics_info)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", RuntimeWarning)
+                self._plot_analysis(analysis_ax, system, rays, wavelength)
+                self._update_results(system, rays, wavelength, optics_info)
             self.status_var.set("Plot refreshed")
         except Exception as exc:
             self.last_system = None
@@ -1671,11 +1865,16 @@ class KrakenLayoutEditor(tk.Tk):
             self.append_debug(f"Plot refresh error: {exc}")
 
         self.ax.grid(True, alpha=0.2)
-        self.ax.set_xlabel("Z [mm]")
-        self.ax.set_ylabel("Y [mm]")
+        if self._current_display_orientation() == "Horizontal":
+            self.ax.set_xlabel("-Y [mm]")
+            self.ax.set_ylabel("-Z [mm]")
+        else:
+            self.ax.set_xlabel("Z [mm]")
+            self.ax.set_ylabel("Y [mm]")
         self.ax.set_title("")
         self.figure.subplots_adjust(left=0.07, right=0.98, bottom=0.15, top=0.92, wspace=0.28)
         self.figure.text(0.5, 0.035, "KrakenOS Layout", ha="center", va="center")
+        self._sync_object_controls()
         self.canvas.draw_idle()
         if self._initial_layout_passes < 40:
             self.after(50, self._set_initial_pane_layout)
@@ -2356,16 +2555,87 @@ class KrakenLayoutEditor(tk.Tk):
         except ValueError:
             return 1
 
-    def _current_field_height(self) -> float:
-        if self.rows:
-            return max(0.0, float(self.rows[0].diameter) / 2.0)
-        return 10.0
+    def _current_field_type(self) -> str:
+        value = self.field_type_var.get().strip()
+        if value in {"Angle", "Object Height", "Paraxial Image Height", "Real Image Height"}:
+            return value
+        return "Angle"
+
+    def _current_field_value(self) -> float:
+        try:
+            return float(self.field_value_var.get())
+        except ValueError:
+            return 0.0
 
     def _current_field_angle_deg(self) -> float:
-        try:
-            return max(0.0, float(self.field_angle_var.get()))
-        except ValueError:
-            return 5.0
+        return float(self._field_metrics().get("angle_deg", 0.0))
+
+    def _current_field_height(self) -> float:
+        return float(self._field_metrics().get("object_height", 0.0))
+
+    def _field_metrics(self) -> dict[str, float]:
+        field_type = self._current_field_type()
+        raw_value = self._current_field_value()
+        object_distance = self._current_object_distance()
+        effl = self._current_effl_estimate()
+        image_distance = self._current_image_distance()
+
+        with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+            if field_type == "Angle":
+                angle_deg = raw_value
+                object_height = object_distance * np.tan(np.deg2rad(angle_deg))
+            elif field_type == "Object Height":
+                object_height = raw_value
+                angle_deg = np.rad2deg(np.arctan2(object_height, object_distance))
+            elif field_type == "Paraxial Image Height":
+                paraxial_image_height = raw_value
+                angle_deg = np.rad2deg(np.arctan2(paraxial_image_height, max(effl, 1e-6)))
+                object_height = object_distance * np.tan(np.deg2rad(angle_deg))
+            else:
+                real_image_height = raw_value
+                angle_deg = np.rad2deg(np.arctan2(real_image_height, max(image_distance, 1e-6)))
+                object_height = object_distance * np.tan(np.deg2rad(angle_deg))
+
+            paraxial_image_height = effl * np.tan(np.deg2rad(angle_deg))
+            real_image_height = image_distance * np.tan(np.deg2rad(angle_deg))
+
+        if not np.isfinite(angle_deg):
+            angle_deg = 0.0
+        if not np.isfinite(object_height):
+            object_height = 0.0
+        if not np.isfinite(paraxial_image_height):
+            paraxial_image_height = 0.0
+        if not np.isfinite(real_image_height):
+            real_image_height = 0.0
+        return {
+            "angle_deg": float(angle_deg),
+            "object_height": float(object_height),
+            "paraxial_image_height": float(paraxial_image_height),
+            "real_image_height": float(real_image_height),
+        }
+
+    def _current_effl_estimate(self) -> float:
+        if self.last_system is not None:
+            try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", RuntimeWarning)
+                    _a, _b, _c, _d, effl, *_rest = self.last_system.EFL(self._current_wavelength())  # type: ignore[misc]
+                return max(abs(float(effl)), 1e-6)
+            except Exception:
+                pass
+            try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", RuntimeWarning)
+                    _, _, _, _, _, _, _, effl, *_rest = self.last_system.Parax(self._current_wavelength())
+                return max(abs(float(effl)), 1e-6)
+            except Exception:
+                pass
+        return 100.0
+
+    def _current_image_distance(self) -> float:
+        if len(self.rows) >= 2:
+            return max(float(self.rows[-2].thickness), 1e-6)
+        return 100.0
 
     def _schedule_refresh_plot(self, *_args) -> None:
         if not self.winfo_exists():
@@ -2403,10 +2673,17 @@ class KrakenLayoutEditor(tk.Tk):
     def _draw_colored_rays(self, rays) -> None:
         if self._has_off_axis_geometry():
             before = len(self.ax.lines)
-            Plot2DRays(rays, 0, 0, self.ax, 0)
-            for line in self.ax.lines[before:]:
-                line.set_linewidth(1.8)
-                line.set_alpha(0.95)
+            try:
+                Plot2DRays(rays, 0, 0, self.ax, 0)
+                for line in self.ax.lines[before:]:
+                    line.set_linewidth(1.8)
+                    line.set_alpha(0.95)
+            except Exception:
+                for ray in rays.CC:
+                    points = np.asarray(ray, dtype=float)
+                    if points.shape[0] < 2:
+                        continue
+                    self.ax.plot(points[:, 2], points[:, 1], color="#39FF14", linewidth=1.8, alpha=0.95)
             return
         ray_count = max(1, self._preview_field_ray_count)
         field_count = max(1, self._current_field_count())
@@ -2419,6 +2696,32 @@ class KrakenLayoutEditor(tk.Tk):
             color = colors[field_index]
             self.ax.plot(points[:, 2], points[:, 1], color=color, linewidth=1.8, alpha=0.95)
 
+    def _current_display_orientation(self) -> str:
+        value = getattr(self, "display_orientation_var", None)
+        if value is None:
+            return "Vertical"
+        mode = value.get().strip()
+        return mode if mode in {"Vertical", "Horizontal"} else "Vertical"
+
+    def _project_xy(self, z, y):
+        z_arr = np.asarray(z, dtype=float)
+        y_arr = np.asarray(y, dtype=float)
+        if self._current_display_orientation() == "Horizontal":
+            return -y_arr, -z_arr
+        return z_arr, y_arr
+
+    def _apply_display_orientation_to_lines(self, start_index: int = 0) -> None:
+        if self._current_display_orientation() == "Vertical":
+            return
+        for line in self.ax.lines[start_index:]:
+            xdata = np.asarray(line.get_xdata(orig=False), dtype=float)
+            ydata = np.asarray(line.get_ydata(orig=False), dtype=float)
+            if xdata.size == 0 or ydata.size == 0:
+                continue
+            proj_x, proj_y = self._project_xy(xdata, ydata)
+            line.set_xdata(proj_x)
+            line.set_ydata(proj_y)
+
     def _has_off_axis_geometry(self) -> bool:
         for row in self.rows:
             if row.surface == "Mirror":
@@ -2430,6 +2733,147 @@ class KrakenLayoutEditor(tk.Tk):
                 return True
         return False
 
+    def _has_native_drawn_surfaces(self) -> bool:
+        for row in self.rows:
+            if row.surface not in {"Object", "Image", "Mirror"}:
+                return True
+        return False
+
+    def _is_folded_mirror_preview_mode(self) -> bool:
+        if self._current_display_orientation() != "Horizontal":
+            return False
+        mirror_count = 0
+        for row in self.rows:
+            if row.surface == "Mirror":
+                mirror_count += 1
+            elif row.surface not in {"Object", "Image"}:
+                return False
+        return mirror_count >= 1
+
+    @staticmethod
+    def _reflect_2d(direction: np.ndarray, line_angle_deg: float) -> np.ndarray:
+        theta = np.deg2rad(float(line_angle_deg))
+        tangent = np.array([np.cos(theta), np.sin(theta)], dtype=float)
+        tangent_norm = np.linalg.norm(tangent)
+        if tangent_norm <= 1e-12:
+            return direction
+        tangent /= tangent_norm
+        normal = np.array([-tangent[1], tangent[0]], dtype=float)
+        reflected = direction - 2.0 * np.dot(direction, normal) * normal
+        norm = np.linalg.norm(reflected)
+        if norm <= 1e-12:
+            return direction
+        return reflected / norm
+
+    def _plot_folded_mirror_preview(self, analysis_ax) -> None:
+        self.ax.clear()
+        if analysis_ax is not None:
+            analysis_ax.clear()
+            analysis_ax.text(0.5, 0.5, "Analysis unavailable\nfor folded preview", ha="center", va="center")
+            analysis_ax.set_axis_off()
+
+        point = np.array([0.0, 0.0], dtype=float)
+        direction = np.array([0.0, 1.0], dtype=float)
+        max_half = max((max(row.diameter / 2.0, 0.5) for row in self.rows), default=1.0)
+        extent_points = [point.copy()]
+
+        def draw_plane(center: np.ndarray, diameter: float, along: np.ndarray, label: str):
+            tangent = np.array([-along[1], along[0]], dtype=float)
+            norm = np.linalg.norm(tangent)
+            if norm <= 1e-12:
+                tangent = np.array([1.0, 0.0], dtype=float)
+            else:
+                tangent /= norm
+            half = max(diameter / 2.0, 0.5)
+            p0 = center - tangent * half
+            p1 = center + tangent * half
+            self.ax.plot([p0[0], p1[0]], [p0[1], p1[1]], color="#202020", linewidth=1.2, alpha=0.9)
+            self.ax.text(center[0], center[1] - max_half * 0.15, label, ha="center", va="bottom", fontsize=9, color="#202020")
+            extent_points.extend([p0, p1])
+
+        first = self.rows[0]
+        draw_plane(point, first.diameter, direction, first.name or "Object")
+
+        colors = self._field_colors(max(1, self._current_field_count()))
+        field_values = self._sample_field_values(self._current_field_height())
+        fan_angles = self._sample_fan_angles_deg() if self._current_object_mode() == "Finite" else [0.0]
+        ray_paths: list[list[np.ndarray]] = []
+        for field_index, field_value in enumerate(field_values):
+            for fan_angle in fan_angles:
+                if self._current_object_mode() == "Infinity":
+                    d = direction.copy()
+                    origin = point + np.array([float(field_value), 0.0], dtype=float)
+                else:
+                    angle = np.deg2rad(float(fan_angle))
+                    d = np.array([np.sin(angle), np.cos(angle)], dtype=float)
+                    norm = np.linalg.norm(d)
+                    if norm > 1e-12:
+                        d /= norm
+                    origin = point + np.array([float(field_value), 0.0], dtype=float)
+                p = origin.copy()
+                path = [p.copy()]
+                current_dir = d
+                for row in self.rows:
+                    travel = max(float(row.thickness), 0.0)
+                    if travel > 0.0:
+                        p = p + current_dir * travel
+                        path.append(p.copy())
+                    if row.surface == "Mirror":
+                        current_dir = self._reflect_2d(current_dir, float(row.tilt_x))
+                ray_paths.append(path)
+                extent_points.extend(path)
+
+        current_dir = direction.copy()
+        object_thickness = max(float(self.rows[0].thickness), 0.0) if self.rows else 0.0
+        current_point = point + current_dir * object_thickness
+        extent_points.append(current_point.copy())
+        for row in self.rows[1:]:
+            if row.surface == "Mirror":
+                half = max(row.diameter / 2.0, 0.5)
+                theta = np.deg2rad(float(row.tilt_x))
+                tangent = np.array([np.cos(theta), np.sin(theta)], dtype=float)
+                tangent /= max(np.linalg.norm(tangent), 1e-12)
+                p0 = current_point - tangent * half
+                p1 = current_point + tangent * half
+                self.ax.plot([p0[0], p1[0]], [p0[1], p1[1]], color="#202020", linewidth=2.2, alpha=0.95)
+                extent_points.extend([p0, p1])
+                current_dir = self._reflect_2d(current_dir, float(row.tilt_x))
+            elif row.surface == "Image":
+                draw_plane(current_point, row.diameter, current_dir, row.name or "Image")
+            travel = max(float(row.thickness), 0.0)
+            current_point = current_point + current_dir * travel
+            extent_points.append(current_point.copy())
+
+        rays_per_field = max(1, len(ray_paths) // max(1, len(field_values)))
+        for index, path in enumerate(ray_paths):
+            pts = np.asarray(path, dtype=float)
+            if pts.shape[0] < 2:
+                continue
+            field_index = min(index // rays_per_field, len(colors) - 1)
+            self.ax.plot(pts[:, 0], pts[:, 1], color=colors[field_index], linewidth=1.8, alpha=0.95)
+
+        ext = np.asarray(extent_points, dtype=float)
+        if ext.size:
+            x_min, y_min = np.min(ext[:, 0]), np.min(ext[:, 1])
+            x_max, y_max = np.max(ext[:, 0]), np.max(ext[:, 1])
+            span_x = max(x_max - x_min, 1.0)
+            span_y = max(y_max - y_min, 1.0)
+            self.ax.set_xlim(x_min - 0.1 * span_x, x_max + 0.1 * span_x)
+            self.ax.set_ylim(y_max + 0.1 * span_y, y_min - 0.1 * span_y)
+            self.ax.set_aspect("equal", adjustable="box")
+
+        self._set_results(
+            [
+                ("Mode", "Folded mirror preview"),
+                ("Surface count", str(len(self.rows))),
+                ("Object mode", self._current_object_mode()),
+                ("Field type", self._current_field_type()),
+                ("Field count", str(self._current_field_count())),
+                ("Ray fan count", str(self._current_ray_count())),
+            ]
+        )
+        self.status_var.set("Folded mirror preview")
+
     def _draw_reference_plane_labels(self) -> None:
         if not self.rows:
             return
@@ -2439,21 +2883,62 @@ class KrakenLayoutEditor(tk.Tk):
         for row in self.rows:
             if row.surface in {"Object", "Image"} and row.name:
                 half_height = max(row.diameter / 2.0, 0.5)
+                center_z = z_pos + float(row.desp_z)
+                center_y = float(row.desp_y)
+                angle = np.deg2rad(float(row.tilt_x))
+                dz = np.cos(angle) * 0.0
+                dy = np.sin(angle) * 0.0
+                x_vals, y_vals = self._project_xy(
+                    [center_z - dz, center_z + dz],
+                    [center_y - half_height - dy, center_y + half_height + dy],
+                )
                 self.ax.plot(
-                    [z_pos, z_pos],
-                    [-half_height, half_height],
+                    x_vals,
+                    y_vals,
                     color="#202020",
                     linewidth=1.2,
                     alpha=0.9,
                 )
-                self.ax.text(
-                    z_pos,
-                    y_text,
-                    row.name,
-                    ha="center",
-                    va="top",
-                    fontsize=9,
+                text_x = float(x_vals[0])
+                if self._current_display_orientation() == "Horizontal":
+                    self.ax.text(
+                        float(np.mean(x_vals)),
+                        float(y_vals[0]),
+                        row.name,
+                        ha="center",
+                        va="bottom",
+                        fontsize=9,
+                        color="#202020",
+                    )
+                else:
+                    self.ax.text(
+                        text_x,
+                        y_text,
+                        row.name,
+                        ha="center",
+                        va="top",
+                        fontsize=9,
+                        color="#202020",
+                    )
+            z_pos += row.thickness
+
+    def _draw_custom_mirror_surfaces(self) -> None:
+        z_pos = 0.0
+        for row in self.rows:
+            if row.surface == "Mirror":
+                half_length = max(row.diameter / 2.0, 0.5)
+                angle = np.deg2rad(float(row.tilt_x))
+                dz = np.cos(angle) * half_length
+                dy = np.sin(angle) * half_length
+                center_z = z_pos + float(row.desp_z)
+                center_y = float(row.desp_y)
+                self.ax.plot(
+                    [center_z - dz, center_z + dz],
+                    [center_y - dy, center_y + dy],
                     color="#202020",
+                    linewidth=2.2,
+                    alpha=0.95,
+                    solid_capstyle="round",
                 )
             z_pos += row.thickness
 
@@ -2473,17 +2958,33 @@ class KrakenLayoutEditor(tk.Tk):
             if z_pos is None:
                 continue
             z_val = float(z_pos)
-            self.ax.axvline(z_val, color=color, linewidth=1.0, linestyle=":", alpha=0.9)
-            self.ax.text(
-                z_val,
-                y_top,
-                label,
-                color=color,
-                fontsize=8,
-                ha="center",
-                va="top",
-                bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.65, "pad": 0.6},
-            )
+            if self._current_display_orientation() == "Horizontal":
+                _, y_vals = self._project_xy([z_val, z_val], [0.0, 0.0])
+                y_mark = float(y_vals[0])
+                self.ax.axhline(y_mark, color=color, linewidth=1.0, linestyle=":", alpha=0.9)
+                x0, x1 = self.ax.get_xlim()
+                self.ax.text(
+                    x0 + 0.04 * (x1 - x0),
+                    y_mark,
+                    label,
+                    color=color,
+                    fontsize=8,
+                    ha="left",
+                    va="bottom",
+                    bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.65, "pad": 0.6},
+                )
+            else:
+                self.ax.axvline(z_val, color=color, linewidth=1.0, linestyle=":", alpha=0.9)
+                self.ax.text(
+                    z_val,
+                    y_top,
+                    label,
+                    color=color,
+                    fontsize=8,
+                    ha="center",
+                    va="top",
+                    bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.65, "pad": 0.6},
+                )
 
     def _set_plot_limits_from_layout(self, max_radius: float) -> None:
         total_length = sum(float(row.thickness) for row in self.rows)
@@ -2530,9 +3031,10 @@ class KrakenLayoutEditor(tk.Tk):
             for angle_deg in angle_samples:
                 angle_rad = np.deg2rad(angle_deg)
                 pupil_y = float(field_height) + float(np.tan(angle_rad) * object_distance)
+                x_vals, y_vals = self._project_xy([0.0, object_distance], [float(field_height), float(pupil_y)])
                 self.ax.plot(
-                    [0.0, object_distance],
-                    [float(field_height), float(pupil_y)],
+                    x_vals,
+                    y_vals,
                     color=color,
                     linewidth=1.8,
                     alpha=0.95,
@@ -2800,6 +3302,12 @@ class KrakenLayoutEditor(tk.Tk):
         items.append(("Analysis surface", str(self._analysis_surface_index())))
         items.append(("Aperture type", self._current_aperture_type()))
         items.append(("Aperture value", f"{self._current_aperture_value():.4g}"))
+        field_metrics = self._field_metrics()
+        items.append(("Field type", self._current_field_type()))
+        items.append(("Field angle [deg]", f"{field_metrics['angle_deg']:.4g}"))
+        items.append(("Object height [mm]", f"{field_metrics['object_height']:.4g}"))
+        items.append(("Paraxial image height [mm]", f"{field_metrics['paraxial_image_height']:.4g}"))
+        items.append(("Real image height [mm]", f"{field_metrics['real_image_height']:.4g}"))
 
         total_length = sum(max(float(row.thickness), 0.0) for row in self.rows)
         items.append(("Total length [mm]", f"{total_length:.4g}"))
@@ -2924,7 +3432,9 @@ class KrakenLayoutEditor(tk.Tk):
         return self._operand_field(label)
 
     def _operand_field_type(self, label: str) -> str:
-        return "angle" if self._current_object_mode() == "Infinity" else "height"
+        if self._current_field_type() == "Angle":
+            return "angle"
+        return "height"
 
     def _operand_surface_index(self, label: str) -> int:
         var = self.operand_surface_vars.get(label)
@@ -3177,14 +3687,55 @@ class KrakenLayoutEditor(tk.Tk):
         return list(np.linspace(-maximum, maximum, count))
 
     def _entrance_radius(self, fallback_radius: float) -> float:
+        object_radius = None
+        if self.rows:
+            object_radius = max(float(self.rows[0].diameter) / 2.0, 0.5)
         for row in self.rows[1:]:
             if row.surface not in {"Object", "Image"}:
-                return max(row.diameter / 2.0, 0.5)
+                radius = max(row.diameter / 2.0, 0.5)
+                if object_radius is not None:
+                    return min(radius, object_radius)
+                return radius
+        if object_radius is not None:
+            return min(fallback_radius, object_radius)
         return fallback_radius
 
     def _trace_preview_rays(self, system, rays, wavelength: float, max_radius: float) -> None:
         system.IgnoreVignetting(0)
-        if self._current_object_mode() == "Infinity":
+        if self._has_off_axis_geometry():
+            rays.clean()
+            if self._current_object_mode() == "Infinity":
+                field_values = self._sample_field_values(self._current_field_angle_deg())
+                pupil_samples = self._sample_ray_heights(self._entrance_radius(max_radius))
+                for field_angle in field_values:
+                    angle_rad = np.deg2rad(float(field_angle))
+                    direction = np.array([0.0, np.sin(angle_rad), np.cos(angle_rad)], dtype=float)
+                    norm = np.linalg.norm(direction)
+                    if norm <= 1e-12:
+                        continue
+                    direction /= norm
+                    for pupil_y in pupil_samples:
+                        origin = [0.0, float(pupil_y), 0.0]
+                        system.Trace(origin, direction.tolist(), wavelength)
+                        rays.push()
+                self._preview_field_ray_count = len(pupil_samples)
+            else:
+                field_values = self._sample_field_values(self._current_field_height())
+                pupil_samples = self._sample_ray_heights(self._entrance_radius(max_radius))
+                object_distance = self._current_object_distance()
+                for field_value in field_values:
+                    origin = np.array([0.0, float(field_value), 0.0], dtype=float)
+                    for pupil_y in pupil_samples:
+                        target = np.array([0.0, float(pupil_y), object_distance], dtype=float)
+                        direction = target - origin
+                        norm = np.linalg.norm(direction)
+                        if norm <= 1e-12:
+                            continue
+                        direction /= norm
+                        system.Trace(origin.tolist(), direction.tolist(), wavelength)
+                        rays.push()
+                self._preview_field_ray_count = len(pupil_samples)
+        elif self._current_object_mode() == "Infinity":
             pupil = Kos.PupilCalc(
                 system,
                 self._analysis_surface_index(),
@@ -3245,10 +3796,11 @@ class KrakenLayoutEditor(tk.Tk):
             positions.append(z)
             radius = max(row.diameter / 2.0, 0.5)
             color = "#4f81bd" if row.glass.upper() != "AIR" else "#7f8c8d"
-            self.ax.plot([z, z], [-radius, radius], color=color, linewidth=2)
+            x_vals, y_vals = self._project_xy([z, z], [-radius, radius])
+            self.ax.plot(x_vals, y_vals, color=color, linewidth=2)
             self.ax.text(
-                z,
-                radius + max_radius * 0.08,
+                float(x_vals[0]),
+                float(np.max(y_vals) + max_radius * 0.08),
                 row.name,
                 rotation=45,
                 ha="left",
@@ -3259,9 +3811,13 @@ class KrakenLayoutEditor(tk.Tk):
 
         total_length = max(z, 1.0)
         margin = max(total_length * 0.05, 5.0)
-        self.ax.set_xlim(-margin, total_length + margin)
-        self.ax.set_ylim(-(max_radius * 1.4), max_radius * 1.4)
-        self.ax.axhline(0.0, color="#2c3e50", linewidth=0.8)
+        if self._current_display_orientation() == "Horizontal":
+            self._set_plot_limits_from_drawn_data()
+        else:
+            self.ax.set_xlim(-margin, total_length + margin)
+            self.ax.set_ylim(-(max_radius * 1.4), max_radius * 1.4)
+        axis_x, axis_y = self._project_xy([0.0, total_length], [0.0, 0.0])
+        self.ax.plot(axis_x, axis_y, color="#2c3e50", linewidth=0.8)
 
     def open_layout(self) -> None:
         path = filedialog.askopenfilename(
