@@ -34,7 +34,7 @@ SURFACES = [
     {
         "surface": "Standard",
         "name": "Lens Front",
-        "rc": 25.0,
+        "rc": 51.68,
         "thickness": 6.0,
         "diameter": 25.0,
         "tilt_x": 0.0,
@@ -49,7 +49,7 @@ SURFACES = [
     {
         "surface": "Standard",
         "name": "Lens Back",
-        "rc": -25.0,
+        "rc": -51.68,
         "thickness": 30.0,
         "diameter": 25.0,
         "tilt_x": 0.0,

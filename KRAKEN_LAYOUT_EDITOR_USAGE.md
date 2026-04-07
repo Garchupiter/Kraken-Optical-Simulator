@@ -1,4 +1,4 @@
-# Kraken Layout Editor Usage
+# Kraken Layout Editor Manual
 
 ## Launch
 
@@ -7,143 +7,288 @@ cd ~/Projects/Kraken-Optical-Simulator
 devenv shell -- bash -lc 'python -m KrakenOS.UI.layout_editor'
 ```
 
-## Main areas
+Headless native snapshot:
 
-- Top toolbar:
-  - common optical layouts
-  - examples
-  - surface editing actions
-  - analysis mode buttons
-  - optimization start/stop
-- Left panel `Display`:
-  - object mode and ray controls
-  - analysis surface and aperture controls
-  - merit-function selection
-  - toggle for `PP / EP / XP`
-- Center table:
-  - editable prescription
-  - Excel-like cell focus border and light grid overlay
-- Right panel `Information`:
-  - imaging, principal-plane, pupil, and spot data
-- Bottom panels:
-  - `Debug`
-  - `Progress`
+```bash
+cd ~/Projects/Kraken-Optical-Simulator
+./.devenv/state/venv/bin/python -m KrakenOS.UI.render_layout_snapshot --mode native --output ~/Pictures/kraken_layout_headless.jpg
+```
 
-## Layout and example loading
+## Main UI layout
 
-- Use `Common Optical Layout` to load a starter layout from `KrakenOS/common_optical_layouts`.
-- Use `Examples` to load a supported file from `KrakenOS/Examples`.
-- The selected item stays visible in the dropdown after loading.
+### Left side
 
-## Table editing
+- `Display`
+  - object mode
+  - wavelength
+  - orientation
+  - ray fan count
+  - pupil factor
+  - analysis stop surface
+  - aperture type/value
+- `Field`
+  - field type
+  - field value
+  - field count
+- editable prescription table
+- plot area and analysis toolbar
 
-- Double-click a normal cell to edit it.
-- Right-click `Surface` or `Glass` cells to choose from popup menus.
-- `Add surface` inserts before the final `Image` row.
-- `Delete`, `Duplicate`, `Flip`, `Move Up`, and `Move Down` work on the current selection.
-- `Flip` also reverses lens-block signs/names/media handling for standard surfaces.
+### Right side
 
-## Source and ray controls
+- `Information`
+- `Optimization`
+- `Progress`
+- `Debug`
+
+## Display panel
 
 ### Object mode
 
-- `Finite`
-  - object height comes from the first row `Object` diameter
-  - object distance comes from the first row `Object` thickness
-  - `Field count` = number of object points
-  - `Ray fan count` = number of rays emitted by each object point
-  - `Max field angle [deg]` = angular spread of each finite-field fan
-
 - `Infinity`
-  - `Field count` = number of field angles
-  - `Ray fan count` = pupil sampling used for the preview bundle
-  - `Max field angle [deg]` = maximum off-axis field angle
+  - source is a collimated field definition
+- `Finite`
+  - source is a finite-distance object definition
 
-### Notes
+`Field angle = 0` does not make `Finite` and `Infinity` equivalent. They remain different source models.
 
-- The first row `Object` thickness is the source-to-next-surface distance.
-- The first row `Object` diameter sets the field extent in finite mode.
-- Preview rays are for visualization; spot/RMS analysis uses a dedicated analysis ray set.
+### Orientation
 
-## Analysis modes
+- `Vertical`
+  - ordinary axial-style display
+- `Horizontal`
+  - folded/off-axis display orientation used for mirror-fold systems
+
+### Analysis stop surface
+
+- `Auto`
+  - use the editor's default analysis stop
+- or choose an explicit row by index and name
+
+### Aperture
+
+- `STOP`
+- `EPD`
+
+These settings affect analysis modes that depend on pupil construction.
+
+## Field panel
+
+### Field type
+
+Available definitions:
+
+- `Angle`
+- `Object Height`
+- `Paraxial Image Height`
+- `Real Image Height`
+
+Only one field definition is active at a time.
+
+### Recommended usage
+
+- for `Infinity`
+  - use `Angle`
+- for `Finite`
+  - use `Object Height`
+
+The status bar shows:
+
+- preferred field note
+- any warning such as field exceeding object radius
+- converted field summary
+
+## Prescription table
+
+### Editing
+
+- click a cell to select it
+- double-click or type into editable numeric cells
+- right-click `Surface` and `Glass` for popup choices
+
+### Selection
+
+- click: single selection
+- `Ctrl` + click: toggle row selection
+- `Shift` + click: contiguous row range
+- arrow keys move the active cell
+
+### Toolbar actions
+
+- `Add surface`
+- `Delete`
+- `Duplicate`
+- `Flip`
+- `▲`
+- `▼`
+- `Common Optical Layout`
+- `Examples`
+
+### Common Optical Layout insertion
+
+A common layout now inserts after the last selected row.
+
+If nothing is selected, it inserts before the final `Image` row.
+
+## Plot modes
 
 Toolbar buttons:
 
-- `Layout`
+- `Open 3D`
+- `2D`
+- `Native`
 - `Spot`
+- `PSF`
 - `RMS`
+- `FC/Dist`
 - `Pupil`
 - `Seidel`
 - `Wavefront`
+- `MTF`
 
-Current behavior:
+### `2D`
 
-- `Spot` and `RMS` use a dedicated `PupilCalc + TraceLoop` analysis bundle.
-- `Pupil`, `Seidel`, and `Wavefront` use the selected analysis surface plus current aperture settings.
-- `Show PP / EP / XP` overlays:
-  - front principal plane
-  - back principal plane
-  - entrance pupil
-  - exit pupil
+Use this for the stable folded preview.
 
-## Information panel
+### `Native`
 
-Current sections:
+Use this for the folded-native debug/display path.
 
-- `Imaging`
-  - EFFL
-  - magnification
-- `Principal Planes`
-  - front principal plane
-  - back principal plane
-- `Pupils`
-  - entrance pupil radius / diameter / z
-  - exit pupil radius / diameter / z
-  - Airy radius
-- `Spot`
-  - spot RMS
-  - centroid X/Y
+It shows:
+
+- native-derived optical surfaces
+- native-gated rays
+- native surface diagnostics in `Information` and `Debug`
+
+### Current folded limitation
+
+For folded preview layouts, not every analysis mode is available yet.
+
+That is expected. Folded-native analysis is still being built out.
 
 ## Optimization workflow
 
 ### Mark variables
 
-- Right-click an `Rc` or `Thickness` cell.
-- Choose:
-  - `Select to optimize`
-  - `Unselect from optimize`
-  - `Set bounds...`
-  - `Clear bounds`
-- Marked numeric cells show a trailing `*`.
-- Marked rows are highlighted.
+Right-click a supported numeric cell.
 
-### Run optimization
+Currently useful variable types include:
 
-- Choose a merit function in the left panel:
-  - `Spot RMS`
-  - `Wavefront RMS`
-  - `Spot + Wavefront`
-- Click `Start Optimization`.
-- Click `Stop` to request cancellation after the current generation.
+- `Radius`
+- `Thickness`
 
-### Progress and debug
+Thickness optimization now supports:
 
-- `Debug` shows captured Kraken/runtime output.
-- `Progress` shows:
-  - generation progress
-  - best-merit updates
-  - final operand breakdown
-  - spinner and percentage in the header
+- `Object`
+- `Mirror`
+- `Standard`
+- `Thin Lens`
+- `Grating`
 
-## Save and open
+`Image` remains excluded.
 
-- `File -> Open` loads a layout `.py` file.
-- `File -> Save` / `Save As` writes a Kraken-compatible Python layout script.
-- Saved files preserve optimization metadata for marked `Rc` / `Thickness` cells.
+### Bounds
 
-## Current limitations
+Right-click the same cell and choose:
 
-- The table is still `ttk.Treeview`, so the Excel behavior is approximate rather than native.
-- Grid lines are drawn as overlays and depend on visible rows.
-- The preview ray bundle is separate from the analysis ray bundle by design.
-- Some complex examples from `KrakenOS/Examples` remain best-effort when loaded into the editor.
+- `Set bounds...`
+- `Clear bounds`
+
+### Operand setup
+
+In the `Optimization` panel:
+
+1. select one or more merit operands
+2. configure per-operand fields such as:
+   - `Weight`
+   - `Target`
+   - `Wvl`
+   - `Field`
+   - `Surf`
+   - `Aper`
+   - `AVal`
+   - `Freq`
+   - `Mode`
+3. click `Start Optimization`
+
+### Example: optimize a mirror distance
+
+1. load `Double Mirror Fold`
+2. right-click `Mirror 2` `Thickness`
+3. select it for optimization
+4. choose operand `Spot RMS`
+5. click `Start Optimization`
+
+### Example: optimize a singlet radius
+
+1. load `Single Lens`
+2. right-click front or back `Rc`
+3. select it for optimization
+4. set bounds
+5. choose operand `Spot RMS` or `Wavefront RMS`
+6. click `Start Optimization`
+
+## Native folded workflow example
+
+### Default folded system
+
+The default startup layout is a folded mirror + singlet system.
+
+Use it like this:
+
+1. launch the editor
+2. keep `Orientation = Horizontal`
+3. use `Native`
+4. inspect:
+   - lens body
+   - mirror overlays
+   - rays
+   - `Information`
+   - `Debug`
+
+### Insert a doublet after the singlet
+
+1. click the row where insertion should happen
+   - usually after the singlet back surface
+2. choose `Doublet Lens` from `Common Optical Layout`
+3. confirm the inserted rows appear immediately after the selected row
+4. use `▲` / `▼` only for fine adjustment after insertion
+
+## Files and persistence
+
+### Save
+
+- `File -> Save`
+- `File -> Save As`
+
+Saved Python layout files preserve optimization marks and bounds.
+
+### Open
+
+- `File -> Open`
+
+## Diagnostics
+
+### `Debug`
+
+Use this for:
+
+- native hit sequence information
+- native overlay metrics
+- fallback/error messages
+
+### `Progress`
+
+Use this for:
+
+- optimization progress
+- long analysis generation steps
+
+### Headless snapshots
+
+Use the headless renderer for reproducible image inspection when debugging visual issues.
+
+## Known limitations
+
+- folded-native display is ahead of folded-native analysis
+- some complex example imports still need manual cleanup after insertion
+- native folded view still uses a readable scaffold for placement; it is not a raw Kraken projection view

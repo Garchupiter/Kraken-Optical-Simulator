@@ -296,21 +296,32 @@ class KrakenLayoutEditor(tk.Tk):
         top = ttk.Panedwindow(left_panel, orient=tk.HORIZONTAL)
         left_panel.add(top, weight=1)
 
-        control_stack = ttk.Frame(top, padding=8)
+        control_host = ttk.Frame(top, padding=(8, 8, 4, 8))
+        control_host.columnconfigure(0, weight=1)
+        control_host.rowconfigure(0, weight=1)
+        top.add(control_host, weight=1)
+
+        self.control_canvas = tk.Canvas(control_host, highlightthickness=0, borderwidth=0)
+        self.control_canvas.grid(row=0, column=0, sticky="nsew")
+        control_scroll = ttk.Scrollbar(control_host, orient="vertical", command=self.control_canvas.yview)
+        control_scroll.grid(row=0, column=1, sticky="ns", padx=(6, 0))
+        self.control_canvas.configure(yscrollcommand=control_scroll.set)
+
+        control_stack = ttk.Frame(self.control_canvas)
         control_stack.columnconfigure(0, weight=1)
-        control_stack.rowconfigure(0, weight=0)
-        control_stack.rowconfigure(1, weight=0)
-        top.add(control_stack, weight=1)
+        self.control_stack_window = self.control_canvas.create_window((0, 0), window=control_stack, anchor="nw")
+        control_stack.bind("<Configure>", self._on_control_stack_configure)
+        self.control_canvas.bind("<Configure>", self._on_control_canvas_configure)
 
         controls = ttk.LabelFrame(control_stack, text="Display", padding=8)
         controls.grid(row=0, column=0, sticky="ew")
-        controls.columnconfigure(0, weight=1)
-        controls.columnconfigure(1, weight=1)
+        for column in range(2):
+            controls.columnconfigure(column, weight=1)
 
         field_panel = ttk.LabelFrame(control_stack, text="Field", padding=8)
         field_panel.grid(row=1, column=0, sticky="ew", pady=(8, 0))
-        field_panel.columnconfigure(0, weight=1)
-        field_panel.columnconfigure(1, weight=1)
+        for column in range(2):
+            field_panel.columnconfigure(column, weight=1)
 
         table_frame = ttk.Frame(top, padding=8)
         table_frame.columnconfigure(0, weight=1)
@@ -500,16 +511,26 @@ class KrakenLayoutEditor(tk.Tk):
         progress_scroll.grid(row=1, column=1, sticky="ns")
         self.progress_text.configure(yscrollcommand=progress_scroll.set)
 
+        status_bar = ttk.Frame(self)
+        status_bar.grid(row=1, column=0, sticky="ew", padx=8, pady=(0, 2))
+        status_bar.columnconfigure(0, weight=0)
+        status_bar.columnconfigure(1, weight=1)
         self.status_var = tk.StringVar(value="Ready")
-        ttk.Label(self, textvariable=self.status_var, anchor="w").grid(
-            row=1, column=0, sticky="ew", padx=8, pady=(0, 2)
-        )
+        self.status_hint_var = tk.StringVar(value="")
+        ttk.Label(status_bar, textvariable=self.status_var, anchor="w").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            status_bar,
+            textvariable=self.status_hint_var,
+            anchor="e",
+            justify="right",
+            foreground="#475569",
+        ).grid(row=0, column=1, sticky="ew", padx=(12, 0))
         self.after_idle(self._set_initial_pane_layout)
         self.bind("<Configure>", self._maybe_refresh_initial_pane_layout, add="+")
 
     def _build_controls_panel(self, parent) -> None:
-        parent.columnconfigure(0, weight=1)
-        parent.columnconfigure(1, weight=1)
+        for column in range(2):
+            parent.columnconfigure(column, weight=1)
 
         ttk.Label(parent, text="Object mode").grid(row=0, column=0, sticky="w", pady=(0, 2))
         self.object_mode_var = tk.StringVar(value="Infinity")
@@ -551,7 +572,7 @@ class KrakenLayoutEditor(tk.Tk):
             row=5, column=0, sticky="ew", pady=(0, 8)
         )
 
-        ttk.Label(parent, text="Analysis stop surface").grid(row=6, column=0, sticky="w", pady=(0, 2))
+        ttk.Label(parent, text="Analysis stop surface").grid(row=4, column=1, sticky="w", pady=(0, 2), padx=(8, 0))
         self.analysis_surface_var = tk.StringVar(value="Auto")
         self.analysis_surface_menu = ttk.Combobox(
             parent,
@@ -559,10 +580,10 @@ class KrakenLayoutEditor(tk.Tk):
             state="readonly",
             values=["Auto"],
         )
-        self.analysis_surface_menu.grid(row=7, column=0, sticky="ew", pady=(0, 8))
+        self.analysis_surface_menu.grid(row=5, column=1, sticky="ew", pady=(0, 8), padx=(8, 0))
         self.analysis_surface_menu.bind("<<ComboboxSelected>>", lambda _e: self.refresh_plot())
 
-        ttk.Label(parent, text="Aperture type").grid(row=6, column=1, sticky="w", pady=(0, 2), padx=(8, 0))
+        ttk.Label(parent, text="Aperture type").grid(row=6, column=0, sticky="w", pady=(0, 2))
         self.aperture_type_var = tk.StringVar(value="STOP")
         self.aperture_type_menu = ttk.Combobox(
             parent,
@@ -570,13 +591,13 @@ class KrakenLayoutEditor(tk.Tk):
             state="readonly",
             values=["STOP", "EPD"],
         )
-        self.aperture_type_menu.grid(row=7, column=1, sticky="ew", pady=(0, 8), padx=(8, 0))
+        self.aperture_type_menu.grid(row=7, column=0, sticky="ew")
         self.aperture_type_menu.bind("<<ComboboxSelected>>", lambda _e: self.refresh_plot())
 
-        ttk.Label(parent, text="Aperture value").grid(row=8, column=0, sticky="w", pady=(0, 2))
+        ttk.Label(parent, text="Aperture value").grid(row=6, column=1, sticky="w", pady=(0, 2), padx=(8, 0))
         self.aperture_value_var = tk.StringVar(value="1.0")
         ttk.Entry(parent, textvariable=self.aperture_value_var, width=12).grid(
-            row=9, column=0, sticky="ew"
+            row=7, column=1, sticky="ew", padx=(8, 0)
         )
 
         self.show_cardinals_var = tk.BooleanVar(value=True)
@@ -590,8 +611,8 @@ class KrakenLayoutEditor(tk.Tk):
             variable.trace_add("write", self._schedule_refresh_plot)
 
     def _build_field_panel(self, parent) -> None:
-        parent.columnconfigure(0, weight=1)
-        parent.columnconfigure(1, weight=1)
+        for column in range(2):
+            parent.columnconfigure(column, weight=1)
 
         ttk.Label(parent, text="Field type").grid(row=0, column=0, sticky="w", pady=(0, 2))
         self.field_type_var = tk.StringVar(value="Angle")
@@ -601,39 +622,51 @@ class KrakenLayoutEditor(tk.Tk):
             state="readonly",
             values=["Angle", "Object Height", "Paraxial Image Height", "Real Image Height"],
         )
-        self.field_type_menu.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(0, 8))
+        self.field_type_menu.grid(row=1, column=0, sticky="ew", pady=(0, 8))
         self.field_type_menu.bind("<<ComboboxSelected>>", self._on_field_type_changed)
 
         self.field_mode_note_var = tk.StringVar(value="")
-        ttk.Label(parent, textvariable=self.field_mode_note_var, foreground="#475569", justify="left").grid(
-            row=2, column=0, columnspan=2, sticky="ew", pady=(0, 6)
-        )
 
         self.field_value_label_var = tk.StringVar(value="Angle [deg]")
-        ttk.Label(parent, textvariable=self.field_value_label_var).grid(row=3, column=0, sticky="w", pady=(0, 2))
+        ttk.Label(parent, textvariable=self.field_value_label_var).grid(row=0, column=1, sticky="w", pady=(0, 2), padx=(8, 0))
         self.field_value_var = tk.StringVar(value="5.0")
         ttk.Entry(parent, textvariable=self.field_value_var, width=12).grid(
-            row=4, column=0, sticky="ew", pady=(0, 8)
+            row=1, column=1, sticky="ew", pady=(0, 8), padx=(8, 0)
         )
 
-        ttk.Label(parent, text="Field count").grid(row=3, column=1, sticky="w", pady=(0, 2), padx=(8, 0))
+        ttk.Label(parent, text="Field count").grid(row=2, column=0, sticky="w", pady=(0, 2))
         self.field_count_var = tk.StringVar(value="1")
         ttk.Entry(parent, textvariable=self.field_count_var, width=12).grid(
-            row=4, column=1, sticky="ew", pady=(0, 8), padx=(8, 0)
+            row=3, column=0, sticky="ew", pady=(0, 8)
         )
 
         self.field_warning_var = tk.StringVar(value="")
-        ttk.Label(parent, textvariable=self.field_warning_var, foreground="#b45309", justify="left").grid(
-            row=5, column=0, columnspan=2, sticky="ew", pady=(0, 4)
-        )
         self.field_summary_var = tk.StringVar(value="")
-        ttk.Label(parent, textvariable=self.field_summary_var, justify="left").grid(
-            row=6, column=0, columnspan=2, sticky="ew"
-        )
 
         for variable in (self.field_count_var, self.field_value_var):
             variable.trace_add("write", self._schedule_refresh_plot)
         self._sync_field_mode_ui()
+
+    def _on_control_stack_configure(self, _event=None) -> None:
+        if not hasattr(self, "control_canvas"):
+            return
+        self.control_canvas.configure(scrollregion=self.control_canvas.bbox("all"))
+
+    def _on_control_canvas_configure(self, event=None) -> None:
+        if not hasattr(self, "control_canvas") or not hasattr(self, "control_stack_window"):
+            return
+        width = self.control_canvas.winfo_width() if event is None else int(event.width)
+        self.control_canvas.itemconfigure(self.control_stack_window, width=max(width, 1))
+
+    def _update_field_status_hint(self) -> None:
+        if not hasattr(self, "status_hint_var"):
+            return
+        note = self.field_mode_note_var.get().strip() if hasattr(self, "field_mode_note_var") else ""
+        warning = self.field_warning_var.get().strip() if hasattr(self, "field_warning_var") else ""
+        summary = self.field_summary_var.get().strip() if hasattr(self, "field_summary_var") else ""
+        summary = summary.replace("\n", " | ")
+        parts = [part for part in (note, warning, summary) if part]
+        self.status_hint_var.set("  ||  ".join(parts))
     def _build_optimization_panel(self, parent) -> None:
         parent.columnconfigure(0, weight=1)
         parent.columnconfigure(1, weight=1)
@@ -953,8 +986,9 @@ class KrakenLayoutEditor(tk.Tk):
             loaded_rows = [self._row_from_surface(surface, index, len(surfaces)) for index, surface in enumerate(surfaces)]
 
         loaded_rows = self._normalized_rows_copy(loaded_rows)
+        insert_after = self._selected_insert_index()
         if self.rows:
-            self.rows = self._append_layout_rows(self.rows, loaded_rows)
+            self.rows = self._append_layout_rows(self.rows, loaded_rows, insert_after=insert_after)
         else:
             self.rows = loaded_rows
             self._apply_initial_field_defaults()
@@ -962,6 +996,7 @@ class KrakenLayoutEditor(tk.Tk):
 
         self._normalize_special_rows()
         self._sync_table()
+        self._select_inserted_layout_rows(loaded_rows, insert_after=insert_after)
         self.refresh_plot()
         self.layout_var.set(name)
         self.example_var.set("Examples")
@@ -1051,15 +1086,48 @@ class KrakenLayoutEditor(tk.Tk):
                 copied[-1].name = "Image"
         return copied
 
+    def _selected_insert_index(self) -> int | None:
+        selected = self.table.selection()
+        if not selected:
+            return None
+        indices = sorted(self.table.index(item) for item in selected)
+        if not indices:
+            return None
+        return indices[-1]
+
+    def _select_inserted_layout_rows(self, layout_rows: list[SurfaceRow], insert_after: int | None) -> None:
+        additions = max(len(layout_rows) - 2, 0)
+        if additions <= 0:
+            return
+        if insert_after is None:
+            insert_at = len(self.rows) - additions
+            if self.rows and self.rows[-1].surface == "Image":
+                insert_at -= 1
+        else:
+            insert_at = min(insert_after + 1, len(self.rows) - additions)
+        items = self.table.get_children()
+        new_items = items[insert_at : insert_at + additions]
+        if new_items:
+            self.table.selection_set(new_items)
+            self.table.focus(new_items[0])
+            self.table.see(new_items[0])
+
     @staticmethod
-    def _append_layout_rows(existing_rows: list[SurfaceRow], layout_rows: list[SurfaceRow]) -> list[SurfaceRow]:
+    def _append_layout_rows(
+        existing_rows: list[SurfaceRow], layout_rows: list[SurfaceRow], insert_after: int | None = None
+    ) -> list[SurfaceRow]:
         base = [SurfaceRow(**asdict(row)) for row in existing_rows]
         additions = [SurfaceRow(**asdict(row)) for row in layout_rows[1:-1]]
         if not additions:
             return base
-        insert_at = len(base)
-        if base and base[-1].surface == "Image":
-            insert_at -= 1
+        if insert_after is None:
+            insert_at = len(base)
+            if base and base[-1].surface == "Image":
+                insert_at -= 1
+        else:
+            insert_at = max(0, min(insert_after + 1, len(base)))
+            if base and base[-1].surface == "Image":
+                insert_at = min(insert_at, len(base) - 1)
         for offset, row in enumerate(additions):
             base.insert(insert_at + offset, row)
         return base
@@ -1335,6 +1403,7 @@ class KrakenLayoutEditor(tk.Tk):
             if abs(metrics["object_height"]) > object_radius + 1e-9:
                 warning = f"Field exceeds object radius ({object_radius:.3g} mm)."
         self.field_warning_var.set(warning)
+        self._update_field_status_hint()
 
     def _on_object_mode_changed(self, _event=None) -> None:
         self._sync_field_default_from_current_type()
@@ -1417,6 +1486,7 @@ class KrakenLayoutEditor(tk.Tk):
                 "Real Image Height": "Real Image Height [mm]",
             }
             self.field_value_label_var.set(label_map.get(self._current_field_type(), "Field value"))
+        self._update_field_status_hint()
 
     def add_surface(self) -> None:
         insert_at = len(self.rows)
@@ -1562,7 +1632,7 @@ class KrakenLayoutEditor(tk.Tk):
             return
         row_index = self.table.index(row_id)
         row = self.rows[row_index]
-        if row.surface in {"Object", "Image"} or not spec.is_supported(row):
+        if row.surface == "Image" or not spec.is_supported(row):
             return
         if self.popup_menu is not None:
             self.popup_menu.destroy()
@@ -3530,30 +3600,34 @@ class KrakenLayoutEditor(tk.Tk):
     def _overlay_native_folded_lens_edges(self, elements, native_overlay_curves: dict[int, np.ndarray], extent_points) -> None:
         if not elements or not native_overlay_curves:
             return
-        group: list[int] = []
-        for surface_index, (surface_type, _center, _row, _branch_dir) in enumerate(elements, start=1):
-            if surface_type == "Standard" and surface_index in native_overlay_curves:
-                group.append(surface_index)
-            else:
-                if len(group) >= 2:
-                    self._draw_native_edge_group(group, native_overlay_curves, extent_points)
-                group = []
-        if len(group) >= 2:
+        for group in self._native_lens_surface_groups(elements, native_overlay_curves):
             self._draw_native_edge_group(group, native_overlay_curves, extent_points)
 
     def _overlay_native_folded_lens_bodies(self, elements, native_overlay_curves: dict[int, np.ndarray], extent_points) -> None:
         if not elements or not native_overlay_curves:
             return
+        for group in self._native_lens_surface_groups(elements, native_overlay_curves):
+            self._fill_native_lens_group(group, native_overlay_curves, extent_points)
+
+    @staticmethod
+    def _native_lens_surface_groups(elements, native_overlay_curves: dict[int, np.ndarray]) -> list[list[int]]:
+        groups: list[list[int]] = []
         group: list[int] = []
-        for surface_index, (surface_type, _center, _row, _branch_dir) in enumerate(elements, start=1):
+        for surface_index, (surface_type, _center, row, _branch_dir) in enumerate(elements, start=1):
             if surface_type == "Standard" and surface_index in native_overlay_curves:
                 group.append(surface_index)
+                # `glass` is the post-surface medium. AIR closes the current optical element.
+                if str(row.glass).strip().upper() == "AIR":
+                    if len(group) >= 2:
+                        groups.append(group[:])
+                    group = []
             else:
                 if len(group) >= 2:
-                    self._fill_native_lens_group(group, native_overlay_curves, extent_points)
+                    groups.append(group[:])
                 group = []
         if len(group) >= 2:
-            self._fill_native_lens_group(group, native_overlay_curves, extent_points)
+            groups.append(group[:])
+        return groups
 
     def _fill_native_lens_group(self, indices: list[int], native_overlay_curves: dict[int, np.ndarray], extent_points) -> None:
         for first, second in zip(indices, indices[1:]):
@@ -3720,13 +3794,18 @@ class KrakenLayoutEditor(tk.Tk):
         edge_threshold = 0.7 * max(np.max(np.abs(aperture_component)), 1e-9)
         edge_mask = np.abs(aperture_component) >= edge_threshold
         center_mask = np.abs(aperture_component) <= 0.15 * max(np.max(np.abs(aperture_component)), 1e-9)
+        center_sag = 0.0
+        if np.any(center_mask):
+            center_sag = float(np.mean(sag_component[center_mask]))
         if np.any(edge_mask) and np.any(center_mask) and abs(float(row.rc)) > 1e-9:
             edge_sag = float(np.mean(sag_component[edge_mask]))
-            center_sag = float(np.mean(sag_component[center_mask]))
             expected_sign = 1.0 if float(row.rc) > 0.0 else -1.0
             observed_sign = np.sign(edge_sag - center_sag)
             if observed_sign != 0.0 and observed_sign != expected_sign:
                 sag_component = -sag_component
+                center_sag = -center_sag
+        # Anchor the mapped native surface at the surface vertex, not at the mean mesh sag.
+        sag_component = sag_component - center_sag
         native_half = max(float(np.max(np.abs(aperture_component))), 1e-9)
         target_half = max(float(row.diameter) / 2.0, 0.5)
         aperture_scale = target_half / native_half
@@ -4755,7 +4834,7 @@ class KrakenLayoutEditor(tk.Tk):
     def _build_optimization_variables(self) -> list[OpticalVariable]:
         variables: list[OpticalVariable] = []
         for index, row in enumerate(self.rows):
-            if row.surface in {"Object", "Image"}:
+            if row.surface == "Image":
                 continue
             for spec in VARIABLE_REGISTRY.values():
                 if not spec.is_supported(row) or not spec.is_enabled(row):

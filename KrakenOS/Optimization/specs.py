@@ -97,7 +97,7 @@ VARIABLE_REGISTRY: dict[str, VariableSpec] = {
         parameter="Thickness",
         optimize_attr="optimize_thickness",
         bounds_attr="optimize_thickness_bounds",
-        supported_surfaces=("Standard", "Thin Lens", "Grating"),
+        supported_surfaces=("Object", "Standard", "Thin Lens", "Grating", "Mirror"),
         default_bounds=_default_thickness_bounds,
     ),
 }
