@@ -40,12 +40,14 @@ from KrakenOS.Optimization.adapters.pygmo2_adapter import Pygmo2MeritProblem
 
 LAYOUTS_DIR = Path(__file__).resolve().parent.parent / "common_optical_layouts"
 EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "Examples"
-DEFAULT_LAYOUT_TITLE = "Double Mirror Fold"
+DEFAULT_LAYOUT_TITLE = "Double Gauss Lens"
+FOLDED_STARTER_LAYOUT_TITLE = "Double Mirror Fold"
 AUTO_PLOT_PATH = Path.home() / "Pictures" / "kraken_layout_latest.jpg"
 FIELDS = (
     "label",
     "surface",
     "name",
+    "glass",
     "rc",
     "thickness",
     "diameter",
@@ -56,12 +58,12 @@ FIELDS = (
     "desp_y",
     "desp_z",
     "axis_move",
-    "glass",
 )
 COLUMN_LABELS = {
     "label": "#",
     "surface": "Surface",
     "name": "Name",
+    "glass": "Material",
     "rc": "Rc [mm]",
     "thickness": "Thickness [mm]",
     "diameter": "Diameter [mm]",
@@ -72,7 +74,6 @@ COLUMN_LABELS = {
     "desp_y": "DespY [mm]",
     "desp_z": "DespZ [mm]",
     "axis_move": "AxisMove",
-    "glass": "Glass",
 }
 NUMERIC_FIELDS = {
     "rc",
@@ -171,7 +172,7 @@ class KrakenLayoutEditor(tk.Tk):
         self.popup_menu: tk.Menu | None = None
         self.current_menu_row_id: str | None = None
         self.current_menu_field: str | None = None
-        self.analysis_mode = "native_off_axis"
+        self.analysis_mode = "none"
         self.last_system = None
         self.last_rays = None
         self.optimization_running = False
@@ -203,10 +204,10 @@ class KrakenLayoutEditor(tk.Tk):
         self._last_field_type = "Angle"
         self._field_defaults_initialized = False
         self._field_type_defaults = {
-            "Angle": "5.0",
-            "Object Height": "5.0",
-            "Paraxial Image Height": "5.0",
-            "Real Image Height": "5.0",
+            "Angle": "0.0",
+            "Object Height": "0.0",
+            "Paraxial Image Height": "0.0",
+            "Real Image Height": "0.0",
         }
         self.auto_save_plot_var = tk.BooleanVar(value=not self.headless)
         self.show_native_overlays_var = tk.BooleanVar(value=True)
@@ -316,12 +317,12 @@ class KrakenLayoutEditor(tk.Tk):
         controls = ttk.LabelFrame(control_stack, text="Display", padding=8)
         controls.grid(row=0, column=0, sticky="ew")
         for column in range(2):
-            controls.columnconfigure(column, weight=1)
+            controls.columnconfigure(column, weight=1, uniform="display_cols")
 
         field_panel = ttk.LabelFrame(control_stack, text="Field", padding=8)
         field_panel.grid(row=1, column=0, sticky="ew", pady=(8, 0))
         for column in range(2):
-            field_panel.columnconfigure(column, weight=1)
+            field_panel.columnconfigure(column, weight=1, uniform="field_cols")
 
         table_frame = ttk.Frame(top, padding=8)
         table_frame.columnconfigure(0, weight=1)
@@ -404,6 +405,7 @@ class KrakenLayoutEditor(tk.Tk):
                 55 if field == "label"
                 else 140 if field == "surface"
                 else 160 if field == "name"
+                else 120 if field == "glass"
                 else 95 if field in {"tilt_x", "tilt_y", "tilt_z"}
                 else 95 if field in {"desp_x", "desp_y", "desp_z"}
                 else 85 if field == "axis_move"
@@ -538,6 +540,7 @@ class KrakenLayoutEditor(tk.Tk):
             parent,
             textvariable=self.object_mode_var,
             state="readonly",
+            width=12,
             values=["Finite", "Infinity"],
         )
         self.object_mode_menu.grid(row=1, column=0, sticky="ew", pady=(0, 8))
@@ -555,13 +558,14 @@ class KrakenLayoutEditor(tk.Tk):
             parent,
             textvariable=self.display_orientation_var,
             state="readonly",
+            width=12,
             values=["Vertical", "Horizontal"],
         )
         self.display_orientation_menu.grid(row=3, column=0, sticky="ew", pady=(0, 8))
         self.display_orientation_menu.bind("<<ComboboxSelected>>", lambda _e: self.refresh_plot())
 
         ttk.Label(parent, text="Ray fan count").grid(row=2, column=1, sticky="w", pady=(0, 2), padx=(8, 0))
-        self.ray_count_var = tk.StringVar(value="5")
+        self.ray_count_var = tk.StringVar(value="21")
         ttk.Entry(parent, textvariable=self.ray_count_var, width=12).grid(
             row=3, column=1, sticky="ew", pady=(0, 8), padx=(8, 0)
         )
@@ -578,24 +582,26 @@ class KrakenLayoutEditor(tk.Tk):
             parent,
             textvariable=self.analysis_surface_var,
             state="readonly",
+            width=12,
             values=["Auto"],
         )
         self.analysis_surface_menu.grid(row=5, column=1, sticky="ew", pady=(0, 8), padx=(8, 0))
         self.analysis_surface_menu.bind("<<ComboboxSelected>>", lambda _e: self.refresh_plot())
 
         ttk.Label(parent, text="Aperture type").grid(row=6, column=0, sticky="w", pady=(0, 2))
-        self.aperture_type_var = tk.StringVar(value="STOP")
+        self.aperture_type_var = tk.StringVar(value="EPD")
         self.aperture_type_menu = ttk.Combobox(
             parent,
             textvariable=self.aperture_type_var,
             state="readonly",
+            width=12,
             values=["STOP", "EPD"],
         )
         self.aperture_type_menu.grid(row=7, column=0, sticky="ew")
         self.aperture_type_menu.bind("<<ComboboxSelected>>", lambda _e: self.refresh_plot())
 
         ttk.Label(parent, text="Aperture value").grid(row=6, column=1, sticky="w", pady=(0, 2), padx=(8, 0))
-        self.aperture_value_var = tk.StringVar(value="1.0")
+        self.aperture_value_var = tk.StringVar(value="8.0")
         ttk.Entry(parent, textvariable=self.aperture_value_var, width=12).grid(
             row=7, column=1, sticky="ew", padx=(8, 0)
         )
@@ -620,6 +626,7 @@ class KrakenLayoutEditor(tk.Tk):
             parent,
             textvariable=self.field_type_var,
             state="readonly",
+            width=12,
             values=["Angle", "Object Height", "Paraxial Image Height", "Real Image Height"],
         )
         self.field_type_menu.grid(row=1, column=0, sticky="ew", pady=(0, 8))
@@ -808,7 +815,7 @@ class KrakenLayoutEditor(tk.Tk):
             control_widgets["aperture_value"] = (aperture_value_label, aperture_value_entry)
 
             if spec.label == "MTF @ freq":
-                frequency_var = tk.StringVar(value="50")
+                frequency_var = tk.StringVar(value="10")
                 self.operand_frequency_vars[spec.label] = frequency_var
                 frequency_label = ttk.Label(card, text="Freq")
                 frequency_label.grid(row=frequency_row, column=0, sticky="w")
@@ -1041,6 +1048,7 @@ class KrakenLayoutEditor(tk.Tk):
                 row.label,
                 row.surface,
                 row.name,
+                row.glass,
                 self._format_numeric_cell("rc", row),
                 self._format_numeric_cell("thickness", row),
                 f"{row.diameter:g}",
@@ -1051,7 +1059,6 @@ class KrakenLayoutEditor(tk.Tk):
                 f"{row.desp_y:g}",
                 f"{row.desp_z:g}",
                 f"{row.axis_move:g}",
-                row.glass,
             ]
             tags = ("optimize",) if self._row_has_optimization(row) else ()
             self.table.insert("", "end", values=values, tags=tags)
@@ -1150,21 +1157,21 @@ class KrakenLayoutEditor(tk.Tk):
                     label=str(values[0]),
                     surface=str(values[1]),
                     name=str(values[2]),
+                    glass=str(values[3]),
                     optimize_rc=self.rows[len(rows)].optimize_rc if len(rows) < len(self.rows) else False,
                     optimize_rc_bounds=self.rows[len(rows)].optimize_rc_bounds if len(rows) < len(self.rows) else None,
-                    rc=self._parse_numeric_display(str(values[3])),
+                    rc=self._parse_numeric_display(str(values[4])),
                     optimize_thickness=self.rows[len(rows)].optimize_thickness if len(rows) < len(self.rows) else False,
                     optimize_thickness_bounds=self.rows[len(rows)].optimize_thickness_bounds if len(rows) < len(self.rows) else None,
-                    thickness=self._parse_numeric_display(str(values[4])),
-                    diameter=float(values[5]),
-                    tilt_x=float(values[6]),
-                    tilt_y=float(values[7]),
-                    tilt_z=float(values[8]),
-                    desp_x=float(values[9]),
-                    desp_y=float(values[10]),
-                    desp_z=float(values[11]),
-                    axis_move=float(values[12]),
-                    glass=str(values[13]),
+                    thickness=self._parse_numeric_display(str(values[5])),
+                    diameter=float(values[6]),
+                    tilt_x=float(values[7]),
+                    tilt_y=float(values[8]),
+                    tilt_z=float(values[9]),
+                    desp_x=float(values[10]),
+                    desp_y=float(values[11]),
+                    desp_z=float(values[12]),
+                    axis_move=float(values[13]),
                 )
             )
         self.rows = rows
@@ -1429,8 +1436,16 @@ class KrakenLayoutEditor(tk.Tk):
     def _apply_initial_layout_view_defaults(self, name: str) -> None:
         if not hasattr(self, "display_orientation_var"):
             return
-        if name == DEFAULT_LAYOUT_TITLE:
+        if name == FOLDED_STARTER_LAYOUT_TITLE:
             self.display_orientation_var.set("Horizontal")
+            self.object_mode_var.set("Finite")
+            self.field_type_var.set("Object Height")
+            self._last_field_type = "Object Height"
+            self._field_type_defaults["Object Height"] = "0.0"
+            self.field_value_var.set("0.0")
+            self._sync_field_mode_ui()
+        else:
+            self.display_orientation_var.set("Vertical")
             self.object_mode_var.set("Finite")
             self.field_type_var.set("Object Height")
             self._last_field_type = "Object Height"
@@ -1877,11 +1892,11 @@ class KrakenLayoutEditor(tk.Tk):
     def _current_mtf_frequency(self) -> float:
         var = self.operand_frequency_vars.get("MTF @ freq")
         if var is None:
-            return 50.0
+            return 10.0
         try:
             value = float(var.get())
         except ValueError:
-            return 50.0
+            return 10.0
         return max(0.0, value)
 
     def _operand_mtf_mode(self, label: str) -> str:
@@ -2955,6 +2970,19 @@ class KrakenLayoutEditor(tk.Tk):
         return reflected / norm
 
     @staticmethod
+    def _snap_display_direction(direction: np.ndarray, tolerance: float = 0.03) -> np.ndarray:
+        d = np.asarray(direction, dtype=float)
+        norm = np.linalg.norm(d)
+        if norm <= 1e-12:
+            return np.array([0.0, 1.0], dtype=float)
+        d /= norm
+        if abs(d[0]) <= tolerance:
+            return np.array([0.0, 1.0 if d[1] >= 0.0 else -1.0], dtype=float)
+        if abs(d[1]) <= tolerance:
+            return np.array([1.0 if d[0] >= 0.0 else -1.0, 0.0], dtype=float)
+        return d
+
+    @staticmethod
     def _intersect_ray_with_line(
         origin: np.ndarray,
         direction: np.ndarray,
@@ -3068,7 +3096,9 @@ class KrakenLayoutEditor(tk.Tk):
                             if np.linalg.norm(hit - path[-1]) > 1e-9:
                                 path.append(hit.copy())
                             p = hit
-                            current_dir = self._reflect_2d(current_dir, float(row.tilt_x))
+                            current_dir = self._snap_display_direction(
+                                self._reflect_2d(current_dir, float(row.tilt_x))
+                            )
                         elif surface_type == "Standard":
                             hit, along = self._intersect_ray_with_spherical_surface(
                                 p, current_dir, center, branch_dir, float(row.rc)
@@ -3125,7 +3155,9 @@ class KrakenLayoutEditor(tk.Tk):
                             if np.linalg.norm(hit - path[-1]) > 1e-9:
                                 path.append(hit.copy())
                             p = hit
-                            current_dir = self._reflect_2d(current_dir, float(row.tilt_x))
+                            current_dir = self._snap_display_direction(
+                                self._reflect_2d(current_dir, float(row.tilt_x))
+                            )
                         elif surface_type == "Standard":
                             hit, along = self._intersect_ray_with_spherical_surface(
                                 p, current_dir, center, branch_dir, float(row.rc)
@@ -3237,7 +3269,7 @@ class KrakenLayoutEditor(tk.Tk):
         for row in self.rows[1:]:
             elements.append((row.surface, current_point.copy(), row, current_dir.copy()))
             if row.surface == "Mirror":
-                current_dir = self._reflect_2d(current_dir, float(row.tilt_x))
+                current_dir = self._snap_display_direction(self._reflect_2d(current_dir, float(row.tilt_x)))
             travel = max(float(row.thickness), 0.0)
             current_point = current_point + current_dir * travel
             extent_points.append(current_point.copy())
@@ -3423,7 +3455,11 @@ class KrakenLayoutEditor(tk.Tk):
                     extent_points,
                 )
             if self.show_native_overlays_var.get() or self.show_native_active_spans_var.get() or self.show_native_hit_labels_var.get():
-                self._draw_native_folded_legend(native_overlay_counts)
+                self._draw_native_folded_legend(
+                    native_overlay_counts,
+                    show_hit_count=self.show_native_hit_labels_var.get(),
+                    show_active_span=self.show_native_active_spans_var.get(),
+                )
 
         if self._current_display_orientation() == "Horizontal":
             if extent_points:
@@ -3579,14 +3615,27 @@ class KrakenLayoutEditor(tk.Tk):
                 metrics.append((f"{surface_index}:{row.name or row.surface}", metric))
         return counts, metrics, curves
 
-    def _draw_native_folded_legend(self, native_overlay_counts: dict[str, int]) -> None:
+    def _draw_native_folded_legend(
+        self,
+        native_overlay_counts: dict[str, int],
+        show_hit_count: bool,
+        show_active_span: bool,
+    ) -> None:
         handles = [
             Line2D([0], [0], color="#202020", linewidth=1.2, label="Base object/image"),
             Line2D([0], [0], color="#111111", linewidth=2.2, label="Native optical surface"),
-            Line2D([0], [0], color="#d97706", linewidth=2.4, linestyle="--", alpha=0.45, label="Native hit count"),
-            Line2D([0], [0], color="#f59e0b", linewidth=3.2, label="Native active span"),
             Line2D([0], [0], color="#39FF14", linewidth=1.8, label="Displayed ray"),
         ]
+        if show_hit_count:
+            handles.insert(
+                2,
+                Line2D([0], [0], color="#d97706", linewidth=2.4, linestyle="--", alpha=0.45, label="Native hit count"),
+            )
+        if show_active_span:
+            handles.insert(
+                3 if show_hit_count else 2,
+                Line2D([0], [0], color="#f59e0b", linewidth=3.2, label="Native active span"),
+            )
         title_parts = []
         if native_overlay_counts.get("mirror", 0):
             title_parts.append(f"M{native_overlay_counts['mirror']}")
@@ -3747,6 +3796,9 @@ class KrakenLayoutEditor(tk.Tk):
         tangent2 /= max(np.linalg.norm(tangent2), 1e-12)
         axis2 = branch_dir / max(np.linalg.norm(branch_dir), 1e-12)
         if surface_type == "Mirror":
+            theta = np.deg2rad(float(row.tilt_x))
+            mirror_tangent = np.array([np.cos(theta), np.sin(theta)], dtype=float)
+            mirror_tangent /= max(np.linalg.norm(mirror_tangent), 1e-12)
             aperture_component = pts3[:, 0] - float(np.mean(pts3[:, 0]))
             if aperture_component.size < 8:
                 return None, None
@@ -3754,8 +3806,8 @@ class KrakenLayoutEditor(tk.Tk):
             target_half = max(float(row.diameter) / 2.0, 0.5)
             scale = target_half / native_half
             aperture_component = aperture_component * scale
-            display_pts = center2[None, :] + np.outer(aperture_component, tangent2)
-            order = np.argsort(display_pts[:, 1])
+            display_pts = center2[None, :] + np.outer(aperture_component, mirror_tangent)
+            order = np.argsort(aperture_component)
             return display_pts[order], f"span_scale={scale:.3g}"
         center_x = float(np.median(pts3[:, 0]))
         tolerance = max(0.08, 0.015 * max(np.ptp(pts3[:, 1]), np.ptp(pts3[:, 2]), 1.0))
@@ -4044,7 +4096,7 @@ class KrakenLayoutEditor(tk.Tk):
             native_prev = native_hit
 
             if surface_type == "Mirror":
-                current_dir = self._reflect_2d(current_dir, float(row.tilt_x))
+                current_dir = self._snap_display_direction(self._reflect_2d(current_dir, float(row.tilt_x)))
             elif surface_type == "Standard":
                 axis = current_dir / max(np.linalg.norm(current_dir), 1e-12)
                 sphere_center = center + axis * float(row.rc)
@@ -4088,7 +4140,9 @@ class KrakenLayoutEditor(tk.Tk):
                     if np.linalg.norm(hit - path[-1]) > 1e-9:
                         path.append(hit.copy())
                     current_point = hit
-                    current_dir = self._reflect_2d(current_dir, float(row.tilt_x))
+                    current_dir = self._snap_display_direction(
+                        self._reflect_2d(current_dir, float(row.tilt_x))
+                    )
                 elif surface_type == "Standard":
                     hit, along = self._intersect_ray_with_spherical_surface(
                         current_point, current_dir, center, branch_dir, float(row.rc)
