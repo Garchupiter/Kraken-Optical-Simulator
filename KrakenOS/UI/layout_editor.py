@@ -3265,6 +3265,7 @@ class KrakenLayoutEditor(tk.Tk):
                     folded_elements,
                     extent_points,
                 )
+                self._overlay_native_folded_lens_bodies(folded_elements, native_overlay_curves, extent_points)
                 self._overlay_native_folded_lens_edges(folded_elements, native_overlay_curves, extent_points)
         else:
             native_surface_ok = False
@@ -3541,6 +3542,37 @@ class KrakenLayoutEditor(tk.Tk):
                 group = []
         if len(group) >= 2:
             self._draw_native_edge_group(group, native_overlay_curves, extent_points)
+
+    def _overlay_native_folded_lens_bodies(self, elements, native_overlay_curves: dict[int, np.ndarray], extent_points) -> None:
+        if not elements or not native_overlay_curves:
+            return
+        group: list[int] = []
+        for surface_index, (surface_type, _center, _row, _branch_dir) in enumerate(elements, start=1):
+            if surface_type == "Standard" and surface_index in native_overlay_curves:
+                group.append(surface_index)
+            else:
+                if len(group) >= 2:
+                    self._fill_native_lens_group(group, native_overlay_curves, extent_points)
+                group = []
+        if len(group) >= 2:
+            self._fill_native_lens_group(group, native_overlay_curves, extent_points)
+
+    def _fill_native_lens_group(self, indices: list[int], native_overlay_curves: dict[int, np.ndarray], extent_points) -> None:
+        for first, second in zip(indices, indices[1:]):
+            curve_a = np.asarray(native_overlay_curves.get(first), dtype=float)
+            curve_b = np.asarray(native_overlay_curves.get(second), dtype=float)
+            if curve_a.shape[0] < 8 or curve_b.shape[0] < 8:
+                continue
+            polygon = np.vstack([curve_a, curve_b[::-1]])
+            self.ax.fill(
+                polygon[:, 0],
+                polygon[:, 1],
+                facecolor="#dbeafe",
+                edgecolor="none",
+                alpha=0.28,
+                zorder=0.5,
+            )
+            extent_points.extend(polygon.tolist())
 
     def _draw_native_edge_group(self, indices: list[int], native_overlay_curves: dict[int, np.ndarray], extent_points) -> None:
         for first, second in zip(indices, indices[1:]):
