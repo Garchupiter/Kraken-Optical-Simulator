@@ -2868,7 +2868,7 @@ class KrakenLayoutEditor(tk.Tk):
         refracted = eta * d + (eta * cos_i - np.sqrt(k)) * n
         return refracted / max(np.linalg.norm(refracted), 1e-12)
 
-    def _plot_folded_mirror_preview(self, analysis_ax) -> None:
+    def _plot_folded_mirror_preview(self, analysis_ax, draw_optical_surfaces: bool = True, draw_rays: bool = True) -> None:
         self.ax.clear()
         if analysis_ax is not None:
             analysis_ax.clear()
@@ -2994,6 +2994,8 @@ class KrakenLayoutEditor(tk.Tk):
                     ray_paths.append(path)
                     extent_points.extend(path)
         for surface_type, center, row, branch_dir in elements:
+            if surface_type in {"Mirror", "Standard"} and not draw_optical_surfaces:
+                continue
             if surface_type == "Mirror":
                 half = max(row.diameter / 2.0, 0.5)
                 theta = np.deg2rad(float(row.tilt_x))
@@ -3020,13 +3022,14 @@ class KrakenLayoutEditor(tk.Tk):
             elif surface_type == "Image":
                 self._draw_folded_plane(center, row.diameter, branch_dir, row.name or "Image", max_half, extent_points)
 
-        rays_per_field = max(1, len(ray_paths) // max(1, len(field_values)))
-        for index, path in enumerate(ray_paths):
-            pts = np.asarray(path, dtype=float)
-            if pts.shape[0] < 2:
-                continue
-            field_index = min(index // rays_per_field, len(colors) - 1)
-            self.ax.plot(pts[:, 0], pts[:, 1], color=colors[field_index], linewidth=1.8, alpha=0.95)
+        if draw_rays:
+            rays_per_field = max(1, len(ray_paths) // max(1, len(field_values)))
+            for index, path in enumerate(ray_paths):
+                pts = np.asarray(path, dtype=float)
+                if pts.shape[0] < 2:
+                    continue
+                field_index = min(index // rays_per_field, len(colors) - 1)
+                self.ax.plot(pts[:, 0], pts[:, 1], color=colors[field_index], linewidth=1.8, alpha=0.95)
 
         ext = np.asarray(extent_points, dtype=float)
         if ext.size:
@@ -3127,7 +3130,7 @@ class KrakenLayoutEditor(tk.Tk):
     def _plot_native_off_axis_preview(self, analysis_ax, max_radius: float, use_native_surfaces: bool = True) -> None:
         folded_visual_mode = self._is_folded_mirror_preview_mode()
         if folded_visual_mode:
-            self._plot_folded_mirror_preview(analysis_ax)
+            self._plot_folded_mirror_preview(analysis_ax, draw_optical_surfaces=False, draw_rays=False)
         else:
             self.ax.clear()
             if analysis_ax is not None:
@@ -3157,9 +3160,9 @@ class KrakenLayoutEditor(tk.Tk):
         folded_max_half = max_radius
         if folded_visual_mode:
             _, _, folded_max_half, extent_points, folded_elements = self._draw_folded_layout_geometry()
-        elif not use_native_surfaces:
-            _, _, _, extent_points, _ = self._draw_folded_layout_geometry()
-        elif not folded_visual_mode:
+            if use_native_surfaces:
+                self._overlay_native_folded_surfaces(system, folded_elements, extent_points)
+        else:
             native_surface_ok = False
             try:
                 native_surface_ok = self._plot_native_off_axis_surfaces(system)
@@ -3180,6 +3183,7 @@ class KrakenLayoutEditor(tk.Tk):
         ray_lengths: list[int] = []
         last_surface_counts: dict[int, int] = {}
         hit_sequences: list[list[int]] = []
+        surface_hit_counts: dict[int, int] = {}
         final_surface_index = max(0, len(self.rows) - 1)
         rays_reaching_image = 0
         native_fold_paths = (
@@ -3197,6 +3201,12 @@ class KrakenLayoutEditor(tk.Tk):
                 if surf_ids.size:
                     sequence = [int(v) for v in surf_ids.tolist()]
                     hit_sequences.append(sequence)
+                    seen_in_ray: set[int] = set()
+                    for surface_index in sequence:
+                        if surface_index in seen_in_ray:
+                            continue
+                        seen_in_ray.add(surface_index)
+                        surface_hit_counts[surface_index] = surface_hit_counts.get(surface_index, 0) + 1
                     last_surface = int(surf_ids[-1])
                     last_surface_counts[last_surface] = last_surface_counts.get(last_surface, 0) + 1
                     if last_surface == final_surface_index:
@@ -3217,6 +3227,9 @@ class KrakenLayoutEditor(tk.Tk):
             self.ax.plot(x_vals, y_vals, color=color, linewidth=1.8, alpha=0.95)
             extent_points.extend(np.column_stack((x_vals, y_vals)))
 
+        if folded_visual_mode and folded_elements is not None:
+            self._overlay_native_folded_surface_hits(folded_elements, surface_hit_counts, folded_max_half, extent_points)
+
         if self._current_display_orientation() == "Horizontal":
             if extent_points:
                 ext = np.asarray(extent_points, dtype=float)
@@ -3236,7 +3249,7 @@ class KrakenLayoutEditor(tk.Tk):
 
         self._set_results(
             [
-                ("Mode", "Native off-axis ray preview"),
+                ("Mode", "Native folded preview" if folded_visual_mode else "Native off-axis ray preview"),
                 ("Surface count", str(len(self.rows))),
                 ("Object mode", self._current_object_mode()),
                 ("Field type", self._current_field_type()),
@@ -3246,7 +3259,9 @@ class KrakenLayoutEditor(tk.Tk):
                 ("Rays to image", str(rays_reaching_image)),
                 ("Avg ray hits", f"{np.mean(ray_lengths):.3g}" if ray_lengths else "0"),
                 ("Max ray hits", str(max(ray_lengths) if ray_lengths else 0)),
+                ("Surface hits", self._native_surface_count_summary(surface_hit_counts)),
                 ("Last-hit surfaces", self._native_surface_count_summary(last_surface_counts)),
+                *self._native_folded_prescription_summary(folded_elements),
             ]
         )
         if ray_lengths:
@@ -3259,9 +3274,173 @@ class KrakenLayoutEditor(tk.Tk):
             )
         if last_surface_counts:
             self.append_debug(f"Native preview last-hit surfaces: {self._native_surface_count_summary(last_surface_counts)}")
+        if surface_hit_counts:
+            self.append_debug(f"Native preview surface hits: {self._native_surface_count_summary(surface_hit_counts)}")
         for line in self._native_hit_sequence_lines(hit_sequences):
             self.append_debug(line)
-        self.status_var.set("Native off-axis ray preview")
+        self.status_var.set("Native folded preview" if folded_visual_mode else "Native off-axis ray preview")
+
+    def _overlay_native_folded_surface_hits(
+        self,
+        elements,
+        surface_hit_counts: dict[int, int],
+        max_half: float,
+        extent_points: list[np.ndarray],
+    ) -> None:
+        for surface_index, count in sorted(surface_hit_counts.items()):
+            if surface_index <= 0 or surface_index > len(elements):
+                continue
+            surface_type, center, row, branch_dir = elements[surface_index - 1]
+            accent = "#d97706" if surface_type == "Mirror" else "#1d4ed8"
+            if surface_type == "Mirror":
+                half = max(row.diameter / 2.0, 0.5)
+                theta = np.deg2rad(float(row.tilt_x))
+                tangent = np.array([np.cos(theta), np.sin(theta)], dtype=float)
+                tangent /= max(np.linalg.norm(tangent), 1e-12)
+                p0 = center - tangent * half
+                p1 = center + tangent * half
+                self.ax.plot([p0[0], p1[0]], [p0[1], p1[1]], color=accent, linewidth=3.0, alpha=0.35, linestyle="--")
+                extent_points.extend([p0, p1])
+            elif surface_type == "Standard":
+                axis = branch_dir / max(np.linalg.norm(branch_dir), 1e-12)
+                tangent = np.array([-axis[1], axis[0]], dtype=float)
+                half = max(row.diameter / 2.0, 0.5)
+                yy = np.linspace(-half, half, 128)
+                if abs(float(row.rc)) <= half + 1e-9:
+                    xx = np.zeros_like(yy)
+                else:
+                    rr = abs(float(row.rc))
+                    sign = 1.0 if float(row.rc) >= 0.0 else -1.0
+                    xx = float(row.rc) - sign * np.sqrt(np.maximum(rr * rr - yy * yy, 0.0))
+                pts = center[None, :] + np.outer(xx, axis) + np.outer(yy, tangent)
+                self.ax.plot(pts[:, 0], pts[:, 1], color=accent, linewidth=2.4, alpha=0.28, linestyle="--")
+                extent_points.extend(pts.tolist())
+            elif surface_type == "Image":
+                tangent = np.array([-branch_dir[1], branch_dir[0]], dtype=float)
+                tangent /= max(np.linalg.norm(tangent), 1e-12)
+                half = max(row.diameter / 2.0, 0.5)
+                p0 = center - tangent * half
+                p1 = center + tangent * half
+                self.ax.plot([p0[0], p1[0]], [p0[1], p1[1]], color="#059669", linewidth=2.6, alpha=0.25, linestyle="--")
+                extent_points.extend([p0, p1])
+            self.ax.text(
+                center[0],
+                center[1] + max_half * 0.12,
+                f"x{count}",
+                ha="center",
+                va="bottom",
+                fontsize=8,
+                color=accent,
+                bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.7, "pad": 0.4},
+            )
+
+    def _overlay_native_folded_surfaces(self, system, elements, extent_points: list[np.ndarray]) -> None:
+        transforms = getattr(system, "TRANS_2A", None)
+        surfaces = getattr(system, "AAA", None)
+        if transforms is None or surfaces is None or not elements:
+            return
+        block_count = min(len(self.rows), getattr(surfaces, "n_blocks", 0), len(transforms))
+        for surface_index in range(1, block_count):
+            if surface_index > len(elements):
+                break
+            surface_type, center2, row, branch_dir = elements[surface_index - 1]
+            if surface_type not in {"Mirror", "Standard"}:
+                continue
+            try:
+                poly = surfaces[surface_index]
+                pts = np.asarray(poly.points, dtype=float)
+            except Exception:
+                continue
+            if pts.size == 0:
+                continue
+            try:
+                transform = np.asarray(transforms[surface_index], dtype=float)
+                if transform.shape == (4, 4):
+                    pts_h = np.c_[pts, np.ones(len(pts))]
+                    pts = (pts_h @ transform.T)[:, :3]
+            except Exception:
+                pass
+            display_pts = self._map_native_surface_to_folded(surface_type, center2, row, branch_dir, pts)
+            if display_pts is None or display_pts.shape[0] < 8:
+                continue
+            overlay_color = "#7c3aed" if surface_type == "Standard" else "#b45309"
+            self.ax.plot(display_pts[:, 0], display_pts[:, 1], color="white", linewidth=4.6, alpha=0.96)
+            self.ax.plot(display_pts[:, 0], display_pts[:, 1], color=overlay_color, linewidth=2.2, alpha=0.96)
+            extent_points.extend(display_pts.tolist())
+
+    def _map_native_surface_to_folded(
+        self, surface_type: str, center2: np.ndarray, row: SurfaceRow, branch_dir: np.ndarray, pts3: np.ndarray
+    ) -> np.ndarray | None:
+        pts3 = np.asarray(pts3, dtype=float)
+        if pts3.size == 0:
+            return None
+        center_x = float(np.median(pts3[:, 0]))
+        tolerance = max(0.08, 0.015 * max(np.ptp(pts3[:, 1]), np.ptp(pts3[:, 2]), 1.0))
+        mask = np.abs(pts3[:, 0] - center_x) <= tolerance
+        sliced = pts3[mask]
+        if sliced.shape[0] < 16:
+            tolerance = max(0.2, tolerance * 2.0)
+            mask = np.abs(pts3[:, 0] - center_x) <= tolerance
+            sliced = pts3[mask]
+        if sliced.shape[0] < 8:
+            return None
+        center3 = np.mean(sliced, axis=0)
+        centered = sliced - center3
+        try:
+            _, _, vh = np.linalg.svd(centered, full_matrices=False)
+        except np.linalg.LinAlgError:
+            return None
+        vectors = [np.asarray(v, dtype=float) for v in vh]
+        yz_ranked = [
+            (float(np.linalg.norm(vec[1:])), np.asarray(vec, dtype=float) / max(np.linalg.norm(vec), 1e-12))
+            for vec in vectors
+        ]
+        yz_ranked.sort(key=lambda item: item[0], reverse=True)
+        if len(yz_ranked) < 2:
+            return None
+        basis_a = yz_ranked[0][1]
+        basis_b = yz_ranked[1][1]
+        u_a = centered @ basis_a
+        u_b = centered @ basis_b
+        if np.ptp(u_a) >= np.ptp(u_b):
+            aperture_component = u_a
+            sag_component = u_b
+        else:
+            aperture_component = u_b
+            sag_component = u_a
+        edge_threshold = 0.7 * max(np.max(np.abs(aperture_component)), 1e-9)
+        edge_mask = np.abs(aperture_component) >= edge_threshold
+        center_mask = np.abs(aperture_component) <= 0.15 * max(np.max(np.abs(aperture_component)), 1e-9)
+        if np.any(edge_mask) and np.any(center_mask) and abs(float(row.rc)) > 1e-9:
+            edge_sag = float(np.mean(sag_component[edge_mask]))
+            center_sag = float(np.mean(sag_component[center_mask]))
+            expected_sign = 1.0 if float(row.rc) > 0.0 else -1.0
+            observed_sign = np.sign(edge_sag - center_sag)
+            if observed_sign != 0.0 and observed_sign != expected_sign:
+                sag_component = -sag_component
+        tangent2 = np.array([-branch_dir[1], branch_dir[0]], dtype=float)
+        tangent2 /= max(np.linalg.norm(tangent2), 1e-12)
+        axis2 = branch_dir / max(np.linalg.norm(branch_dir), 1e-12)
+        if surface_type == "Mirror":
+            display_pts = center2[None, :] + np.outer(aperture_component, tangent2)
+        else:
+            display_pts = center2[None, :] + np.outer(aperture_component, tangent2) + np.outer(sag_component, axis2)
+        order = np.argsort(display_pts[:, 1])
+        return display_pts[order]
+
+    def _native_folded_prescription_summary(self, elements) -> list[tuple[str, str]]:
+        if not elements:
+            return []
+        summary: list[tuple[str, str]] = []
+        summary.append(("Obj -> first [mm]", f"{max(float(self.rows[0].thickness), 0.0):.3g}"))
+        for surface_index, (surface_type, _, row, _) in enumerate(elements, start=1):
+            if surface_type == "Image":
+                continue
+            label = f"{surface_index}:{row.name or row.surface} -> next"
+            summary.append((f"{label} [mm]", f"{max(float(row.thickness), 0.0):.3g}"))
+            if surface_type == "Mirror":
+                summary.append((f"{surface_index}:{row.name or row.surface} TiltX [deg]", f"{float(row.tilt_x):.3g}"))
+        return summary
 
     def _preview_ray_start_specs(self, max_half: float) -> list[tuple[np.ndarray, np.ndarray]]:
         point = np.array([0.0, 0.0], dtype=float)
