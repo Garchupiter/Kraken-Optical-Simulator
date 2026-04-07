@@ -22,6 +22,7 @@ import warnings
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
+from matplotlib.lines import Line2D
 import numpy as np
 
 import KrakenOS as Kos
@@ -40,6 +41,7 @@ from KrakenOS.Optimization.adapters.pygmo2_adapter import Pygmo2MeritProblem
 LAYOUTS_DIR = Path(__file__).resolve().parent.parent / "common_optical_layouts"
 EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "Examples"
 DEFAULT_LAYOUT_TITLE = "Double Mirror Fold"
+AUTO_PLOT_PATH = Path.home() / "Pictures" / "kraken_layout_latest.jpg"
 FIELDS = (
     "label",
     "surface",
@@ -152,11 +154,14 @@ def _coerce_bounds(value) -> tuple[float, float] | None:
 
 
 class KrakenLayoutEditor(tk.Tk):
-    def __init__(self) -> None:
+    def __init__(self, *, headless: bool = False) -> None:
         super().__init__()
+        self.headless = headless
         self.title("KrakenOS Layout Editor")
         self.geometry("1400x850")
         self.minsize(1100, 720)
+        if not self.headless:
+            self.after(50, self._enter_fullscreen)
 
         self.current_layout_file: Path | None = None
         self.layout_files: dict[str, Path] = {}
@@ -166,7 +171,7 @@ class KrakenLayoutEditor(tk.Tk):
         self.popup_menu: tk.Menu | None = None
         self.current_menu_row_id: str | None = None
         self.current_menu_field: str | None = None
-        self.analysis_mode = "none"
+        self.analysis_mode = "native_off_axis"
         self.last_system = None
         self.last_rays = None
         self.optimization_running = False
@@ -193,6 +198,7 @@ class KrakenLayoutEditor(tk.Tk):
         self._cell_border_parts: list[tk.Frame] = []
         self._grid_overlays: list[tk.Frame] = []
         self._grid_after_id: str | None = None
+        self._autosave_after_id: str | None = None
         self._initial_layout_passes = 0
         self._last_field_type = "Angle"
         self._field_defaults_initialized = False
@@ -202,6 +208,10 @@ class KrakenLayoutEditor(tk.Tk):
             "Paraxial Image Height": "5.0",
             "Real Image Height": "5.0",
         }
+        self.auto_save_plot_var = tk.BooleanVar(value=not self.headless)
+        self.show_native_overlays_var = tk.BooleanVar(value=True)
+        self.show_native_active_spans_var = tk.BooleanVar(value=True)
+        self.show_native_hit_labels_var = tk.BooleanVar(value=True)
 
         self._build_menu()
         self._build_ui()
@@ -210,6 +220,22 @@ class KrakenLayoutEditor(tk.Tk):
         if self.layout_names:
             initial_layout = DEFAULT_LAYOUT_TITLE if DEFAULT_LAYOUT_TITLE in self.layout_files else self.layout_names[0]
             self.load_layout_by_name(initial_layout)
+
+    def _enter_fullscreen(self) -> None:
+        try:
+            self.attributes("-fullscreen", True)
+            return
+        except Exception:
+            pass
+        try:
+            self.state("zoomed")
+            return
+        except Exception:
+            pass
+        try:
+            self.attributes("-zoomed", True)
+        except Exception:
+            pass
 
     def _build_menu(self) -> None:
         menubar = tk.Menu(self)
@@ -224,6 +250,11 @@ class KrakenLayoutEditor(tk.Tk):
         action_menu = tk.Menu(menubar, tearoff=0)
         action_menu.add_command(label="Refresh Plot", command=self.refresh_plot)
         action_menu.add_command(label="Clear Marks", command=self.clear_optimization_marks)
+        action_menu.add_checkbutton(label="Auto-save JPG", variable=self.auto_save_plot_var)
+        action_menu.add_separator()
+        action_menu.add_checkbutton(label="Show Native Overlays", variable=self.show_native_overlays_var, command=self.refresh_plot)
+        action_menu.add_checkbutton(label="Show Native Active Spans", variable=self.show_native_active_spans_var, command=self.refresh_plot)
+        action_menu.add_checkbutton(label="Show Native Hit Labels", variable=self.show_native_hit_labels_var, command=self.refresh_plot)
         menubar.add_cascade(label="Actions", menu=action_menu)
 
         self.config(menu=menubar)
@@ -398,6 +429,7 @@ class KrakenLayoutEditor(tk.Tk):
             tk.Frame(self.table, bg=border_color, height=2, width=2),
             tk.Frame(self.table, bg=border_color, height=2, width=2),
         ]
+        self._selection_anchor_row: str | None = None
         self._hide_active_cell_border()
 
         yscroll = ttk.Scrollbar(table_frame, orient="vertical", command=self.table.yview)
@@ -1070,18 +1102,45 @@ class KrakenLayoutEditor(tk.Tk):
         self.rows = rows
         self._sync_object_controls()
 
-    def _on_table_click(self, event: tk.Event) -> None:
+    def _on_table_click(self, event: tk.Event) -> str | None:
         row_id = self.table.identify_row(event.y)
         column_id = self.table.identify_column(event.x)
         self.table.focus_set()
         if not row_id or not column_id:
             self._active_cell = None
             self._hide_active_cell_border()
-            return
+            return None
         self._active_cell = (row_id, column_id)
+        children = list(self.table.get_children())
+        shift_pressed = bool(event.state & 0x0001)
+        control_pressed = bool(event.state & 0x0004)
+        if shift_pressed and children:
+            anchor = self._selection_anchor_row
+            if anchor not in children:
+                anchor = self.table.focus() or row_id
+            if anchor not in children:
+                anchor = row_id
+            start = children.index(anchor)
+            end = children.index(row_id)
+            if start <= end:
+                selected = children[start : end + 1]
+            else:
+                selected = children[end : start + 1]
+            self.table.selection_set(selected)
+        elif control_pressed:
+            selected = set(self.table.selection())
+            if row_id in selected:
+                selected.remove(row_id)
+            else:
+                selected.add(row_id)
+            self.table.selection_set(list(selected))
+            self._selection_anchor_row = row_id
+        else:
+            self.table.selection_set(row_id)
+            self._selection_anchor_row = row_id
         self.table.focus(row_id)
-        self.table.selection_set(row_id)
         self.after_idle(self._update_active_cell_border)
+        return "break"
 
     def _move_active_cell(self, event: tk.Event) -> str:
         self.table.focus_set()
@@ -1112,17 +1171,23 @@ class KrakenLayoutEditor(tk.Tk):
         self.table.selection_set(row_id)
         self._ensure_active_cell_visible(row_id, column_id)
         self.after_idle(self._update_active_cell_border)
+        self.after_idle(self._schedule_table_grid_update)
         return "break"
 
     def _ensure_active_cell_visible(self, row_id: str, column_id: str) -> None:
         self.table.see(row_id)
         self.update_idletasks()
         columns = list(self.table["columns"])
+        if column_id == "#2":
+            self.table.xview_moveto(0.0)
+            self.update_idletasks()
         target_bbox = self.table.bbox(row_id, column_id)
         if target_bbox:
             x, _y, width, _height = target_bbox
             visible_width = max(self.table.winfo_width(), 1)
             if x >= 0 and (x + width) <= visible_width:
+                self.after_idle(self._update_active_cell_border)
+                self.after_idle(self._schedule_table_grid_update)
                 return
 
         total_width = 0
@@ -1148,6 +1213,8 @@ class KrakenLayoutEditor(tk.Tk):
             desired_left = max(0.0, target_left + target_width - visible_width + 16.0)
             self.table.xview_moveto(min(1.0, desired_left / total_width))
         self.update_idletasks()
+        self.after_idle(self._update_active_cell_border)
+        self.after_idle(self._schedule_table_grid_update)
 
     def _hide_active_cell_border(self) -> None:
         for part in self._cell_border_parts:
@@ -1785,6 +1852,7 @@ class KrakenLayoutEditor(tk.Tk):
             self.ax.clear()
             self.ax.set_title("Axial Layout")
             self.canvas.draw_idle()
+            self._autosave_plot()
             return
 
         max_radius = 1.0
@@ -1815,6 +1883,7 @@ class KrakenLayoutEditor(tk.Tk):
             self.figure.text(0.5, 0.035, "KrakenOS Layout", ha="center", va="center")
             self._sync_object_controls()
             self.canvas.draw_idle()
+            self._autosave_plot()
             return
 
         if self._is_folded_mirror_preview_mode():
@@ -1827,6 +1896,7 @@ class KrakenLayoutEditor(tk.Tk):
             self.figure.text(0.5, 0.035, "KrakenOS Layout", ha="center", va="center")
             self._sync_object_controls()
             self.canvas.draw_idle()
+            self._autosave_plot()
             return
 
         try:
@@ -1899,8 +1969,34 @@ class KrakenLayoutEditor(tk.Tk):
         self.figure.text(0.5, 0.035, "KrakenOS Layout", ha="center", va="center")
         self._sync_object_controls()
         self.canvas.draw_idle()
+        self._autosave_plot()
         if self._initial_layout_passes < 40:
             self.after(50, self._set_initial_pane_layout)
+
+    def _autosave_plot(self) -> None:
+        if not self.auto_save_plot_var.get():
+            return
+        if self._autosave_after_id is not None:
+            try:
+                self.after_cancel(self._autosave_after_id)
+            except Exception:
+                pass
+        self._autosave_after_id = self.after(400, self._do_autosave_plot)
+
+    def _do_autosave_plot(self) -> None:
+        self._autosave_after_id = None
+        if not self.auto_save_plot_var.get():
+            return
+        if self.winfo_width() < 1200 or self.winfo_height() < 700:
+            self._autosave_after_id = self.after(400, self._do_autosave_plot)
+            return
+        try:
+            AUTO_PLOT_PATH.parent.mkdir(parents=True, exist_ok=True)
+            self.update_idletasks()
+            self.canvas.draw()
+            self.figure.savefig(AUTO_PLOT_PATH, dpi=150)
+        except Exception as exc:
+            self.append_debug(f"Auto-save plot failed: {exc}")
 
     def _plot_analysis(self, analysis_ax, system, rays, wavelength: float) -> None:
         if analysis_ax is None:
@@ -3158,10 +3254,18 @@ class KrakenLayoutEditor(tk.Tk):
         extent_points: list[np.ndarray] = []
         folded_elements = None
         folded_max_half = max_radius
+        native_overlay_counts: dict[str, int] = {}
+        native_overlay_curves: dict[int, np.ndarray] = {}
+        native_overlay_metrics: list[tuple[str, str]] = []
         if folded_visual_mode:
             _, _, folded_max_half, extent_points, folded_elements = self._draw_folded_layout_geometry()
-            if use_native_surfaces:
-                self._overlay_native_folded_surfaces(system, folded_elements, extent_points)
+            if use_native_surfaces and self.show_native_overlays_var.get():
+                native_overlay_counts, native_overlay_metrics, native_overlay_curves = self._overlay_native_folded_surfaces(
+                    system,
+                    folded_elements,
+                    extent_points,
+                )
+                self._overlay_native_folded_lens_edges(folded_elements, native_overlay_curves, extent_points)
         else:
             native_surface_ok = False
             try:
@@ -3190,6 +3294,11 @@ class KrakenLayoutEditor(tk.Tk):
             self._native_folded_display_paths(system, rays, folded_elements, folded_max_half)
             if folded_elements is not None
             else None
+        )
+        native_hit_points_by_surface = (
+            self._native_folded_hit_points_by_surface(system, rays, folded_elements)
+            if folded_elements is not None
+            else {}
         )
         for index, ray in enumerate(rays.CC):
             pts = np.asarray(ray, dtype=float)
@@ -3228,7 +3337,22 @@ class KrakenLayoutEditor(tk.Tk):
             extent_points.extend(np.column_stack((x_vals, y_vals)))
 
         if folded_visual_mode and folded_elements is not None:
-            self._overlay_native_folded_surface_hits(folded_elements, surface_hit_counts, folded_max_half, extent_points)
+            if self.show_native_hit_labels_var.get():
+                self._overlay_native_folded_surface_hits(
+                    folded_elements,
+                    surface_hit_counts,
+                    folded_max_half,
+                    extent_points,
+                )
+            if self.show_native_active_spans_var.get():
+                self._overlay_native_folded_active_spans(
+                    folded_elements,
+                    native_hit_points_by_surface,
+                    native_overlay_curves,
+                    extent_points,
+                )
+            if self.show_native_overlays_var.get() or self.show_native_active_spans_var.get() or self.show_native_hit_labels_var.get():
+                self._draw_native_folded_legend(native_overlay_counts)
 
         if self._current_display_orientation() == "Horizontal":
             if extent_points:
@@ -3261,6 +3385,8 @@ class KrakenLayoutEditor(tk.Tk):
                 ("Max ray hits", str(max(ray_lengths) if ray_lengths else 0)),
                 ("Surface hits", self._native_surface_count_summary(surface_hit_counts)),
                 ("Last-hit surfaces", self._native_surface_count_summary(last_surface_counts)),
+                ("Native mirrors", str(native_overlay_counts.get("mirror", 0))),
+                ("Native refractive", str(native_overlay_counts.get("standard", 0))),
                 *self._native_folded_prescription_summary(folded_elements),
             ]
         )
@@ -3276,6 +3402,11 @@ class KrakenLayoutEditor(tk.Tk):
             self.append_debug(f"Native preview last-hit surfaces: {self._native_surface_count_summary(last_surface_counts)}")
         if surface_hit_counts:
             self.append_debug(f"Native preview surface hits: {self._native_surface_count_summary(surface_hit_counts)}")
+        if native_overlay_counts:
+            overlay_summary = ", ".join(f"{key}={value}" for key, value in sorted(native_overlay_counts.items()))
+            self.append_debug(f"Native folded overlays: {overlay_summary}")
+        for label, metric in native_overlay_metrics:
+            self.append_debug(f"Native surface metric {label}: {metric}")
         for line in self._native_hit_sequence_lines(hit_sequences):
             self.append_debug(line)
         self.status_var.set("Native folded preview" if folded_visual_mode else "Native off-axis ray preview")
@@ -3334,12 +3465,17 @@ class KrakenLayoutEditor(tk.Tk):
                 bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.7, "pad": 0.4},
             )
 
-    def _overlay_native_folded_surfaces(self, system, elements, extent_points: list[np.ndarray]) -> None:
+    def _overlay_native_folded_surfaces(
+        self, system, elements, extent_points: list[np.ndarray]
+    ) -> tuple[dict[str, int], list[tuple[str, str]], dict[int, np.ndarray]]:
         transforms = getattr(system, "TRANS_2A", None)
         surfaces = getattr(system, "AAA", None)
         if transforms is None or surfaces is None or not elements:
-            return
+            return {}, [], {}
         block_count = min(len(self.rows), getattr(surfaces, "n_blocks", 0), len(transforms))
+        counts = {"mirror": 0, "standard": 0}
+        metrics: list[tuple[str, str]] = []
+        curves: dict[int, np.ndarray] = {}
         for surface_index in range(1, block_count):
             if surface_index > len(elements):
                 break
@@ -3360,20 +3496,163 @@ class KrakenLayoutEditor(tk.Tk):
                     pts = (pts_h @ transform.T)[:, :3]
             except Exception:
                 pass
-            display_pts = self._map_native_surface_to_folded(surface_type, center2, row, branch_dir, pts)
+            display_pts, metric = self._map_native_surface_to_folded(surface_type, center2, row, branch_dir, pts)
             if display_pts is None or display_pts.shape[0] < 8:
                 continue
             overlay_color = "#7c3aed" if surface_type == "Standard" else "#b45309"
             self.ax.plot(display_pts[:, 0], display_pts[:, 1], color="white", linewidth=4.6, alpha=0.96)
             self.ax.plot(display_pts[:, 0], display_pts[:, 1], color=overlay_color, linewidth=2.2, alpha=0.96)
             extent_points.extend(display_pts.tolist())
+            counts["standard" if surface_type == "Standard" else "mirror"] += 1
+            curves[surface_index] = np.asarray(display_pts, dtype=float)
+            if metric:
+                metrics.append((f"{surface_index}:{row.name or row.surface}", metric))
+        return counts, metrics, curves
+
+    def _draw_native_folded_legend(self, native_overlay_counts: dict[str, int]) -> None:
+        handles = [
+            Line2D([0], [0], color="#202020", linewidth=1.2, label="Base object/image"),
+            Line2D([0], [0], color="#b45309", linewidth=2.2, label="Native mirror"),
+            Line2D([0], [0], color="#7c3aed", linewidth=2.2, label="Native refractive"),
+            Line2D([0], [0], color="#d97706", linewidth=2.4, linestyle="--", alpha=0.45, label="Native hit count"),
+            Line2D([0], [0], color="#f59e0b", linewidth=3.2, label="Native active span"),
+            Line2D([0], [0], color="#39FF14", linewidth=1.8, label="Displayed ray"),
+        ]
+        title_parts = []
+        if native_overlay_counts.get("mirror", 0):
+            title_parts.append(f"M{native_overlay_counts['mirror']}")
+        if native_overlay_counts.get("standard", 0):
+            title_parts.append(f"S{native_overlay_counts['standard']}")
+        title = "Native overlays"
+        if title_parts:
+            title += f" ({', '.join(title_parts)})"
+        self.ax.legend(handles=handles, loc="upper right", fontsize=8, framealpha=0.9, title=title, title_fontsize=8)
+
+    def _overlay_native_folded_lens_edges(self, elements, native_overlay_curves: dict[int, np.ndarray], extent_points) -> None:
+        if not elements or not native_overlay_curves:
+            return
+        group: list[int] = []
+        for surface_index, (surface_type, _center, _row, _branch_dir) in enumerate(elements, start=1):
+            if surface_type == "Standard" and surface_index in native_overlay_curves:
+                group.append(surface_index)
+            else:
+                if len(group) >= 2:
+                    self._draw_native_edge_group(group, native_overlay_curves, extent_points)
+                group = []
+        if len(group) >= 2:
+            self._draw_native_edge_group(group, native_overlay_curves, extent_points)
+
+    def _draw_native_edge_group(self, indices: list[int], native_overlay_curves: dict[int, np.ndarray], extent_points) -> None:
+        for first, second in zip(indices, indices[1:]):
+            curve_a = np.asarray(native_overlay_curves.get(first), dtype=float)
+            curve_b = np.asarray(native_overlay_curves.get(second), dtype=float)
+            if curve_a.shape[0] < 2 or curve_b.shape[0] < 2:
+                continue
+            a_top = curve_a[np.argmin(curve_a[:, 1])]
+            a_bottom = curve_a[np.argmax(curve_a[:, 1])]
+            b_top = curve_b[np.argmin(curve_b[:, 1])]
+            b_bottom = curve_b[np.argmax(curve_b[:, 1])]
+            for p0, p1 in ((a_top, b_top), (a_bottom, b_bottom)):
+                self.ax.plot([p0[0], p1[0]], [p0[1], p1[1]], color="white", linewidth=4.2, alpha=0.96)
+                self.ax.plot([p0[0], p1[0]], [p0[1], p1[1]], color="#7c3aed", linewidth=2.0, alpha=0.96)
+                extent_points.extend([p0, p1])
+
+    def _overlay_native_folded_active_spans(
+        self,
+        elements,
+        hit_points_by_surface: dict[int, list[np.ndarray]],
+        native_overlay_curves: dict[int, np.ndarray],
+        extent_points: list[np.ndarray],
+    ) -> None:
+        for surface_index, points in sorted(hit_points_by_surface.items()):
+            if surface_index <= 0 or surface_index > len(elements):
+                continue
+            if len(points) < 2:
+                continue
+            surface_type, center, row, branch_dir = elements[surface_index - 1]
+            pts = np.asarray(points, dtype=float)
+            if surface_type == "Mirror":
+                theta = np.deg2rad(float(row.tilt_x))
+                tangent = np.array([np.cos(theta), np.sin(theta)], dtype=float)
+                tangent /= max(np.linalg.norm(tangent), 1e-12)
+                along = (pts - center[None, :]) @ tangent
+                lo = float(np.min(along))
+                hi = float(np.max(along))
+                p0 = center + tangent * lo
+                p1 = center + tangent * hi
+                self.ax.plot(
+                    [p0[0], p1[0]],
+                    [p0[1], p1[1]],
+                    color="#f59e0b",
+                    linewidth=3.2,
+                    alpha=0.95,
+                    solid_capstyle="round",
+                )
+                extent_points.extend([p0, p1])
+            elif surface_type == "Standard":
+                curve = native_overlay_curves.get(surface_index)
+                if curve is not None and curve.shape[0] >= 8:
+                    snapped = self._snap_points_to_curve(pts, curve)
+                    if snapped.shape[0] >= 2:
+                        self.ax.plot(
+                            snapped[:, 0],
+                            snapped[:, 1],
+                            color="#a855f7",
+                            linewidth=2.2,
+                            alpha=0.9,
+                            linestyle="-.",
+                        )
+                        extent_points.extend(snapped.tolist())
+                else:
+                    tangent = np.array([-branch_dir[1], branch_dir[0]], dtype=float)
+                    tangent /= max(np.linalg.norm(tangent), 1e-12)
+                    along = (pts - center[None, :]) @ tangent
+                    order = np.argsort(along)
+                    pts = pts[order]
+                    self.ax.plot(
+                        pts[:, 0],
+                        pts[:, 1],
+                        color="#a855f7",
+                        linewidth=2.2,
+                        alpha=0.9,
+                        linestyle="-.",
+                    )
+                    extent_points.extend(pts.tolist())
+
+    @staticmethod
+    def _snap_points_to_curve(points: np.ndarray, curve: np.ndarray) -> np.ndarray:
+        pts = np.asarray(points, dtype=float)
+        crv = np.asarray(curve, dtype=float)
+        if pts.size == 0 or crv.size == 0:
+            return np.empty((0, 2), dtype=float)
+        chosen: list[int] = []
+        for point in pts:
+            distances = np.sum((crv - point[None, :]) ** 2, axis=1)
+            chosen.append(int(np.argmin(distances)))
+        lo = min(chosen)
+        hi = max(chosen)
+        return crv[lo : hi + 1]
 
     def _map_native_surface_to_folded(
         self, surface_type: str, center2: np.ndarray, row: SurfaceRow, branch_dir: np.ndarray, pts3: np.ndarray
-    ) -> np.ndarray | None:
+    ) -> tuple[np.ndarray | None, str | None]:
         pts3 = np.asarray(pts3, dtype=float)
         if pts3.size == 0:
-            return None
+            return None, None
+        tangent2 = np.array([-branch_dir[1], branch_dir[0]], dtype=float)
+        tangent2 /= max(np.linalg.norm(tangent2), 1e-12)
+        axis2 = branch_dir / max(np.linalg.norm(branch_dir), 1e-12)
+        if surface_type == "Mirror":
+            aperture_component = pts3[:, 0] - float(np.mean(pts3[:, 0]))
+            if aperture_component.size < 8:
+                return None, None
+            native_half = max(float(np.max(np.abs(aperture_component))), 1e-9)
+            target_half = max(float(row.diameter) / 2.0, 0.5)
+            scale = target_half / native_half
+            aperture_component = aperture_component * scale
+            display_pts = center2[None, :] + np.outer(aperture_component, tangent2)
+            order = np.argsort(display_pts[:, 1])
+            return display_pts[order], f"span_scale={scale:.3g}"
         center_x = float(np.median(pts3[:, 0]))
         tolerance = max(0.08, 0.015 * max(np.ptp(pts3[:, 1]), np.ptp(pts3[:, 2]), 1.0))
         mask = np.abs(pts3[:, 0] - center_x) <= tolerance
@@ -3383,13 +3662,13 @@ class KrakenLayoutEditor(tk.Tk):
             mask = np.abs(pts3[:, 0] - center_x) <= tolerance
             sliced = pts3[mask]
         if sliced.shape[0] < 8:
-            return None
+            return None, None
         center3 = np.mean(sliced, axis=0)
         centered = sliced - center3
         try:
             _, _, vh = np.linalg.svd(centered, full_matrices=False)
         except np.linalg.LinAlgError:
-            return None
+            return None, None
         vectors = [np.asarray(v, dtype=float) for v in vh]
         yz_ranked = [
             (float(np.linalg.norm(vec[1:])), np.asarray(vec, dtype=float) / max(np.linalg.norm(vec), 1e-12))
@@ -3397,7 +3676,7 @@ class KrakenLayoutEditor(tk.Tk):
         ]
         yz_ranked.sort(key=lambda item: item[0], reverse=True)
         if len(yz_ranked) < 2:
-            return None
+            return None, None
         basis_a = yz_ranked[0][1]
         basis_b = yz_ranked[1][1]
         u_a = centered @ basis_a
@@ -3418,15 +3697,21 @@ class KrakenLayoutEditor(tk.Tk):
             observed_sign = np.sign(edge_sag - center_sag)
             if observed_sign != 0.0 and observed_sign != expected_sign:
                 sag_component = -sag_component
-        tangent2 = np.array([-branch_dir[1], branch_dir[0]], dtype=float)
-        tangent2 /= max(np.linalg.norm(tangent2), 1e-12)
-        axis2 = branch_dir / max(np.linalg.norm(branch_dir), 1e-12)
-        if surface_type == "Mirror":
-            display_pts = center2[None, :] + np.outer(aperture_component, tangent2)
-        else:
-            display_pts = center2[None, :] + np.outer(aperture_component, tangent2) + np.outer(sag_component, axis2)
+        native_half = max(float(np.max(np.abs(aperture_component))), 1e-9)
+        target_half = max(float(row.diameter) / 2.0, 0.5)
+        aperture_scale = target_half / native_half
+        aperture_component = aperture_component * aperture_scale
+        native_sag = max(float(np.max(np.abs(sag_component))), 1e-9)
+        nominal_sag = 0.0
+        if abs(float(row.rc)) > target_half + 1e-9:
+            rr = abs(float(row.rc))
+            sign = 1.0 if float(row.rc) >= 0.0 else -1.0
+            nominal_sag = abs(float(row.rc) - sign * np.sqrt(max(rr * rr - target_half * target_half, 0.0)))
+        sag_scale = nominal_sag / native_sag if nominal_sag > 0.0 else 1.0
+        sag_component = sag_component * sag_scale
+        display_pts = center2[None, :] + np.outer(aperture_component, tangent2) + np.outer(sag_component, axis2)
         order = np.argsort(display_pts[:, 1])
-        return display_pts[order]
+        return display_pts[order], f"span_scale={aperture_scale:.3g}, sag_scale={sag_scale:.3g}"
 
     def _native_folded_prescription_summary(self, elements) -> list[tuple[str, str]]:
         if not elements:
@@ -3441,6 +3726,123 @@ class KrakenLayoutEditor(tk.Tk):
             if surface_type == "Mirror":
                 summary.append((f"{surface_index}:{row.name or row.surface} TiltX [deg]", f"{float(row.tilt_x):.3g}"))
         return summary
+
+    def _native_folded_hit_points_by_surface(self, system, rays, elements) -> dict[int, list[np.ndarray]]:
+        if elements is None:
+            return {}
+        mapping_meta = self._native_surface_mapping_metadata(system)
+        if not mapping_meta:
+            return {}
+        hit_points: dict[int, list[np.ndarray]] = {}
+        for ray_index, (surface_ids_raw, cc_raw) in enumerate(zip(rays.SURFACE, rays.CC)):
+            cc = np.asarray(cc_raw, dtype=float)
+            if cc.shape[0] < 2:
+                continue
+            surface_ids = [int(v) for v in np.asarray(surface_ids_raw, dtype=int).ravel().tolist()]
+            last_id: int | None = None
+            for hit_index, surface_index in enumerate(surface_ids, start=1):
+                if surface_index == last_id:
+                    continue
+                last_id = surface_index
+                if hit_index >= len(cc):
+                    continue
+                display_hit = self._map_native_hit_to_folded_surface(surface_index, cc[hit_index], elements, mapping_meta)
+                if display_hit is None:
+                    continue
+                hit_points.setdefault(surface_index, []).append(display_hit)
+        return hit_points
+
+    def _native_surface_mapping_metadata(self, system) -> dict[int, dict[str, np.ndarray | float]]:
+        transforms = getattr(system, "TRANS_2A", None)
+        surfaces = getattr(system, "AAA", None)
+        if transforms is None or surfaces is None:
+            return {}
+        metadata: dict[int, dict[str, np.ndarray | float]] = {}
+        block_count = min(len(self.rows), getattr(surfaces, "n_blocks", 0), len(transforms))
+        for surface_index in range(1, block_count):
+            try:
+                poly = surfaces[surface_index]
+                pts = np.asarray(poly.points, dtype=float)
+            except Exception:
+                continue
+            if pts.size == 0:
+                continue
+            try:
+                transform = np.asarray(transforms[surface_index], dtype=float)
+                if transform.shape == (4, 4):
+                    pts_h = np.c_[pts, np.ones(len(pts))]
+                    pts = (pts_h @ transform.T)[:, :3]
+            except Exception:
+                pass
+            center = np.mean(pts, axis=0)
+            centered = pts - center
+            try:
+                _, _, vh = np.linalg.svd(centered, full_matrices=False)
+            except np.linalg.LinAlgError:
+                continue
+            vectors = [np.asarray(v, dtype=float) / max(np.linalg.norm(v), 1e-12) for v in vh]
+            yz_ranked = [(float(np.linalg.norm(vec[1:])), vec) for vec in vectors]
+            yz_ranked.sort(key=lambda item: item[0], reverse=True)
+            if len(yz_ranked) < 2:
+                continue
+            basis_a = yz_ranked[0][1]
+            basis_b = yz_ranked[1][1]
+            u_a = centered @ basis_a
+            u_b = centered @ basis_b
+            if np.ptp(u_a) >= np.ptp(u_b):
+                aperture_basis = basis_a
+                sag_basis = basis_b
+                aperture_component = u_a
+                sag_component = u_b
+            else:
+                aperture_basis = basis_b
+                sag_basis = basis_a
+                aperture_component = u_b
+                sag_component = u_a
+            metadata[surface_index] = {
+                "center": center,
+                "aperture_basis": aperture_basis,
+                "sag_basis": sag_basis,
+                "native_half": max(float(np.max(np.abs(aperture_component))), 1e-9),
+                "native_sag": max(float(np.max(np.abs(sag_component))), 1e-9),
+            }
+        return metadata
+
+    def _map_native_hit_to_folded_surface(self, surface_index: int, native_hit: np.ndarray, elements, mapping_meta) -> np.ndarray | None:
+        if surface_index <= 0 or surface_index > len(elements):
+            return None
+        meta = mapping_meta.get(surface_index)
+        if meta is None:
+            return None
+        surface_type, center2, row, branch_dir = elements[surface_index - 1]
+        center3 = np.asarray(meta["center"], dtype=float)
+        aperture_basis = np.asarray(meta["aperture_basis"], dtype=float)
+        sag_basis = np.asarray(meta["sag_basis"], dtype=float)
+        delta = np.asarray(native_hit, dtype=float) - center3
+        aperture_component = float(delta @ aperture_basis)
+        sag_component = float(delta @ sag_basis)
+        tangent2 = np.array([-branch_dir[1], branch_dir[0]], dtype=float)
+        tangent2 /= max(np.linalg.norm(tangent2), 1e-12)
+        axis2 = branch_dir / max(np.linalg.norm(branch_dir), 1e-12)
+        native_half = float(meta["native_half"])
+        target_half = max(float(row.diameter) / 2.0, 0.5)
+        aperture_scale = target_half / max(native_half, 1e-9)
+        aperture_component *= aperture_scale
+        aperture_component = float(np.clip(aperture_component, -target_half, target_half))
+        if surface_type == "Mirror":
+            return center2 + tangent2 * aperture_component
+        native_sag = float(meta["native_sag"])
+        nominal_sag = 0.0
+        if abs(float(row.rc)) > target_half + 1e-9:
+            rr = abs(float(row.rc))
+            sign = 1.0 if float(row.rc) >= 0.0 else -1.0
+            nominal_sag = abs(float(row.rc) - sign * np.sqrt(max(rr * rr - target_half * target_half, 0.0)))
+        sag_scale = nominal_sag / max(native_sag, 1e-9) if nominal_sag > 0.0 else 1.0
+        sag_component *= sag_scale
+        if nominal_sag > 0.0:
+            sag_limit = nominal_sag * 1.15
+            sag_component = float(np.clip(sag_component, -sag_limit, sag_limit))
+        return center2 + tangent2 * aperture_component + axis2 * sag_component
 
     def _preview_ray_start_specs(self, max_half: float) -> list[tuple[np.ndarray, np.ndarray]]:
         point = np.array([0.0, 0.0], dtype=float)
@@ -3468,6 +3870,81 @@ class KrakenLayoutEditor(tk.Tk):
                     d /= max(np.linalg.norm(d), 1e-12)
                     starts.append((origin.copy(), d))
         return starts
+
+    def _reference_native_ray_index(self, rays, max_half: float) -> int | None:
+        starts = self._preview_ray_start_specs(max_half)
+        best_index: int | None = None
+        best_score: tuple[int, float] | None = None
+        for index, surface_ids_raw in enumerate(rays.SURFACE):
+            if index >= len(starts):
+                break
+            seq = [int(v) for v in np.asarray(surface_ids_raw, dtype=int).ravel().tolist()]
+            unique_count = 0
+            last = None
+            for value in seq:
+                if value == last:
+                    continue
+                last = value
+                unique_count += 1
+            start_origin, _ = starts[index]
+            offset_score = abs(float(start_origin[0]))
+            score = (unique_count, -offset_score)
+            if best_score is None or score > best_score:
+                best_score = score
+                best_index = index
+        return best_index
+
+    def _derive_native_folded_elements(self, rays, folded_elements, max_half: float):
+        if not folded_elements:
+            return folded_elements
+        ref_index = self._reference_native_ray_index(rays, max_half)
+        if ref_index is None or ref_index >= len(rays.CC):
+            return folded_elements
+        cc = np.asarray(rays.CC[ref_index], dtype=float)
+        surface_ids = [int(v) for v in np.asarray(rays.SURFACE[ref_index], dtype=int).ravel().tolist()]
+        if cc.shape[0] < 2 or not surface_ids:
+            return folded_elements
+
+        unique_hits: list[tuple[int, np.ndarray]] = []
+        last_id: int | None = None
+        for hit_index, surface_index in enumerate(surface_ids, start=1):
+            if surface_index == last_id:
+                continue
+            last_id = surface_index
+            if hit_index >= len(cc):
+                break
+            unique_hits.append((surface_index, np.asarray(cc[hit_index], dtype=float)))
+        if not unique_hits:
+            return folded_elements
+
+        new_elements = list(folded_elements)
+        display_point = np.array([0.0, max(float(self.rows[0].thickness), 0.0)], dtype=float) if self.rows else np.array([0.0, 0.0], dtype=float)
+        native_prev = np.asarray(cc[0], dtype=float)
+        current_dir = np.array([0.0, 1.0], dtype=float)
+        current_medium = 1.0
+
+        for surface_index, native_hit in unique_hits:
+            if surface_index <= 0 or surface_index > len(new_elements):
+                native_prev = native_hit
+                continue
+            surface_type, _, row, _ = new_elements[surface_index - 1]
+            native_step = float(np.linalg.norm(np.asarray(native_hit[1:3]) - np.asarray(native_prev[1:3])))
+            center = display_point + current_dir * native_step
+            new_elements[surface_index - 1] = (surface_type, center.copy(), row, current_dir.copy())
+            display_point = center.copy()
+            native_prev = native_hit
+
+            if surface_type == "Mirror":
+                current_dir = self._reflect_2d(current_dir, float(row.tilt_x))
+            elif surface_type == "Standard":
+                axis = current_dir / max(np.linalg.norm(current_dir), 1e-12)
+                sphere_center = center + axis * float(row.rc)
+                normal = center - sphere_center
+                next_medium = self._glass_index_for_preview(row.glass)
+                current_dir = self._refract_ray_2d(current_dir, normal, current_medium, next_medium)
+                current_medium = next_medium
+
+        return new_elements
 
     def _native_folded_display_paths(self, system, rays, elements, max_half: float) -> list[np.ndarray]:
         if elements is None:
