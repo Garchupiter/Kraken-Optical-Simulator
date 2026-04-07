@@ -416,6 +416,7 @@ class KrakenLayoutEditor(tk.Tk):
         plot_toolbar.grid(row=0, column=0, sticky="ew", pady=(0, 6))
         ttk.Button(plot_toolbar, text="Open 3D", command=self.open_3d_view).pack(side="left")
         ttk.Button(plot_toolbar, text="2D", command=lambda: self.set_analysis_mode("none")).pack(side="left", padx=(6, 0))
+        ttk.Button(plot_toolbar, text="Native", command=lambda: self.set_analysis_mode("native_off_axis")).pack(side="left", padx=(6, 0))
         ttk.Button(plot_toolbar, text="Spot", command=lambda: self.set_analysis_mode("spot")).pack(side="left", padx=(6, 0))
         ttk.Button(plot_toolbar, text="PSF", command=lambda: self.set_analysis_mode("psf")).pack(side="left", padx=(6, 0))
         ttk.Button(plot_toolbar, text="RMS", command=lambda: self.set_analysis_mode("rms")).pack(side="left", padx=(6, 0))
@@ -1294,6 +1295,12 @@ class KrakenLayoutEditor(tk.Tk):
             return
         if name == DEFAULT_LAYOUT_TITLE:
             self.display_orientation_var.set("Horizontal")
+            self.object_mode_var.set("Finite")
+            self.field_type_var.set("Object Height")
+            self._last_field_type = "Object Height"
+            self._field_type_defaults["Object Height"] = "0.0"
+            self.field_value_var.set("0.0")
+            self._sync_field_mode_ui()
 
     def _on_field_type_changed(self, _event=None) -> None:
         self._sync_field_default_from_current_type()
@@ -1786,13 +1793,29 @@ class KrakenLayoutEditor(tk.Tk):
             max_radius = max(max_radius, radius)
 
         self.figure.clear()
-        if self.analysis_mode == "none":
+        if self.analysis_mode in {"none", "native_off_axis"}:
             self.ax = self.figure.add_subplot(111)
             analysis_ax = None
         else:
             gs = self.figure.add_gridspec(1, 2, width_ratios=[4.2, 1.35], wspace=0.22)
             self.ax = self.figure.add_subplot(gs[0])
             analysis_ax = self.figure.add_subplot(gs[1])
+
+        if self.analysis_mode == "native_off_axis" and self._has_off_axis_geometry():
+            self._plot_native_off_axis_preview(
+                analysis_ax,
+                max_radius,
+                use_native_surfaces=True,
+            )
+            self.ax.grid(True, alpha=0.2)
+            self.ax.set_xlabel("Native X [mm]" if self._current_display_orientation() == "Vertical" else "Native Fold X [mm]")
+            self.ax.set_ylabel("Native Y [mm]" if self._current_display_orientation() == "Vertical" else "Native Fold Y [mm]")
+            self.ax.set_title("")
+            self.figure.subplots_adjust(left=0.07, right=0.98, bottom=0.15, top=0.92, wspace=0.28)
+            self.figure.text(0.5, 0.035, "KrakenOS Layout", ha="center", va="center")
+            self._sync_object_controls()
+            self.canvas.draw_idle()
+            return
 
         if self._is_folded_mirror_preview_mode():
             self._plot_folded_mirror_preview(analysis_ax)
@@ -2746,7 +2769,7 @@ class KrakenLayoutEditor(tk.Tk):
         for row in self.rows:
             if row.surface == "Mirror":
                 mirror_count += 1
-            elif row.surface not in {"Object", "Image"}:
+            elif row.surface not in {"Object", "Image", "Standard"}:
                 return False
         return mirror_count >= 1
 
@@ -2765,6 +2788,86 @@ class KrakenLayoutEditor(tk.Tk):
             return direction
         return reflected / norm
 
+    @staticmethod
+    def _intersect_ray_with_line(
+        origin: np.ndarray,
+        direction: np.ndarray,
+        center: np.ndarray,
+        line_angle_deg: float,
+    ) -> tuple[np.ndarray | None, float | None]:
+        theta = np.deg2rad(float(line_angle_deg))
+        tangent = np.array([np.cos(theta), np.sin(theta)], dtype=float)
+        matrix = np.column_stack((direction, -tangent))
+        try:
+            t_ray, t_line = np.linalg.solve(matrix, center - origin)
+        except np.linalg.LinAlgError:
+            return None, None
+        if t_ray < 0:
+            return None, None
+        point = origin + direction * t_ray
+        return point, float(t_line)
+
+    @staticmethod
+    def _glass_index_for_preview(name: str) -> float:
+        glass = str(name).strip().upper()
+        if glass in {"", "AIR", "NULL"}:
+            return 1.0
+        if glass == "BK7":
+            return 1.5168
+        if glass == "F2":
+            return 1.6200
+        if glass in {"FS", "F_SILICA", "SILICA"}:
+            return 1.4585
+        return 1.5
+
+    @staticmethod
+    def _intersect_ray_with_spherical_surface(
+        origin: np.ndarray,
+        direction: np.ndarray,
+        vertex: np.ndarray,
+        axis_dir: np.ndarray,
+        radius: float,
+    ) -> tuple[np.ndarray | None, float | None]:
+        if abs(radius) <= 1e-9:
+            return None, None
+        axis = np.asarray(axis_dir, dtype=float)
+        axis /= max(np.linalg.norm(axis), 1e-12)
+        tangent = np.array([-axis[1], axis[0]], dtype=float)
+        center = vertex + axis * float(radius)
+        oc = origin - center
+        a = float(np.dot(direction, direction))
+        b = 2.0 * float(np.dot(direction, oc))
+        c = float(np.dot(oc, oc) - radius * radius)
+        disc = b * b - 4.0 * a * c
+        if disc < 0.0:
+            return None, None
+        root = np.sqrt(disc)
+        candidates = [(-b - root) / (2.0 * a), (-b + root) / (2.0 * a)]
+        candidates = [t for t in candidates if t >= 1e-9]
+        if not candidates:
+            return None, None
+        t_ray = min(candidates)
+        point = origin + direction * t_ray
+        local = point - vertex
+        return point, float(np.dot(local, tangent))
+
+    @staticmethod
+    def _refract_ray_2d(direction: np.ndarray, normal: np.ndarray, n_before: float, n_after: float) -> np.ndarray:
+        d = np.asarray(direction, dtype=float)
+        d /= max(np.linalg.norm(d), 1e-12)
+        n = np.asarray(normal, dtype=float)
+        n /= max(np.linalg.norm(n), 1e-12)
+        if np.dot(d, n) > 0.0:
+            n = -n
+        eta = float(n_before) / float(n_after)
+        cos_i = -float(np.dot(n, d))
+        k = 1.0 - eta * eta * (1.0 - cos_i * cos_i)
+        if k < 0.0:
+            reflected = d + 2.0 * cos_i * n
+            return reflected / max(np.linalg.norm(reflected), 1e-12)
+        refracted = eta * d + (eta * cos_i - np.sqrt(k)) * n
+        return refracted / max(np.linalg.norm(refracted), 1e-12)
+
     def _plot_folded_mirror_preview(self, analysis_ax) -> None:
         self.ax.clear()
         if analysis_ax is not None:
@@ -2772,77 +2875,150 @@ class KrakenLayoutEditor(tk.Tk):
             analysis_ax.text(0.5, 0.5, "Analysis unavailable\nfor folded preview", ha="center", va="center")
             analysis_ax.set_axis_off()
 
-        point = np.array([0.0, 0.0], dtype=float)
-        direction = np.array([0.0, 1.0], dtype=float)
-        max_half = max((max(row.diameter / 2.0, 0.5) for row in self.rows), default=1.0)
-        extent_points = [point.copy()]
-
-        def draw_plane(center: np.ndarray, diameter: float, along: np.ndarray, label: str):
-            tangent = np.array([-along[1], along[0]], dtype=float)
-            norm = np.linalg.norm(tangent)
-            if norm <= 1e-12:
-                tangent = np.array([1.0, 0.0], dtype=float)
-            else:
-                tangent /= norm
-            half = max(diameter / 2.0, 0.5)
-            p0 = center - tangent * half
-            p1 = center + tangent * half
-            self.ax.plot([p0[0], p1[0]], [p0[1], p1[1]], color="#202020", linewidth=1.2, alpha=0.9)
-            self.ax.text(center[0], center[1] - max_half * 0.15, label, ha="center", va="bottom", fontsize=9, color="#202020")
-            extent_points.extend([p0, p1])
-
-        first = self.rows[0]
-        draw_plane(point, first.diameter, direction, first.name or "Object")
+        point, direction, max_half, extent_points, elements = self._draw_folded_layout_geometry()
 
         colors = self._field_colors(max(1, self._current_field_count()))
         field_values = self._sample_field_values(self._current_field_height())
+        pupil_samples = self._sample_ray_heights(self._entrance_radius(max_half))
         fan_angles = self._sample_fan_angles_deg() if self._current_object_mode() == "Finite" else [0.0]
         ray_paths: list[list[np.ndarray]] = []
         for field_index, field_value in enumerate(field_values):
-            for fan_angle in fan_angles:
-                if self._current_object_mode() == "Infinity":
+            if self._current_object_mode() == "Infinity":
+                for pupil_y in pupil_samples:
                     d = direction.copy()
-                    origin = point + np.array([float(field_value), 0.0], dtype=float)
-                else:
+                    origin = point + np.array([float(field_value) + float(pupil_y), 0.0], dtype=float)
+                    p = origin.copy()
+                    path = [origin.copy()]
+                    current_dir = d
+                    current_medium = 1.0
+                    for surface_type, center, row, branch_dir in elements:
+                        if surface_type == "Mirror":
+                            hit, along = self._intersect_ray_with_line(p, current_dir, center, float(row.tilt_x))
+                            if hit is None:
+                                break
+                            half = max(row.diameter / 2.0, 0.5)
+                            if along is not None and abs(along) > half:
+                                break
+                            if np.linalg.norm(hit - path[-1]) > 1e-9:
+                                path.append(hit.copy())
+                            p = hit
+                            current_dir = self._reflect_2d(current_dir, float(row.tilt_x))
+                        elif surface_type == "Standard":
+                            hit, along = self._intersect_ray_with_spherical_surface(
+                                p, current_dir, center, branch_dir, float(row.rc)
+                            )
+                            if hit is None:
+                                break
+                            half = max(row.diameter / 2.0, 0.5)
+                            if along is not None and abs(along) > half:
+                                break
+                            if np.linalg.norm(hit - path[-1]) > 1e-9:
+                                path.append(hit.copy())
+                            axis = branch_dir / max(np.linalg.norm(branch_dir), 1e-12)
+                            sphere_center = center + axis * float(row.rc)
+                            normal = hit - sphere_center
+                            next_medium = self._glass_index_for_preview(row.glass)
+                            current_dir = self._refract_ray_2d(current_dir, normal, current_medium, next_medium)
+                            current_medium = next_medium
+                            p = hit
+                        elif surface_type == "Image":
+                            tangent = np.array([-branch_dir[1], branch_dir[0]], dtype=float)
+                            angle = np.rad2deg(np.arctan2(tangent[1], tangent[0]))
+                            hit, along = self._intersect_ray_with_line(p, current_dir, center, angle)
+                            if hit is None:
+                                break
+                            half = max(row.diameter / 2.0, 0.5)
+                            if along is not None and abs(along) > half:
+                                break
+                            if np.linalg.norm(hit - path[-1]) > 1e-9:
+                                path.append(hit.copy())
+                            p = hit
+                            break
+                    ray_paths.append(path)
+                    extent_points.extend(path)
+            else:
+                for fan_angle in fan_angles:
                     angle = np.deg2rad(float(fan_angle))
                     d = np.array([np.sin(angle), np.cos(angle)], dtype=float)
                     norm = np.linalg.norm(d)
                     if norm > 1e-12:
                         d /= norm
                     origin = point + np.array([float(field_value), 0.0], dtype=float)
-                p = origin.copy()
-                path = [p.copy()]
-                current_dir = d
-                for row in self.rows:
-                    travel = max(float(row.thickness), 0.0)
-                    if travel > 0.0:
-                        p = p + current_dir * travel
-                        path.append(p.copy())
-                    if row.surface == "Mirror":
-                        current_dir = self._reflect_2d(current_dir, float(row.tilt_x))
-                ray_paths.append(path)
-                extent_points.extend(path)
-
-        current_dir = direction.copy()
-        object_thickness = max(float(self.rows[0].thickness), 0.0) if self.rows else 0.0
-        current_point = point + current_dir * object_thickness
-        extent_points.append(current_point.copy())
-        for row in self.rows[1:]:
-            if row.surface == "Mirror":
+                    p = origin.copy()
+                    path = [origin.copy()]
+                    current_dir = d
+                    current_medium = 1.0
+                    for surface_type, center, row, branch_dir in elements:
+                        if surface_type == "Mirror":
+                            hit, along = self._intersect_ray_with_line(p, current_dir, center, float(row.tilt_x))
+                            if hit is None:
+                                break
+                            half = max(row.diameter / 2.0, 0.5)
+                            if along is not None and abs(along) > half:
+                                break
+                            if np.linalg.norm(hit - path[-1]) > 1e-9:
+                                path.append(hit.copy())
+                            p = hit
+                            current_dir = self._reflect_2d(current_dir, float(row.tilt_x))
+                        elif surface_type == "Standard":
+                            hit, along = self._intersect_ray_with_spherical_surface(
+                                p, current_dir, center, branch_dir, float(row.rc)
+                            )
+                            if hit is None:
+                                break
+                            half = max(row.diameter / 2.0, 0.5)
+                            if along is not None and abs(along) > half:
+                                break
+                            if np.linalg.norm(hit - path[-1]) > 1e-9:
+                                path.append(hit.copy())
+                            axis = branch_dir / max(np.linalg.norm(branch_dir), 1e-12)
+                            sphere_center = center + axis * float(row.rc)
+                            normal = hit - sphere_center
+                            next_medium = self._glass_index_for_preview(row.glass)
+                            current_dir = self._refract_ray_2d(current_dir, normal, current_medium, next_medium)
+                            current_medium = next_medium
+                            p = hit
+                        elif surface_type == "Image":
+                            tangent = np.array([-branch_dir[1], branch_dir[0]], dtype=float)
+                            angle = np.rad2deg(np.arctan2(tangent[1], tangent[0]))
+                            hit, along = self._intersect_ray_with_line(p, current_dir, center, angle)
+                            if hit is None:
+                                break
+                            half = max(row.diameter / 2.0, 0.5)
+                            if along is not None and abs(along) > half:
+                                break
+                            if np.linalg.norm(hit - path[-1]) > 1e-9:
+                                path.append(hit.copy())
+                            p = hit
+                            break
+                    ray_paths.append(path)
+                    extent_points.extend(path)
+        for surface_type, center, row, branch_dir in elements:
+            if surface_type == "Mirror":
                 half = max(row.diameter / 2.0, 0.5)
                 theta = np.deg2rad(float(row.tilt_x))
                 tangent = np.array([np.cos(theta), np.sin(theta)], dtype=float)
                 tangent /= max(np.linalg.norm(tangent), 1e-12)
-                p0 = current_point - tangent * half
-                p1 = current_point + tangent * half
+                p0 = center - tangent * half
+                p1 = center + tangent * half
                 self.ax.plot([p0[0], p1[0]], [p0[1], p1[1]], color="#202020", linewidth=2.2, alpha=0.95)
                 extent_points.extend([p0, p1])
-                current_dir = self._reflect_2d(current_dir, float(row.tilt_x))
-            elif row.surface == "Image":
-                draw_plane(current_point, row.diameter, current_dir, row.name or "Image")
-            travel = max(float(row.thickness), 0.0)
-            current_point = current_point + current_dir * travel
-            extent_points.append(current_point.copy())
+            elif surface_type == "Standard":
+                axis = branch_dir / max(np.linalg.norm(branch_dir), 1e-12)
+                tangent = np.array([-axis[1], axis[0]], dtype=float)
+                half = max(row.diameter / 2.0, 0.5)
+                yy = np.linspace(-half, half, 128)
+                if abs(float(row.rc)) <= half + 1e-9:
+                    xx = np.zeros_like(yy)
+                else:
+                    rr = abs(float(row.rc))
+                    sign = 1.0 if float(row.rc) >= 0.0 else -1.0
+                    xx = float(row.rc) - sign * np.sqrt(np.maximum(rr * rr - yy * yy, 0.0))
+                pts = center[None, :] + np.outer(xx, axis) + np.outer(yy, tangent)
+                self.ax.plot(pts[:, 0], pts[:, 1], color="#2563eb", linewidth=1.8, alpha=0.95)
+                extent_points.extend(pts.tolist())
+            elif surface_type == "Image":
+                self._draw_folded_plane(center, row.diameter, branch_dir, row.name or "Image", max_half, extent_points)
 
         rays_per_field = max(1, len(ray_paths) // max(1, len(field_values)))
         for index, path in enumerate(ray_paths):
@@ -2873,6 +3049,431 @@ class KrakenLayoutEditor(tk.Tk):
             ]
         )
         self.status_var.set("Folded mirror preview")
+
+    def _draw_folded_layout_geometry(self):
+        point = np.array([0.0, 0.0], dtype=float)
+        direction = np.array([0.0, 1.0], dtype=float)
+        max_half = max((max(row.diameter / 2.0, 0.5) for row in self.rows), default=1.0)
+        extent_points = [point.copy()]
+
+        if self.rows:
+            first = self.rows[0]
+            self._draw_folded_plane(point, first.diameter, direction, first.name or "Object", max_half, extent_points)
+
+        elements: list[tuple[str, np.ndarray, SurfaceRow, np.ndarray]] = []
+        current_dir = direction.copy()
+        object_thickness = max(float(self.rows[0].thickness), 0.0) if self.rows else 0.0
+        current_point = point + current_dir * object_thickness
+        extent_points.append(current_point.copy())
+        for row in self.rows[1:]:
+            elements.append((row.surface, current_point.copy(), row, current_dir.copy()))
+            if row.surface == "Mirror":
+                current_dir = self._reflect_2d(current_dir, float(row.tilt_x))
+            travel = max(float(row.thickness), 0.0)
+            current_point = current_point + current_dir * travel
+            extent_points.append(current_point.copy())
+
+        for surface_type, center, row, branch_dir in elements:
+            if surface_type == "Mirror":
+                half = max(row.diameter / 2.0, 0.5)
+                theta = np.deg2rad(float(row.tilt_x))
+                tangent = np.array([np.cos(theta), np.sin(theta)], dtype=float)
+                tangent /= max(np.linalg.norm(tangent), 1e-12)
+                p0 = center - tangent * half
+                p1 = center + tangent * half
+                self.ax.plot([p0[0], p1[0]], [p0[1], p1[1]], color="#202020", linewidth=2.2, alpha=0.95)
+                extent_points.extend([p0, p1])
+            elif surface_type == "Standard":
+                axis = branch_dir / max(np.linalg.norm(branch_dir), 1e-12)
+                tangent = np.array([-axis[1], axis[0]], dtype=float)
+                half = max(row.diameter / 2.0, 0.5)
+                yy = np.linspace(-half, half, 128)
+                if abs(float(row.rc)) <= half + 1e-9:
+                    xx = np.zeros_like(yy)
+                else:
+                    rr = abs(float(row.rc))
+                    sign = 1.0 if float(row.rc) >= 0.0 else -1.0
+                    xx = float(row.rc) - sign * np.sqrt(np.maximum(rr * rr - yy * yy, 0.0))
+                pts = center[None, :] + np.outer(xx, axis) + np.outer(yy, tangent)
+                self.ax.plot(pts[:, 0], pts[:, 1], color="#2563eb", linewidth=1.8, alpha=0.95)
+                extent_points.extend(pts.tolist())
+            elif surface_type == "Image":
+                self._draw_folded_plane(center, row.diameter, branch_dir, row.name or "Image", max_half, extent_points)
+
+        return point, direction, max_half, extent_points, elements
+
+    def _draw_folded_plane(
+        self,
+        center: np.ndarray,
+        diameter: float,
+        along: np.ndarray,
+        label: str,
+        max_half: float,
+        extent_points: list[np.ndarray],
+    ) -> None:
+        tangent = np.array([-along[1], along[0]], dtype=float)
+        norm = np.linalg.norm(tangent)
+        if norm <= 1e-12:
+            tangent = np.array([1.0, 0.0], dtype=float)
+        else:
+            tangent /= norm
+        half = max(diameter / 2.0, 0.5)
+        p0 = center - tangent * half
+        p1 = center + tangent * half
+        self.ax.plot([p0[0], p1[0]], [p0[1], p1[1]], color="#202020", linewidth=1.2, alpha=0.9)
+        self.ax.text(center[0], center[1] - max_half * 0.15, label, ha="center", va="bottom", fontsize=9, color="#202020")
+        extent_points.extend([p0, p1])
+
+    def _plot_native_off_axis_preview(self, analysis_ax, max_radius: float, use_native_surfaces: bool = True) -> None:
+        folded_visual_mode = self._is_folded_mirror_preview_mode()
+        if folded_visual_mode:
+            self._plot_folded_mirror_preview(analysis_ax)
+        else:
+            self.ax.clear()
+            if analysis_ax is not None:
+                analysis_ax.clear()
+                analysis_ax.text(0.5, 0.5, "Native off-axis ray preview\nAnalysis unavailable", ha="center", va="center")
+                analysis_ax.set_axis_off()
+
+        wavelength = self._current_wavelength()
+        capture = io.StringIO()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            with redirect_stdout(capture), redirect_stderr(capture):
+                system = self.build_system()
+                if getattr(system.Pr3D, "ExistSolid", 0) == 0:
+                    original_build = system.BUILD
+                    system.BUILD = 1
+                    system.build()
+                    system.BUILD = original_build
+                rays = Kos.raykeeper(system)
+                self._trace_preview_rays(system, rays, wavelength, max_radius)
+        self.append_debug(capture.getvalue())
+        self.last_system = system
+        self.last_rays = rays
+
+        extent_points: list[np.ndarray] = []
+        folded_elements = None
+        folded_max_half = max_radius
+        if folded_visual_mode:
+            _, _, folded_max_half, extent_points, folded_elements = self._draw_folded_layout_geometry()
+        elif not use_native_surfaces:
+            _, _, _, extent_points, _ = self._draw_folded_layout_geometry()
+        elif not folded_visual_mode:
+            native_surface_ok = False
+            try:
+                native_surface_ok = self._plot_native_off_axis_surfaces(system)
+            except Exception as exc:
+                self.append_debug(f"Native off-axis surface draw fallback: {exc}")
+            if not native_surface_ok:
+                if self._has_native_drawn_surfaces():
+                    try:
+                        Plot2DSurf(system, 0, self.ax)
+                    except Exception as exc:
+                        self.append_debug(f"Native off-axis Plot2DSurf fallback: {exc}")
+                self._draw_custom_mirror_surfaces()
+            self._draw_reference_plane_labels()
+
+        field_count = max(1, self._current_field_count())
+        colors = self._field_colors(field_count)
+        ray_count = max(1, self._preview_field_ray_count)
+        ray_lengths: list[int] = []
+        last_surface_counts: dict[int, int] = {}
+        hit_sequences: list[list[int]] = []
+        final_surface_index = max(0, len(self.rows) - 1)
+        rays_reaching_image = 0
+        native_fold_paths = (
+            self._native_folded_display_paths(system, rays, folded_elements, folded_max_half)
+            if folded_elements is not None
+            else None
+        )
+        for index, ray in enumerate(rays.CC):
+            pts = np.asarray(ray, dtype=float)
+            if pts.shape[0] < 2:
+                continue
+            ray_lengths.append(int(pts.shape[0]))
+            try:
+                surf_ids = np.asarray(rays.SURFACE[index], dtype=int).ravel()
+                if surf_ids.size:
+                    sequence = [int(v) for v in surf_ids.tolist()]
+                    hit_sequences.append(sequence)
+                    last_surface = int(surf_ids[-1])
+                    last_surface_counts[last_surface] = last_surface_counts.get(last_surface, 0) + 1
+                    if last_surface == final_surface_index:
+                        rays_reaching_image += 1
+            except Exception:
+                pass
+            field_index = min(index // ray_count, field_count - 1)
+            color = colors[field_index]
+            if native_fold_paths is not None and index < len(native_fold_paths):
+                folded_pts = native_fold_paths[index]
+                if folded_pts.shape[0] >= 2:
+                    self.ax.plot(folded_pts[:, 0], folded_pts[:, 1], color=color, linewidth=1.8, alpha=0.95)
+                    extent_points.extend(folded_pts)
+                    continue
+                if folded_visual_mode:
+                    continue
+            x_vals, y_vals = self._project_xy(pts[:, 2], pts[:, 1])
+            self.ax.plot(x_vals, y_vals, color=color, linewidth=1.8, alpha=0.95)
+            extent_points.extend(np.column_stack((x_vals, y_vals)))
+
+        if self._current_display_orientation() == "Horizontal":
+            if extent_points:
+                ext = np.asarray(extent_points, dtype=float)
+                x_min, y_min = np.min(ext[:, 0]), np.min(ext[:, 1])
+                x_max, y_max = np.max(ext[:, 0]), np.max(ext[:, 1])
+                span_x = max(x_max - x_min, 1.0)
+                span_y = max(y_max - y_min, 1.0)
+                self.ax.set_xlim(x_min - 0.1 * span_x, x_max + 0.1 * span_x)
+                self.ax.set_ylim(y_max + 0.1 * span_y, y_min - 0.1 * span_y)
+            else:
+                self._set_plot_limits_from_drawn_data()
+            self.ax.set_aspect("equal", adjustable="box")
+        elif self.ax.lines:
+            self._set_plot_limits_from_drawn_data()
+        else:
+            self._set_plot_limits_from_layout(max_radius)
+
+        self._set_results(
+            [
+                ("Mode", "Native off-axis ray preview"),
+                ("Surface count", str(len(self.rows))),
+                ("Object mode", self._current_object_mode()),
+                ("Field type", self._current_field_type()),
+                ("Field count", str(self._current_field_count())),
+                ("Ray fan count", str(self._current_ray_count())),
+                ("Native rays", str(len(rays.CC))),
+                ("Rays to image", str(rays_reaching_image)),
+                ("Avg ray hits", f"{np.mean(ray_lengths):.3g}" if ray_lengths else "0"),
+                ("Max ray hits", str(max(ray_lengths) if ray_lengths else 0)),
+                ("Last-hit surfaces", self._native_surface_count_summary(last_surface_counts)),
+            ]
+        )
+        if ray_lengths:
+            self.append_debug(
+                "Native preview rays: count={count}, avg_hits={avg:.3g}, max_hits={mx}".format(
+                    count=len(ray_lengths),
+                    avg=float(np.mean(ray_lengths)),
+                    mx=max(ray_lengths),
+                )
+            )
+        if last_surface_counts:
+            self.append_debug(f"Native preview last-hit surfaces: {self._native_surface_count_summary(last_surface_counts)}")
+        for line in self._native_hit_sequence_lines(hit_sequences):
+            self.append_debug(line)
+        self.status_var.set("Native off-axis ray preview")
+
+    def _preview_ray_start_specs(self, max_half: float) -> list[tuple[np.ndarray, np.ndarray]]:
+        point = np.array([0.0, 0.0], dtype=float)
+        direction = np.array([0.0, 1.0], dtype=float)
+        starts: list[tuple[np.ndarray, np.ndarray]] = []
+        field_values = self._sample_field_values(
+            self._current_field_angle_deg() if self._current_object_mode() == "Infinity" else self._current_field_height()
+        )
+        pupil_samples = self._sample_ray_heights(self._entrance_radius(max_half))
+        if self._current_object_mode() == "Infinity":
+            for field_value in field_values:
+                angle = np.deg2rad(float(field_value))
+                d = np.array([np.sin(angle), np.cos(angle)], dtype=float)
+                d /= max(np.linalg.norm(d), 1e-12)
+                for pupil_y in pupil_samples:
+                    origin = point + np.array([float(pupil_y), 0.0], dtype=float)
+                    starts.append((origin, d.copy()))
+        else:
+            object_distance = max(float(self.rows[0].thickness), 1e-9) if self.rows else 1.0
+            for field_value in field_values:
+                origin = point + np.array([float(field_value), 0.0], dtype=float)
+                for pupil_y in pupil_samples:
+                    target = np.array([float(pupil_y), object_distance], dtype=float)
+                    d = target - origin
+                    d /= max(np.linalg.norm(d), 1e-12)
+                    starts.append((origin.copy(), d))
+        return starts
+
+    def _native_folded_display_paths(self, system, rays, elements, max_half: float) -> list[np.ndarray]:
+        if elements is None:
+            return []
+        starts = self._preview_ray_start_specs(max_half)
+        element_map = {index + 1: item for index, item in enumerate(elements)}
+        paths: list[np.ndarray] = []
+        for ray_index, surface_ids_raw in enumerate(rays.SURFACE):
+            if ray_index >= len(starts):
+                break
+            origin, current_dir = starts[ray_index]
+            current_point = origin.copy()
+            current_medium = 1.0
+            path = [origin.copy()]
+            surface_ids = [int(v) for v in np.asarray(surface_ids_raw, dtype=int).ravel().tolist()]
+            last_id: int | None = None
+            for surface_index in surface_ids:
+                if surface_index == last_id:
+                    continue
+                last_id = surface_index
+                element = element_map.get(surface_index)
+                if element is None:
+                    continue
+                surface_type, center, row, branch_dir = element
+                if surface_type == "Mirror":
+                    hit, along = self._intersect_ray_with_line(current_point, current_dir, center, float(row.tilt_x))
+                    if hit is None:
+                        break
+                    half = max(row.diameter / 2.0, 0.5)
+                    if along is not None and abs(along) > half:
+                        break
+                    if np.linalg.norm(hit - path[-1]) > 1e-9:
+                        path.append(hit.copy())
+                    current_point = hit
+                    current_dir = self._reflect_2d(current_dir, float(row.tilt_x))
+                elif surface_type == "Standard":
+                    hit, along = self._intersect_ray_with_spherical_surface(
+                        current_point, current_dir, center, branch_dir, float(row.rc)
+                    )
+                    if hit is None:
+                        break
+                    half = max(row.diameter / 2.0, 0.5)
+                    if along is not None and abs(along) > half:
+                        break
+                    if np.linalg.norm(hit - path[-1]) > 1e-9:
+                        path.append(hit.copy())
+                    axis = branch_dir / max(np.linalg.norm(branch_dir), 1e-12)
+                    sphere_center = center + axis * float(row.rc)
+                    normal = hit - sphere_center
+                    next_medium = self._glass_index_for_preview(row.glass)
+                    current_dir = self._refract_ray_2d(current_dir, normal, current_medium, next_medium)
+                    current_medium = next_medium
+                    current_point = hit
+                elif surface_type == "Image":
+                    tangent = np.array([-branch_dir[1], branch_dir[0]], dtype=float)
+                    angle = np.rad2deg(np.arctan2(tangent[1], tangent[0]))
+                    hit, along = self._intersect_ray_with_line(current_point, current_dir, center, angle)
+                    if hit is None:
+                        break
+                    half = max(row.diameter / 2.0, 0.5)
+                    if along is not None and abs(along) > half:
+                        break
+                    if np.linalg.norm(hit - path[-1]) > 1e-9:
+                        path.append(hit.copy())
+                    current_point = hit
+            paths.append(np.asarray(path, dtype=float))
+        return paths
+
+    def _native_surface_count_summary(self, counts: dict[int, int]) -> str:
+        if not counts:
+            return "none"
+        parts = []
+        for surface_index in sorted(counts):
+            label = str(surface_index)
+            if 0 <= surface_index < len(self.rows):
+                row = self.rows[surface_index]
+                label = f"{surface_index}:{row.name or row.surface}"
+            parts.append(f"{label} x{counts[surface_index]}")
+        return ", ".join(parts)
+
+    def _native_hit_sequence_lines(self, sequences: list[list[int]]) -> list[str]:
+        if not sequences:
+            return []
+        lines: list[str] = []
+        preview_count = min(8, len(sequences))
+        for ray_index in range(preview_count):
+            seq = sequences[ray_index]
+            labels: list[str] = []
+            last_value: int | None = None
+            for surface_index in seq:
+                if surface_index == last_value:
+                    continue
+                last_value = surface_index
+                if 0 <= surface_index < len(self.rows):
+                    row = self.rows[surface_index]
+                    labels.append(f"{surface_index}:{row.name or row.surface}")
+                else:
+                    labels.append(str(surface_index))
+            lines.append(f"Native ray {ray_index} hits: {' -> '.join(labels) if labels else 'none'}")
+        if len(sequences) > preview_count:
+            lines.append(f"Native hit sequences truncated: {len(sequences) - preview_count} more rays")
+        return lines
+
+    def _plot_native_off_axis_surfaces(self, system) -> bool:
+        transforms = getattr(system, "TRANS_2A", None)
+        surfaces = getattr(system, "AAA", None)
+        if transforms is None or surfaces is None:
+            return False
+        drew_any = False
+        block_count = min(len(self.rows), getattr(surfaces, "n_blocks", 0), len(transforms))
+        for index in range(block_count):
+            row = self.rows[index]
+            if row.surface in {"Object", "Image"}:
+                continue
+            try:
+                poly = surfaces[index]
+                pts = np.asarray(poly.points, dtype=float)
+            except Exception:
+                continue
+            if pts.size == 0:
+                continue
+            try:
+                transform = np.asarray(transforms[index], dtype=float)
+                if transform.shape == (4, 4):
+                    pts_h = np.c_[pts, np.ones(len(pts))]
+                    pts = (pts_h @ transform.T)[:, :3]
+            except Exception:
+                pass
+            proj_x, proj_y = self._native_surface_projection(pts, row)
+            color = "#202020" if row.surface == "Mirror" else "#2563eb"
+            if proj_x is None or proj_y is None or len(proj_x) == 0:
+                continue
+            if len(proj_x) >= 8:
+                self.ax.plot(proj_x, proj_y, color=color, linewidth=1.4, alpha=0.85)
+            else:
+                self.ax.scatter(proj_x, proj_y, s=4, c=color, alpha=0.35, linewidths=0)
+            drew_any = True
+        return drew_any
+
+    def _native_surface_projection(self, pts: np.ndarray, row: SurfaceRow):
+        if pts.size == 0:
+            return None, None
+        pts = np.asarray(pts, dtype=float)
+        if row.surface == "Mirror":
+            return self._native_mirror_projection(pts)
+        return self._native_refractive_projection(pts, row)
+
+    def _native_mirror_projection(self, pts: np.ndarray):
+        proj_x, proj_y = self._project_xy(pts[:, 2], pts[:, 1])
+        proj_x = np.asarray(proj_x, dtype=float)
+        proj_y = np.asarray(proj_y, dtype=float)
+        if proj_x.size == 0:
+            return None, None
+        coords = np.column_stack((proj_x, proj_y))
+        center = np.mean(coords, axis=0)
+        centered = coords - center
+        try:
+            _, _, vh = np.linalg.svd(centered, full_matrices=False)
+            axis = vh[0]
+        except np.linalg.LinAlgError:
+            order = np.argsort(proj_x)
+            return proj_x[order], proj_y[order]
+        t = centered @ axis
+        order = np.argsort(t)
+        return coords[order, 0], coords[order, 1]
+
+    def _native_refractive_projection(self, pts: np.ndarray, row: SurfaceRow):
+        center_x = float(np.median(pts[:, 0]))
+        tolerance = max(float(row.diameter) * 0.015, 0.08)
+        mask = np.abs(pts[:, 0] - center_x) <= tolerance
+        sliced = pts[mask]
+        if sliced.shape[0] < 16:
+            tolerance = max(float(row.diameter) * 0.03, 0.2)
+            mask = np.abs(pts[:, 0] - center_x) <= tolerance
+            sliced = pts[mask]
+        if sliced.shape[0] < 8:
+            stride = max(1, len(pts) // 300)
+            sliced = pts[::stride]
+        proj_x, proj_y = self._project_xy(sliced[:, 2], sliced[:, 1])
+        proj_x = np.asarray(proj_x, dtype=float)
+        proj_y = np.asarray(proj_y, dtype=float)
+        if proj_x.size == 0:
+            return None, None
+        order = np.argsort(proj_x)
+        return proj_x[order], proj_y[order]
 
     def _draw_reference_plane_labels(self) -> None:
         if not self.rows:
