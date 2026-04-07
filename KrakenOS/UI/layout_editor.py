@@ -210,8 +210,8 @@ class KrakenLayoutEditor(tk.Tk):
         }
         self.auto_save_plot_var = tk.BooleanVar(value=not self.headless)
         self.show_native_overlays_var = tk.BooleanVar(value=True)
-        self.show_native_active_spans_var = tk.BooleanVar(value=True)
-        self.show_native_hit_labels_var = tk.BooleanVar(value=True)
+        self.show_native_active_spans_var = tk.BooleanVar(value=False)
+        self.show_native_hit_labels_var = tk.BooleanVar(value=False)
 
         self._build_menu()
         self._build_ui()
@@ -3500,9 +3500,8 @@ class KrakenLayoutEditor(tk.Tk):
             display_pts, metric = self._map_native_surface_to_folded(surface_type, center2, row, branch_dir, pts)
             if display_pts is None or display_pts.shape[0] < 8:
                 continue
-            overlay_color = "#7c3aed" if surface_type == "Standard" else "#b45309"
             self.ax.plot(display_pts[:, 0], display_pts[:, 1], color="white", linewidth=4.6, alpha=0.96)
-            self.ax.plot(display_pts[:, 0], display_pts[:, 1], color=overlay_color, linewidth=2.2, alpha=0.96)
+            self.ax.plot(display_pts[:, 0], display_pts[:, 1], color="#111111", linewidth=2.2, alpha=0.98)
             extent_points.extend(display_pts.tolist())
             counts["standard" if surface_type == "Standard" else "mirror"] += 1
             curves[surface_index] = np.asarray(display_pts, dtype=float)
@@ -3513,8 +3512,7 @@ class KrakenLayoutEditor(tk.Tk):
     def _draw_native_folded_legend(self, native_overlay_counts: dict[str, int]) -> None:
         handles = [
             Line2D([0], [0], color="#202020", linewidth=1.2, label="Base object/image"),
-            Line2D([0], [0], color="#b45309", linewidth=2.2, label="Native mirror"),
-            Line2D([0], [0], color="#7c3aed", linewidth=2.2, label="Native refractive"),
+            Line2D([0], [0], color="#111111", linewidth=2.2, label="Native optical surface"),
             Line2D([0], [0], color="#d97706", linewidth=2.4, linestyle="--", alpha=0.45, label="Native hit count"),
             Line2D([0], [0], color="#f59e0b", linewidth=3.2, label="Native active span"),
             Line2D([0], [0], color="#39FF14", linewidth=1.8, label="Displayed ray"),
@@ -3567,9 +3565,9 @@ class KrakenLayoutEditor(tk.Tk):
             self.ax.fill(
                 polygon[:, 0],
                 polygon[:, 1],
-                facecolor="#dbeafe",
+                facecolor="#f3f4f6",
                 edgecolor="none",
-                alpha=0.28,
+                alpha=0.95,
                 zorder=0.5,
             )
             extent_points.extend(polygon.tolist())
@@ -3586,7 +3584,7 @@ class KrakenLayoutEditor(tk.Tk):
             b_bottom = curve_b[np.argmax(curve_b[:, 1])]
             for p0, p1 in ((a_top, b_top), (a_bottom, b_bottom)):
                 self.ax.plot([p0[0], p1[0]], [p0[1], p1[1]], color="white", linewidth=4.2, alpha=0.96)
-                self.ax.plot([p0[0], p1[0]], [p0[1], p1[1]], color="#7c3aed", linewidth=2.0, alpha=0.96)
+                self.ax.plot([p0[0], p1[0]], [p0[1], p1[1]], color="#111111", linewidth=2.0, alpha=0.98)
                 extent_points.extend([p0, p1])
 
     def _overlay_native_folded_active_spans(
