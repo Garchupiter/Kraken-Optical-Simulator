@@ -14,8 +14,10 @@ from concurrent.futures import ProcessPoolExecutor
 from contextlib import redirect_stderr, redirect_stdout
 import ctypes
 from dataclasses import dataclass, asdict
+import multiprocessing as mp
 import os
 from pathlib import Path
+import pickle
 import re
 import shutil
 import subprocess
@@ -391,6 +393,58 @@ def _trace_analysis_chunk_full(
     )
 
 
+def _preload_pagmo_runtime() -> None:
+    pagmo_lib = Path(os.path.expanduser("~/Projects/pagmo2/_install/lib64/libpagmo.so"))
+    if pagmo_lib.exists():
+        try:
+            ctypes.CDLL(str(pagmo_lib), mode=ctypes.RTLD_GLOBAL)
+        except OSError:
+            pass
+
+
+def _run_optimization_generation_worker(population_payload: bytes, generation_done: int, seed_jitter: int = 0):
+    _preload_pagmo_runtime()
+    import pygmo as pg  # type: ignore
+
+    population = pickle.loads(population_payload)
+    algorithm = pg.algorithm(pg.de(gen=1, seed=42 + int(generation_done) + int(seed_jitter)))
+    algorithm.set_verbosity(1)
+    capture = io.StringIO()
+    with redirect_stdout(capture), redirect_stderr(capture):
+        evolved = algorithm.evolve(population)
+    logs = algorithm.extract(pg.de).get_log()
+    return pickle.dumps(evolved, protocol=pickle.HIGHEST_PROTOCOL), capture.getvalue(), logs
+
+
+def _bootstrap_optimization_generation_worker(
+    udp_payload: bytes,
+    x0: list[float],
+    population_size: int,
+    generation_done: int,
+    seed_jitter: int = 0,
+):
+    _preload_pagmo_runtime()
+    import pygmo as pg  # type: ignore
+
+    udp = pickle.loads(udp_payload)
+    initial = udp.evaluator.evaluate(udp.variables, x0)
+    problem = pg.problem(udp)
+    population = pg.population(problem, size=int(population_size), seed=42)
+    population.push_back(x0)
+    algorithm = pg.algorithm(pg.de(gen=1, seed=42 + int(generation_done) + int(seed_jitter)))
+    algorithm.set_verbosity(1)
+    capture = io.StringIO()
+    with redirect_stdout(capture), redirect_stderr(capture):
+        evolved = algorithm.evolve(population)
+    logs = algorithm.extract(pg.de).get_log()
+    return (
+        pickle.dumps(initial, protocol=pickle.HIGHEST_PROTOCOL),
+        pickle.dumps(evolved, protocol=pickle.HIGHEST_PROTOCOL),
+        capture.getvalue(),
+        logs,
+    )
+
+
 class KrakenLayoutEditor(tk.Tk):
     def __init__(self, *, headless: bool = False) -> None:
         super().__init__()
@@ -458,6 +512,8 @@ class KrakenLayoutEditor(tk.Tk):
         self._gpu_backend_reported = False
         self._analysis_executor: ProcessPoolExecutor | None = None
         self._analysis_executor_workers = 0
+        self._optimization_executor: ProcessPoolExecutor | None = None
+        self._optimization_executor_workers = 0
         self._last_optics_info: dict | None = None
         self._cardinal_marker_artists: list = []
         self._analysis_ax = None
@@ -520,6 +576,7 @@ class KrakenLayoutEditor(tk.Tk):
 
     def destroy(self) -> None:
         self._shutdown_analysis_executor()
+        self._shutdown_optimization_executor()
         super().destroy()
 
     def _build_ui(self) -> None:
@@ -983,6 +1040,16 @@ class KrakenLayoutEditor(tk.Tk):
         button_row.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 8))
         ttk.Button(button_row, text="Start Optimization", command=self.start_optimization).pack(side="left")
         ttk.Button(button_row, text="Stop", command=self.stop_optimization).pack(side="left", padx=(8, 0))
+        ttk.Label(button_row, text="Workers").pack(side="left", padx=(12, 4))
+        self.optimization_workers_var = tk.StringVar(value="Auto")
+        self.optimization_workers_menu = ttk.Combobox(
+            button_row,
+            textvariable=self.optimization_workers_var,
+            state="readonly",
+            width=6,
+            values=["Auto", "1", "2", "4", "6", "8"],
+        )
+        self.optimization_workers_menu.pack(side="left")
 
         ttk.Label(parent, text="Merit operands").grid(row=1, column=0, sticky="w", pady=(0, 2))
         self.merit_mode_list = tk.Listbox(
@@ -1367,6 +1434,9 @@ class KrakenLayoutEditor(tk.Tk):
             binary = parts[0]
             if shutil.which(binary):
                 return [*parts, str(image_path)]
+        for binary in ("nomacs-x11", "nomacs"):
+            if shutil.which(binary):
+                return [binary, str(image_path)]
         if sys.platform == "darwin":
             return ["open", str(image_path)]
         if os.name == "nt":
@@ -1375,7 +1445,7 @@ class KrakenLayoutEditor(tk.Tk):
             return ["xdg-open", str(image_path)]
         if shutil.which("gio"):
             return ["gio", "open", str(image_path)]
-        for binary in ("imv", "feh", "eog", "gwenview", "nomacs", "ristretto", "pqiv", "sxiv", "nsxiv"):
+        for binary in ("imv", "feh", "eog", "gwenview", "ristretto", "pqiv", "sxiv", "nsxiv"):
             if shutil.which(binary):
                 return [binary, str(image_path)]
         return None
@@ -5622,6 +5692,15 @@ class KrakenLayoutEditor(tk.Tk):
 
     def _optimization_worker_count(self) -> int:
         cpu_total = max(1, int(os.cpu_count() or 1))
+        if hasattr(self, "optimization_workers_var"):
+            selected = self.optimization_workers_var.get().strip()
+            if selected and selected.lower() != "auto":
+                try:
+                    parsed = int(selected)
+                    if parsed > 0:
+                        return max(1, min(parsed, cpu_total))
+                except ValueError:
+                    pass
         configured = os.getenv("KRAKEN_OPT_WORKERS", "").strip()
         if configured:
             try:
@@ -5630,7 +5709,7 @@ class KrakenLayoutEditor(tk.Tk):
                     return max(1, min(parsed, cpu_total))
             except ValueError:
                 pass
-        return 1 if cpu_total <= 1 else max(2, cpu_total - 1)
+        return 1 if cpu_total <= 1 else max(2, min(cpu_total - 1, 4))
 
     def _ensure_analysis_executor(self, worker_count: int) -> ProcessPoolExecutor | None:
         worker_count = max(1, int(worker_count))
@@ -5648,6 +5727,92 @@ class KrakenLayoutEditor(tk.Tk):
             self._analysis_executor.shutdown(wait=False, cancel_futures=True)
             self._analysis_executor = None
             self._analysis_executor_workers = 0
+
+    def _ensure_optimization_executor(self, worker_count: int) -> ProcessPoolExecutor:
+        worker_count = max(1, int(worker_count))
+        if (
+            self._optimization_executor is not None
+            and self._optimization_executor_workers == worker_count
+        ):
+            return self._optimization_executor
+        self._shutdown_optimization_executor()
+        self._optimization_executor = ProcessPoolExecutor(
+            max_workers=worker_count,
+            mp_context=mp.get_context("spawn"),
+        )
+        self._optimization_executor_workers = worker_count
+        return self._optimization_executor
+
+    def _shutdown_optimization_executor(self) -> None:
+        if self._optimization_executor is not None:
+            self._optimization_executor.shutdown(wait=False, cancel_futures=True)
+            self._optimization_executor = None
+            self._optimization_executor_workers = 0
+
+    def _schedule_bootstrap_futures(self, ctx: dict) -> None:
+        workers = max(1, int(ctx.get("workers", 1)))
+        executor = self._ensure_optimization_executor(workers)
+        futures = []
+        for island_index in range(workers):
+            futures.append(
+                executor.submit(
+                    _bootstrap_optimization_generation_worker,
+                    ctx["udp_payload"],
+                    ctx["x0"],
+                    int(ctx["population_size"]),
+                    0,
+                    island_index * 100003,
+                )
+            )
+        ctx["pending_future"] = futures
+        ctx["pending_kind"] = "bootstrap"
+
+    def _schedule_generation_futures(self, ctx: dict) -> bool:
+        try:
+            population_payload = pickle.dumps(ctx["population"], protocol=pickle.HIGHEST_PROTOCOL)
+        except Exception as exc:
+            self.append_progress(f"Optimization failed before generation {ctx['generation_done'] + 1}: {exc}")
+            self._finish_optimization(cancelled=True)
+            return False
+        workers = max(1, int(ctx.get("workers", 1)))
+        executor = self._ensure_optimization_executor(workers)
+        futures = []
+        for island_index in range(workers):
+            futures.append(
+                executor.submit(
+                    _run_optimization_generation_worker,
+                    population_payload,
+                    int(ctx["generation_done"]),
+                    island_index * 100003,
+                )
+            )
+        ctx["pending_future"] = futures
+        ctx["pending_kind"] = "evolve"
+        return True
+
+    def _retry_optimization_with_fewer_workers(self, ctx: dict, phase: str, exc: Exception | None) -> bool:
+        workers = max(1, int(ctx.get("workers", 1)))
+        if workers <= 1:
+            return False
+        reduced = max(1, workers // 2)
+        if reduced == workers:
+            reduced = 1
+        self.append_progress(
+            f"Optimization {phase} failed with {workers} workers; retrying with {reduced}. "
+            f"Reason: {_short_error_message(exc) if exc is not None else 'worker failure'}"
+        )
+        ctx["workers"] = reduced
+        ctx["compute_backend"] = "pygmo.de (single worker)" if reduced == 1 else f"pygmo.de islands ({reduced} workers)"
+        self._shutdown_optimization_executor()
+        ctx["pending_future"] = None
+        if phase == "bootstrap":
+            self._schedule_bootstrap_futures(ctx)
+        else:
+            if not self._schedule_generation_futures(ctx):
+                return False
+        self._update_progress_indicators()
+        self.after(1, self._optimization_step)
+        return True
 
     def _trace_pattern_chunks_parallel(
         self,
@@ -6057,12 +6222,22 @@ class KrakenLayoutEditor(tk.Tk):
             self.after_cancel(self._spinner_after_id)
             self._spinner_after_id = None
         self._spinner_phase = 0
+        try:
+            self.progress_bar.configure(mode="indeterminate")
+            self.progress_bar.start(12)
+        except Exception:
+            pass
         self._animate_progress_spinner()
 
     def _stop_progress_spinner(self) -> None:
         if self._spinner_after_id is not None:
             self.after_cancel(self._spinner_after_id)
             self._spinner_after_id = None
+        try:
+            self.progress_bar.stop()
+            self.progress_bar.configure(mode="determinate")
+        except Exception:
+            pass
         if not self.optimization_running:
             self.progress_spinner_var.set("idle")
 
@@ -6308,80 +6483,57 @@ class KrakenLayoutEditor(tk.Tk):
             x0.append(row.rc if variable.parameter == "Rc" else row.thickness)
 
         evaluator = MeritEvaluator(system.SDT, setup=system.SETUP, merit_function=merit)
-        initial = evaluator.evaluate(variables, x0)
-        self.status_var.set(f"Optimization running: initial merit = {initial.total:.6g}")
         self.append_progress(
             "Optimization start | operands: "
             + ", ".join(spec.label for spec in merit_specs)
         )
         self.append_progress(f"Variables: {', '.join(v.normalized_name() for v in variables)}")
-        self.append_progress(f"Initial merit: {initial.total:.6g}")
-        self.update_idletasks()
 
+        udp = Pygmo2MeritProblem(evaluator=evaluator, variables=variables)
+        population_size = 12
+        optimization_workers = 1
+        optimization_backend = "pygmo.de (single worker)"
         try:
-            import ctypes
-            pagmo_lib = Path(os.path.expanduser("~/Projects/pagmo2/_install/lib64/libpagmo.so"))
-            if pagmo_lib.exists():
-                try:
-                    ctypes.CDLL(str(pagmo_lib), mode=ctypes.RTLD_GLOBAL)
-                except OSError:
-                    pass
-            import pygmo as pg  # type: ignore
+            _preload_pagmo_runtime()
+            import pygmo as _pg  # type: ignore  # noqa: F401
         except Exception as exc:
             self.append_progress(f"Optimization aborted: pygmo unavailable: {exc}")
             return
-
-        udp = Pygmo2MeritProblem(evaluator=evaluator, variables=variables)
-        problem = pg.problem(udp)
-        population_size = 12
-        optimization_workers = 1
-        optimization_backend = "sequential"
-        population_kwargs: dict[str, object] = {"size": population_size, "seed": 42}
         parallel_pref = os.getenv("KRAKEN_OPT_PARALLEL", "1").strip().lower()
         parallel_enabled = parallel_pref not in {"0", "false", "off", "no"}
         if parallel_enabled:
             optimization_workers = self._optimization_worker_count()
-            if optimization_workers > 1:
-                try:
-                    pg.mp_bfe.resize_pool(optimization_workers)
-                    population_kwargs["b"] = pg.bfe(pg.mp_bfe())
-                    optimization_backend = f"mp_bfe ({optimization_workers} workers)"
-                except Exception as exc:
-                    optimization_workers = 1
-                    optimization_backend = "sequential"
-                    self.append_debug(f"Optimization parallel backend disabled: {exc}")
-        try:
-            population = pg.population(problem, **population_kwargs)
-        except Exception as exc:
-            if "b" not in population_kwargs:
-                self.append_progress(f"Optimization aborted: failed to initialize population: {exc}")
-                return
-            self.append_debug(f"Optimization population batch evaluator failed: {exc}")
-            self.append_progress("Optimization batch evaluator unavailable; using workers=1.")
-            optimization_workers = 1
-            optimization_backend = "sequential"
-            try:
-                population = pg.population(problem, size=population_size, seed=42)
-            except Exception as fallback_exc:
-                self.append_progress(f"Optimization aborted: failed to initialize fallback population: {fallback_exc}")
-                return
-        population.push_back(x0)
+        if optimization_workers > 1:
+            optimization_backend = f"pygmo.de islands ({optimization_workers} workers)"
         self.append_progress(f"Optimization compute: {optimization_backend}")
+        self.append_progress("Preparing optimization islands...")
+
+        try:
+            udp_payload = pickle.dumps(udp, protocol=pickle.HIGHEST_PROTOCOL)
+        except Exception as exc:
+            self.append_progress(f"Optimization aborted: failed to prepare optimizer payload: {exc}")
+            return
 
         self.optimization_running = True
         self.optimization_cancel_requested = False
         self.optimization_context = {
-            "pg": pg,
             "variables": variables,
             "evaluator": evaluator,
-            "initial": initial,
-            "population": population,
+            "initial": None,
+            "population": None,
             "generations_total": 12,
             "generation_done": 0,
             "verbosity_every": 3,
             "workers": optimization_workers,
             "compute_backend": optimization_backend,
+            "udp_payload": udp_payload,
+            "x0": list(x0),
+            "population_size": population_size,
+            "pending_future": None,
+            "pending_kind": None,
         }
+        self._schedule_bootstrap_futures(self.optimization_context)
+        self.status_var.set("Optimization preparing...")
         self._update_progress_indicators()
         self._start_progress_spinner()
         self.after(0, self._optimization_step)
@@ -6391,7 +6543,7 @@ class KrakenLayoutEditor(tk.Tk):
             self.append_progress("Stop ignored: no optimization is running.")
             return
         self.optimization_cancel_requested = True
-        self.append_progress("Stop requested. Optimization will stop after the current generation.")
+        self.append_progress("Stop requested. Optimization will stop when the current generation finishes.")
         self._update_progress_indicators()
 
     def _optimization_step(self) -> None:
@@ -6399,29 +6551,128 @@ class KrakenLayoutEditor(tk.Tk):
             return
 
         ctx = self.optimization_context
+        pending = ctx.get("pending_future")
+        pending_kind = str(ctx.get("pending_kind", "evolve"))
+
         if self.optimization_cancel_requested:
+            if pending_kind in {"bootstrap", "evolve"} and pending:
+                if any(not future.done() for future in pending):
+                    self.after(25, self._optimization_step)
+                    return
             self._finish_optimization(cancelled=True)
             return
 
-        pg = ctx["pg"]
-        algorithm = pg.algorithm(pg.de(gen=1, seed=42 + ctx["generation_done"]))
-        algorithm.set_verbosity(1)
-        capture = io.StringIO()
-        try:
-            with redirect_stdout(capture), redirect_stderr(capture):
-                ctx["population"] = algorithm.evolve(ctx["population"])
-        except Exception as exc:
-            self.append_debug(capture.getvalue())
-            self.append_progress(f"Optimization failed at generation {ctx['generation_done'] + 1}: {exc}")
+        if pending_kind == "bootstrap":
+            if not pending:
+                self.append_progress("Optimization failed: bootstrap futures missing.")
+                self._finish_optimization(cancelled=True)
+                return
+            if any(not future.done() for future in pending):
+                self.after(25, self._optimization_step)
+                return
+
+            best_population = None
+            best_logs = None
+            best_debug = ""
+            best_score = float("inf")
+            initial_result = None
+            failure = None
+            for future in pending:
+                try:
+                    initial_payload, evolved_payload, debug_output, logs = future.result()
+                    if initial_result is None:
+                        initial_result = pickle.loads(initial_payload)
+                    evolved_population = pickle.loads(evolved_payload)
+                except Exception as exc:
+                    failure = exc
+                    break
+                score = float(evolved_population.champion_f[0])
+                if score < best_score:
+                    best_score = score
+                    best_population = evolved_population
+                    best_logs = logs
+                    best_debug = debug_output
+
+            ctx["pending_future"] = None
+            ctx["pending_kind"] = "evolve"
+
+            if failure is not None or best_population is None or initial_result is None:
+                if self._retry_optimization_with_fewer_workers(ctx, "bootstrap", failure):
+                    return
+                self.append_progress(f"Optimization failed during bootstrap: {failure}")
+                self._finish_optimization(cancelled=True)
+                return
+
+            ctx["initial"] = initial_result
+            ctx["population"] = best_population
+            if best_debug:
+                self.append_debug(best_debug)
+            self.status_var.set(f"Optimization running: initial merit = {initial_result.total:.6g}")
+            self.append_progress(f"Initial merit: {initial_result.total:.6g}")
+            ctx["generation_done"] = 1
+            self._update_progress_indicators()
+            if best_logs:
+                gen, fevals, best, dx, df = best_logs[-1]
+                if (
+                    ctx["generation_done"] == ctx["generations_total"]
+                    or ctx["generation_done"] % ctx["verbosity_every"] == 0
+                    or ctx["generation_done"] == 1
+                ):
+                    self.append_progress(
+                        f"Gen {int(ctx['generation_done']):>3} | fevals {int(fevals):>4} | best {float(best):.6g} | dx {float(dx):.6g} | df {float(df):.6g}"
+                    )
+            if ctx["generation_done"] >= ctx["generations_total"]:
+                self._finish_optimization(cancelled=False)
+                return
+            self.after(1, self._optimization_step)
+            return
+
+        if not pending:
+            if not self._schedule_generation_futures(ctx):
+                return
+            self.after(25, self._optimization_step)
+            return
+
+        if any(not future.done() for future in pending):
+            self.after(25, self._optimization_step)
+            return
+
+        best_population = None
+        best_logs = None
+        best_debug = ""
+        best_score = float("inf")
+        failure = None
+        for future in pending:
+            try:
+                evolved_payload, debug_output, logs = future.result()
+                evolved_population = pickle.loads(evolved_payload)
+            except Exception as exc:
+                failure = exc
+                break
+            score = float(evolved_population.champion_f[0])
+            if score < best_score:
+                best_score = score
+                best_population = evolved_population
+                best_logs = logs
+                best_debug = debug_output
+
+        ctx["pending_future"] = None
+        ctx["pending_kind"] = "evolve"
+
+        if failure is not None or best_population is None:
+            if self._retry_optimization_with_fewer_workers(ctx, "generation", failure):
+                return
+            self.append_progress(f"Optimization failed at generation {ctx['generation_done'] + 1}: {failure}")
             self._finish_optimization(cancelled=True)
             return
 
-        self.append_debug(capture.getvalue())
+        ctx["population"] = best_population
+        if best_debug:
+            self.append_debug(best_debug)
         ctx["generation_done"] += 1
         self._update_progress_indicators()
-        logs = algorithm.extract(pg.de).get_log()
-        if logs:
-            gen, fevals, best, dx, df = logs[-1]
+        if best_logs:
+            gen, fevals, best, dx, df = best_logs[-1]
             if (
                 ctx["generation_done"] == 1
                 or ctx["generation_done"] == ctx["generations_total"]
@@ -6445,6 +6696,23 @@ class KrakenLayoutEditor(tk.Tk):
             return
 
         ctx = self.optimization_context
+        pending = ctx.get("pending_future")
+        pending_kind = str(ctx.get("pending_kind", "evolve"))
+        if pending_kind in {"bootstrap", "evolve"} and pending:
+            for future in pending:
+                if not future.done():
+                    future.cancel()
+            ctx["pending_future"] = None
+        ctx["pending_kind"] = None
+        if ctx.get("population") is None:
+            self.optimization_context = None
+            self.optimization_running = False
+            self.optimization_cancel_requested = False
+            self._stop_progress_spinner()
+            self._update_progress_indicators()
+            self.status_var.set("Optimization cancelled before first generation completed")
+            self.append_progress("Optimization cancelled before first generation completed.")
+            return
         population = ctx["population"]
         champion_x = population.champion_x
         champion = ctx["evaluator"].evaluate(ctx["variables"], champion_x)
@@ -6458,7 +6726,7 @@ class KrakenLayoutEditor(tk.Tk):
 
         self._sync_table()
         self.refresh_plot()
-        initial = ctx["initial"]
+        initial = ctx["initial"] or champion
         compute_backend = str(ctx.get("compute_backend", "sequential"))
         compute_workers = max(1, int(ctx.get("workers", 1)))
         if cancelled:
