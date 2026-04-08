@@ -19,6 +19,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 import time
 import tkinter as tk
 import tkinter.font as tkfont
@@ -28,6 +29,8 @@ import warnings
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
+from matplotlib.patches import Rectangle
+from matplotlib.transforms import Bbox
 import numpy as np
 
 import KrakenOS as Kos
@@ -455,6 +458,11 @@ class KrakenLayoutEditor(tk.Tk):
         self._gpu_backend_reported = False
         self._analysis_executor: ProcessPoolExecutor | None = None
         self._analysis_executor_workers = 0
+        self._last_optics_info: dict | None = None
+        self._cardinal_marker_artists: list = []
+        self._analysis_ax = None
+        self._hover_hint_artists: dict = {}
+        self._hover_axis = None
 
         self._build_menu()
         self._build_ui()
@@ -714,27 +722,43 @@ class KrakenLayoutEditor(tk.Tk):
         plot_toolbar = ttk.Frame(plot_frame)
         plot_toolbar.grid(row=0, column=0, sticky="ew", pady=(0, 6))
         ttk.Button(plot_toolbar, text="Open 3D", command=self.open_3d_view).pack(side="left")
-        ttk.Button(plot_toolbar, text="2D", command=lambda: self.set_analysis_mode("none")).pack(side="left", padx=(6, 0))
-        ttk.Button(plot_toolbar, text="Native", command=lambda: self.set_analysis_mode("native_off_axis")).pack(side="left", padx=(6, 0))
-        ttk.Button(plot_toolbar, text="Spot", command=lambda: self.set_analysis_mode("spot")).pack(side="left", padx=(6, 0))
-        ttk.Button(plot_toolbar, text="PSF", command=lambda: self.set_analysis_mode("psf")).pack(side="left", padx=(6, 0))
-        ttk.Button(plot_toolbar, text="RMS", command=lambda: self.set_analysis_mode("rms")).pack(side="left", padx=(6, 0))
-        ttk.Button(plot_toolbar, text="FC/Dist", command=lambda: self.set_analysis_mode("field_curvature")).pack(side="left", padx=(6, 0))
-        ttk.Button(plot_toolbar, text="Pupil", command=lambda: self.set_analysis_mode("pupil")).pack(side="left", padx=(6, 0))
-        ttk.Button(plot_toolbar, text="Seidel", command=lambda: self.set_analysis_mode("seidel")).pack(side="left", padx=(6, 0))
-        ttk.Button(plot_toolbar, text="Wavefront", command=lambda: self.set_analysis_mode("wavefront")).pack(side="left", padx=(6, 0))
-        ttk.Button(plot_toolbar, text="MTF", command=lambda: self.set_analysis_mode("mtf")).pack(side="left", padx=(6, 0))
+        self.analysis_mode_button_var = tk.StringVar(value=self.analysis_mode)
+        mode_buttons = (
+            ("2D", "none"),
+            ("Native", "native_off_axis"),
+            ("Spot", "spot"),
+            ("PSF", "psf"),
+            ("RMS", "rms"),
+            ("FC/Dist", "field_curvature"),
+            ("Pupil", "pupil"),
+            ("Seidel", "seidel"),
+            ("Wavefront", "wavefront"),
+            ("MTF", "mtf"),
+        )
+        for text, mode in mode_buttons:
+            ttk.Radiobutton(
+                plot_toolbar,
+                text=text,
+                style="Toolbutton",
+                variable=self.analysis_mode_button_var,
+                value=mode,
+                command=lambda m=mode: self.set_analysis_mode(m),
+            ).pack(side="left", padx=(6, 0))
         ttk.Checkbutton(
             plot_toolbar,
             text="Show PP / EP / XP",
             variable=self.show_cardinals_var,
-            command=self.refresh_plot,
+            command=self._on_toggle_cardinal_markers,
         ).pack(side="left", padx=(12, 0))
+        ttk.Button(plot_toolbar, text="Update", command=self._manual_update_plot).pack(side="right")
 
         self.figure = Figure(figsize=(7, 5), dpi=100)
         self.ax = self.figure.add_subplot(111)
         self.canvas = FigureCanvasTkAgg(self.figure, master=plot_frame)
         self.canvas.get_tk_widget().grid(row=1, column=0, sticky="nsew")
+        self.canvas.mpl_connect("button_press_event", self._on_plot_canvas_click)
+        self.canvas.mpl_connect("motion_notify_event", self._on_plot_canvas_motion)
+        self.canvas.mpl_connect("figure_leave_event", self._on_plot_canvas_leave)
 
         self.debug_text = tk.Text(debug_frame, wrap="word", height=8, width=24)
         self.debug_text.grid(row=0, column=0, sticky="nsew")
@@ -810,7 +834,8 @@ class KrakenLayoutEditor(tk.Tk):
 
         ttk.Label(parent, text="Wavelength [um]").grid(row=0, column=1, sticky="w", pady=(0, 2), padx=(8, 0))
         self.wavelength_var = tk.StringVar(value="0.55")
-        ttk.Entry(parent, textvariable=self.wavelength_var, width=12).grid(
+        wavelength_entry = ttk.Entry(parent, textvariable=self.wavelength_var, width=12)
+        wavelength_entry.grid(
             row=1, column=1, sticky="ew", pady=(0, 8), padx=(8, 0)
         )
 
@@ -824,17 +849,19 @@ class KrakenLayoutEditor(tk.Tk):
             values=["Vertical", "Horizontal"],
         )
         self.display_orientation_menu.grid(row=3, column=0, sticky="ew", pady=(0, 8))
-        self.display_orientation_menu.bind("<<ComboboxSelected>>", lambda _e: self.refresh_plot())
+        self.display_orientation_menu.bind("<<ComboboxSelected>>", self._mark_plot_update_pending)
 
         ttk.Label(parent, text="Ray fan count").grid(row=2, column=1, sticky="w", pady=(0, 2), padx=(8, 0))
         self.ray_count_var = tk.StringVar(value="31")
-        ttk.Entry(parent, textvariable=self.ray_count_var, width=12).grid(
+        ray_count_entry = ttk.Entry(parent, textvariable=self.ray_count_var, width=12)
+        ray_count_entry.grid(
             row=3, column=1, sticky="ew", pady=(0, 8), padx=(8, 0)
         )
 
         ttk.Label(parent, text="Pupil factor").grid(row=4, column=0, sticky="w", pady=(0, 2))
         self.ray_height_factor_var = tk.StringVar(value="0.8")
-        ttk.Entry(parent, textvariable=self.ray_height_factor_var, width=12).grid(
+        ray_height_entry = ttk.Entry(parent, textvariable=self.ray_height_factor_var, width=12)
+        ray_height_entry.grid(
             row=5, column=0, sticky="ew", pady=(0, 8)
         )
 
@@ -848,7 +875,7 @@ class KrakenLayoutEditor(tk.Tk):
             values=["Auto"],
         )
         self.analysis_surface_menu.grid(row=5, column=1, sticky="ew", pady=(0, 8), padx=(8, 0))
-        self.analysis_surface_menu.bind("<<ComboboxSelected>>", lambda _e: self.refresh_plot())
+        self.analysis_surface_menu.bind("<<ComboboxSelected>>", self._mark_plot_update_pending)
 
         ttk.Label(parent, text="Aperture type").grid(row=6, column=0, sticky="w", pady=(0, 2))
         self.aperture_type_var = tk.StringVar(value="EPD")
@@ -860,23 +887,33 @@ class KrakenLayoutEditor(tk.Tk):
             values=["STOP", "EPD"],
         )
         self.aperture_type_menu.grid(row=7, column=0, sticky="ew")
-        self.aperture_type_menu.bind("<<ComboboxSelected>>", lambda _e: self.refresh_plot())
+        self.aperture_type_menu.bind("<<ComboboxSelected>>", self._mark_plot_update_pending)
 
         ttk.Label(parent, text="Aperture value").grid(row=6, column=1, sticky="w", pady=(0, 2), padx=(8, 0))
         self.aperture_value_var = tk.StringVar(value="4.0")
-        ttk.Entry(parent, textvariable=self.aperture_value_var, width=12).grid(
+        aperture_value_entry = ttk.Entry(parent, textvariable=self.aperture_value_var, width=12)
+        aperture_value_entry.grid(
             row=7, column=1, sticky="ew", padx=(8, 0)
         )
 
+        ttk.Label(parent, text="Spot view").grid(row=8, column=0, sticky="w", pady=(8, 2))
+        self.spot_view_mode_var = tk.StringVar(value="Grid")
+        self.spot_view_mode_menu = ttk.Combobox(
+            parent,
+            textvariable=self.spot_view_mode_var,
+            state="readonly",
+            width=12,
+            values=["Grid", "Absolute", "Centroid"],
+        )
+        self.spot_view_mode_menu.grid(row=9, column=0, sticky="ew")
+        self.spot_view_mode_menu.bind("<<ComboboxSelected>>", self._mark_plot_update_pending)
+
         self.show_cardinals_var = tk.BooleanVar(value=True)
 
-        for variable in (
-            self.wavelength_var,
-            self.ray_count_var,
-            self.ray_height_factor_var,
-            self.aperture_value_var,
-        ):
-            variable.trace_add("write", self._schedule_refresh_plot)
+        self._bind_deferred_manual_update(wavelength_entry)
+        self._bind_deferred_manual_update(ray_count_entry)
+        self._bind_deferred_manual_update(ray_height_entry)
+        self._bind_deferred_manual_update(aperture_value_entry)
 
     def _build_field_panel(self, parent) -> None:
         for column in range(2):
@@ -899,21 +936,23 @@ class KrakenLayoutEditor(tk.Tk):
         self.field_value_label_var = tk.StringVar(value="Angle [deg]")
         ttk.Label(parent, textvariable=self.field_value_label_var).grid(row=0, column=1, sticky="w", pady=(0, 2), padx=(8, 0))
         self.field_value_var = tk.StringVar(value="5.0")
-        ttk.Entry(parent, textvariable=self.field_value_var, width=12).grid(
+        field_value_entry = ttk.Entry(parent, textvariable=self.field_value_var, width=12)
+        field_value_entry.grid(
             row=1, column=1, sticky="ew", pady=(0, 8), padx=(8, 0)
         )
 
         ttk.Label(parent, text="Field count").grid(row=2, column=0, sticky="w", pady=(0, 2))
         self.field_count_var = tk.StringVar(value="1")
-        ttk.Entry(parent, textvariable=self.field_count_var, width=12).grid(
+        field_count_entry = ttk.Entry(parent, textvariable=self.field_count_var, width=12)
+        field_count_entry.grid(
             row=3, column=0, sticky="ew", pady=(0, 8)
         )
 
         self.field_warning_var = tk.StringVar(value="")
         self.field_summary_var = tk.StringVar(value="")
 
-        for variable in (self.field_count_var, self.field_value_var):
-            variable.trace_add("write", self._schedule_refresh_plot)
+        self._bind_deferred_manual_update(field_value_entry, sync_fields=True)
+        self._bind_deferred_manual_update(field_count_entry, sync_fields=True)
         self._sync_field_mode_ui()
 
     def _on_control_stack_configure(self, _event=None) -> None:
@@ -1123,6 +1162,20 @@ class KrakenLayoutEditor(tk.Tk):
         widget.bind("<Tab>", lambda _e: self.refresh_plot())
         widget.bind("<FocusOut>", lambda _e: self.refresh_plot())
 
+    def _bind_deferred_manual_update(self, widget: tk.Widget, *, sync_fields: bool = False) -> None:
+        def _on_commit(_event=None):
+            if sync_fields:
+                self._sync_object_controls()
+            self._mark_plot_update_pending()
+
+        widget.bind("<Return>", _on_commit)
+        widget.bind("<Tab>", _on_commit)
+        widget.bind("<FocusOut>", _on_commit)
+
+    def _mark_plot_update_pending(self, _event=None) -> None:
+        if hasattr(self, "status_var"):
+            self.status_var.set("Display settings changed. Click Update.")
+
     def _apply_operand_control_visibility(self, label: str) -> None:
         spec = self._merit_spec_for_label(label)
         if spec is None:
@@ -1191,7 +1244,190 @@ class KrakenLayoutEditor(tk.Tk):
 
     def set_analysis_mode(self, mode: str) -> None:
         self.analysis_mode = mode
+        if hasattr(self, "analysis_mode_button_var"):
+            self.analysis_mode_button_var.set(mode)
+        mode_label_map = {
+            "none": "2D",
+            "native_off_axis": "Native",
+            "spot": "Spot",
+            "psf": "PSF",
+            "rms": "RMS",
+            "field_curvature": "FC/Dist",
+            "pupil": "Pupil",
+            "seidel": "Seidel",
+            "wavefront": "Wavefront",
+            "mtf": "MTF",
+        }
+        mode_label = mode_label_map.get(mode, mode or "2D")
+        if hasattr(self, "status_var"):
+            self.status_var.set(f"Analysis mode set to {mode_label}. Click Update.")
+        self.append_progress(f"Mode selected: {mode_label} (pending update).")
+
+    def _manual_update_plot(self) -> None:
+        mode = (self.analysis_mode or "none").strip()
+        mode_label_map = {
+            "none": "2D",
+            "native_off_axis": "Native",
+            "spot": "Spot",
+            "psf": "PSF",
+            "rms": "RMS",
+            "field_curvature": "FC/Dist",
+            "pupil": "Pupil",
+            "seidel": "Seidel",
+            "wavefront": "Wavefront",
+            "mtf": "MTF",
+        }
+        mode_label = mode_label_map.get(mode, mode or "2D")
+        modes_with_internal_progress = {"psf", "pupil", "seidel", "wavefront", "field_curvature", "mtf"}
+        if mode in modes_with_internal_progress:
+            self.append_progress(f"Display update requested ({mode_label}).")
+            self.refresh_plot()
+            self.append_progress(f"Display update completed ({mode_label}).")
+            return
+        self._begin_analysis_progress("Display update")
+        self._update_analysis_progress(f"Refreshing {mode_label}", 1, 2)
         self.refresh_plot()
+        self._update_analysis_progress("Rendering", 2, 2)
+        self._finish_analysis_progress("Display update", success=True)
+
+    def _on_plot_canvas_click(self, event) -> None:
+        if not getattr(event, "dblclick", False):
+            return
+        target_ax = getattr(event, "inaxes", None)
+        if target_ax not in {self.ax, self._analysis_ax}:
+            return
+        self._open_high_res_plot_in_system_viewer(target_ax)
+
+    def _on_plot_canvas_motion(self, event) -> None:
+        target_ax = getattr(event, "inaxes", None)
+        if target_ax not in self._hover_hint_artists:
+            target_ax = None
+        if target_ax is self._hover_axis:
+            return
+        self._set_hover_axis(target_ax)
+
+    def _on_plot_canvas_leave(self, _event=None) -> None:
+        self._set_hover_axis(None)
+
+    def _configure_plot_hover_hints(self) -> None:
+        self._hover_hint_artists = {}
+        self._hover_axis = None
+        if hasattr(self, "canvas"):
+            self.canvas.get_tk_widget().configure(cursor="")
+        candidate_axes = [self.ax]
+        if self._analysis_ax is not None:
+            candidate_axes.append(self._analysis_ax)
+        for axis in candidate_axes:
+            if axis is None:
+                continue
+            highlight = Rectangle(
+                (0.0, 0.0),
+                1.0,
+                1.0,
+                transform=axis.transAxes,
+                facecolor="#60a5fa",
+                edgecolor="#2563eb",
+                linewidth=1.0,
+                alpha=0.06,
+                visible=False,
+                zorder=1000,
+            )
+            axis.add_patch(highlight)
+            hint = axis.text(
+                0.5,
+                0.985,
+                "Double-click to open in viewer",
+                transform=axis.transAxes,
+                ha="center",
+                va="top",
+                fontsize=8,
+                color="#334155",
+                visible=False,
+                zorder=1001,
+                bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.65, "pad": 0.8},
+            )
+            self._hover_hint_artists[axis] = (highlight, hint)
+
+    def _set_hover_axis(self, axis) -> None:
+        self._hover_axis = axis
+        for current_ax, artists in self._hover_hint_artists.items():
+            active = current_ax is axis
+            for artist in artists:
+                artist.set_visible(active)
+        if hasattr(self, "canvas"):
+            cursor = "hand2" if axis is not None else ""
+            self.canvas.get_tk_widget().configure(cursor=cursor)
+            self.canvas.draw_idle()
+
+    @staticmethod
+    def _viewer_open_command(image_path: Path) -> list[str] | None:
+        preferred = os.getenv("KRAKEN_IMAGE_VIEWER", "").strip()
+        if preferred:
+            parts = preferred.split()
+            binary = parts[0]
+            if shutil.which(binary):
+                return [*parts, str(image_path)]
+        if sys.platform == "darwin":
+            return ["open", str(image_path)]
+        if os.name == "nt":
+            return None
+        if shutil.which("xdg-open"):
+            return ["xdg-open", str(image_path)]
+        if shutil.which("gio"):
+            return ["gio", "open", str(image_path)]
+        for binary in ("imv", "feh", "eog", "gwenview", "nomacs", "ristretto", "pqiv", "sxiv", "nsxiv"):
+            if shutil.which(binary):
+                return [binary, str(image_path)]
+        return None
+
+    def _open_image_with_system_viewer(self, image_path: Path) -> None:
+        if os.name == "nt":
+            os.startfile(str(image_path))  # type: ignore[attr-defined]
+            return
+        command = self._viewer_open_command(image_path)
+        if command is None:
+            raise RuntimeError("No system image viewer command found.")
+        subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+
+    def _open_high_res_plot_in_system_viewer(self, target_ax=None) -> None:
+        previous_hover_axis = self._hover_axis if self._hover_axis in self._hover_hint_artists else None
+        try:
+            # Hide hover hint overlays so exported images only contain plot content.
+            self._set_hover_axis(None)
+            out_dir = Path.home() / "Pictures"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            stamp = time.strftime("%Y%m%d_%H%M%S")
+            axis_label = "analysis" if target_ax is self._analysis_ax else "layout"
+            image_path = out_dir / f"kraken_plot_{axis_label}_{stamp}.png"
+
+            self.canvas.draw()
+            if target_ax is not None and target_ax in self.figure.axes:
+                renderer = self.figure.canvas.get_renderer()
+                tight_bbox = target_ax.get_tightbbox(renderer)
+                if tight_bbox is not None:
+                    # savefig expects bbox_inches in inches, convert from display pixels
+                    bbox = tight_bbox.transformed(self.figure.dpi_scale_trans.inverted()).padded(0.08)
+                else:
+                    fig_w, fig_h = self.figure.get_size_inches()
+                    pos = target_ax.get_position()
+                    bbox = Bbox.from_extents(
+                        float(pos.x0) * fig_w,
+                        float(pos.y0) * fig_h,
+                        float(pos.x1) * fig_w,
+                        float(pos.y1) * fig_h,
+                    ).expanded(1.08, 1.12)
+                self.figure.savefig(image_path, dpi=320, bbox_inches=bbox)
+            else:
+                self.figure.savefig(image_path, dpi=320)
+
+            self._open_image_with_system_viewer(image_path)
+            self.status_var.set(f"Opened image in system viewer: {image_path.name}")
+            self.append_progress(f"Opened high-res image: {image_path}")
+        except Exception as exc:
+            self.append_debug(f"High-resolution viewer launch failed: {exc}")
+        finally:
+            if previous_hover_axis is not None:
+                self._set_hover_axis(previous_hover_axis)
 
     def open_3d_view(self) -> None:
         try:
@@ -1677,7 +1913,8 @@ class KrakenLayoutEditor(tk.Tk):
     def _on_object_mode_changed(self, _event=None) -> None:
         self._sync_field_default_from_current_type()
         self._sync_field_mode_ui()
-        self.refresh_plot()
+        self._sync_object_controls()
+        self._mark_plot_update_pending()
 
     def _apply_initial_field_defaults(self) -> None:
         if self._field_defaults_initialized or not hasattr(self, "field_type_var"):
@@ -1726,7 +1963,8 @@ class KrakenLayoutEditor(tk.Tk):
     def _on_field_type_changed(self, _event=None) -> None:
         self._sync_field_default_from_current_type()
         self._sync_field_mode_ui()
-        self.refresh_plot()
+        self._sync_object_controls()
+        self._mark_plot_update_pending()
 
     def _sync_field_default_from_current_type(self) -> None:
         if not hasattr(self, "field_value_var"):
@@ -2338,9 +2576,13 @@ class KrakenLayoutEditor(tk.Tk):
 
     def refresh_plot(self) -> None:
         self._set_analysis_parallel_status(self.analysis_mode or "2D", 1, False)
+        self._clear_cardinal_marker_artists()
+        self._last_optics_info = None
+        self._analysis_ax = None
         if not self.rows:
             self.ax.clear()
             self.ax.set_title("Axial Layout")
+            self._configure_plot_hover_hints()
             self.canvas.draw_idle()
             self._autosave_plot()
             return
@@ -2354,10 +2596,12 @@ class KrakenLayoutEditor(tk.Tk):
         if self.analysis_mode in {"none", "native_off_axis"}:
             self.ax = self.figure.add_subplot(111)
             analysis_ax = None
+            self._analysis_ax = None
         else:
             gs = self.figure.add_gridspec(1, 2, width_ratios=[4.2, 1.35], wspace=0.22)
             self.ax = self.figure.add_subplot(gs[0])
             analysis_ax = self.figure.add_subplot(gs[1])
+            self._analysis_ax = analysis_ax
 
         if self.analysis_mode == "native_off_axis" and self._has_off_axis_geometry():
             self._set_analysis_parallel_status("Native", 1, False)
@@ -2373,6 +2617,7 @@ class KrakenLayoutEditor(tk.Tk):
             self.figure.subplots_adjust(left=0.07, right=0.98, bottom=0.15, top=0.92, wspace=0.28)
             self.figure.text(0.5, 0.035, "KrakenOS Layout", ha="center", va="center")
             self._sync_object_controls()
+            self._configure_plot_hover_hints()
             self.canvas.draw_idle()
             self._autosave_plot()
             return
@@ -2387,6 +2632,7 @@ class KrakenLayoutEditor(tk.Tk):
             self.figure.subplots_adjust(left=0.07, right=0.98, bottom=0.15, top=0.92, wspace=0.28)
             self.figure.text(0.5, 0.035, "KrakenOS Layout", ha="center", va="center")
             self._sync_object_controls()
+            self._configure_plot_hover_hints()
             self.canvas.draw_idle()
             self._autosave_plot()
             return
@@ -2431,6 +2677,7 @@ class KrakenLayoutEditor(tk.Tk):
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", RuntimeWarning)
                 optics_info = self._collect_optics_info(system, rays, wavelength)
+            self._last_optics_info = dict(optics_info)
             self._draw_optics_markers(optics_info)
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", RuntimeWarning)
@@ -2460,6 +2707,7 @@ class KrakenLayoutEditor(tk.Tk):
         self.figure.subplots_adjust(left=0.07, right=0.98, bottom=0.15, top=0.92, wspace=0.28)
         self.figure.text(0.5, 0.035, "KrakenOS Layout", ha="center", va="center")
         self._sync_object_controls()
+        self._configure_plot_hover_hints()
         self.canvas.draw_idle()
         self._autosave_plot()
         if self._initial_layout_passes < 40:
@@ -2494,22 +2742,50 @@ class KrakenLayoutEditor(tk.Tk):
         if analysis_ax is None:
             return
         analysis_ax.clear()
+        spot_field_series: list[tuple[np.ndarray, np.ndarray, float]] = []
         try:
             if self.analysis_mode in {"spot", "rms"}:
                 field_type = "angle" if self._current_object_mode() == "Infinity" else "height"
-                field_y = self._current_field_angle_deg() if field_type == "angle" else self._current_field_height()
-                X, Y, Z, L, M, N, analysis_workers = self._build_geometric_image_samples_full(
-                    system,
-                    wavelength,
-                    sample_count=max(24, self._current_ray_count() * 6),
-                    pattern="hexapolar",
-                    surface_index=self._analysis_surface_index(),
-                    aperture_type=self._current_aperture_type(),
-                    aperture_value=self._current_aperture_value(),
-                    field_type=field_type,
-                    field_x=0.0,
-                    field_y=field_y,
-                )
+                center_field = self._current_field_angle_deg() if field_type == "angle" else self._current_field_height()
+                sampled_fields = [center_field]
+                if self.analysis_mode == "spot":
+                    sampled_fields = self._sample_field_values(center_field)
+                    if not sampled_fields:
+                        sampled_fields = [center_field]
+
+                field_results = []
+                analysis_workers = 1
+                for field_value in sampled_fields:
+                    Xi, Yi, Zi, Li, Mi, Ni, worker_count = self._build_geometric_image_samples_full(
+                        system,
+                        wavelength,
+                        sample_count=max(24, self._current_ray_count() * 6),
+                        pattern="hexapolar",
+                        surface_index=self._analysis_surface_index(),
+                        aperture_type=self._current_aperture_type(),
+                        aperture_value=self._current_aperture_value(),
+                        field_type=field_type,
+                        field_x=0.0,
+                        field_y=float(field_value),
+                    )
+                    analysis_workers = max(analysis_workers, int(worker_count))
+                    if Xi.size == 0:
+                        continue
+                    field_results.append((Xi, Yi, Zi, Li, Mi, Ni, float(field_value)))
+
+                if not field_results:
+                    X = Y = Z = L = M = N = np.asarray([])
+                else:
+                    X = np.concatenate([result[0] for result in field_results])
+                    Y = np.concatenate([result[1] for result in field_results])
+                    Z = np.concatenate([result[2] for result in field_results])
+                    L = np.concatenate([result[3] for result in field_results])
+                    M = np.concatenate([result[4] for result in field_results])
+                    N = np.concatenate([result[5] for result in field_results])
+                    if self.analysis_mode == "spot":
+                        spot_field_series = [
+                            (result[0], result[1], result[6]) for result in field_results
+                        ]
             else:
                 analysis_rays = self._build_analysis_rays(system, wavelength)
                 X, Y, Z, L, M, N = self._pick_image_plane_data(analysis_rays)
@@ -2525,16 +2801,76 @@ class KrakenLayoutEditor(tk.Tk):
 
         if self.analysis_mode == "spot":
             self._set_analysis_parallel_status("Spot", analysis_workers, True)
-            analysis_ax.scatter(X, Y, s=18, c="#c0392b", alpha=0.8)
+            spot_mode = self._current_spot_view_mode()
+            if spot_field_series:
+                colors = self._field_colors(len(spot_field_series))
+                field_unit = "deg" if self._current_object_mode() == "Infinity" else "mm"
+                prepared_series: list[tuple[np.ndarray, np.ndarray, float]] = []
+                if spot_mode == "Absolute":
+                    for x_field, y_field, field_value in spot_field_series:
+                        prepared_series.append((x_field, y_field, field_value))
+                else:
+                    centered_series = []
+                    max_span = 1e-3
+                    for x_field, y_field, field_value in spot_field_series:
+                        cx = float(np.mean(x_field))
+                        cy = float(np.mean(y_field))
+                        sx = x_field - cx
+                        sy = y_field - cy
+                        max_span = max(max_span, float(max(np.ptp(sx), np.ptp(sy), 1e-6)))
+                        centered_series.append((sx, sy, field_value))
+                    if spot_mode == "Grid" and centered_series:
+                        cols = max(1, int(np.ceil(np.sqrt(len(centered_series)))))
+                        rows = int(np.ceil(len(centered_series) / cols))
+                        spacing = max(max_span * 1.8, 2e-3)
+                        for index, (sx, sy, field_value) in enumerate(centered_series):
+                            row = index // cols
+                            col = index % cols
+                            offset_x = (col - (cols - 1) / 2.0) * spacing
+                            offset_y = ((rows - 1) / 2.0 - row) * spacing
+                            prepared_series.append((sx + offset_x, sy + offset_y, field_value))
+                    else:
+                        prepared_series = centered_series
+                X_plot = np.concatenate([item[0] for item in prepared_series]) if prepared_series else X
+                Y_plot = np.concatenate([item[1] for item in prepared_series]) if prepared_series else Y
+                for index, (_x_field, _y_field, field_value) in enumerate(prepared_series):
+                    analysis_ax.scatter(
+                        prepared_series[index][0],
+                        prepared_series[index][1],
+                        s=8,
+                        c=colors[index],
+                        alpha=0.45,
+                        label=f"{field_value:.3g} {field_unit}",
+                    )
+                if len(spot_field_series) > 1:
+                    analysis_ax.legend(loc="upper right", fontsize=7, title="Field")
+            else:
+                if spot_mode == "Absolute":
+                    X_plot = X
+                    Y_plot = Y
+                else:
+                    X_plot = X - float(np.mean(X))
+                    Y_plot = Y - float(np.mean(Y))
+                analysis_ax.scatter(X_plot, Y_plot, s=18, c="#c0392b", alpha=0.8)
             analysis_ax.axhline(0.0, color="#2c3e50", linewidth=0.6, alpha=0.5)
             analysis_ax.axvline(0.0, color="#2c3e50", linewidth=0.6, alpha=0.5)
-            analysis_ax.set_title("Spot Diagram")
+            title_suffix = {
+                "Absolute": "Absolute",
+                "Centroid": "Centroid Referenced",
+                "Grid": "Grid View",
+            }.get(spot_mode, "Grid View")
+            analysis_ax.set_title(f"Spot Diagram ({title_suffix})")
             analysis_ax.set_xlabel("X [mm]")
             analysis_ax.set_ylabel("Y [mm]")
             analysis_ax.set_aspect("equal", adjustable="box")
-            if np.ptp(X) < 1e-12 and np.ptp(Y) < 1e-12:
-                analysis_ax.set_xlim(float(X[0]) - 1.0, float(X[0]) + 1.0)
-                analysis_ax.set_ylim(float(Y[0]) - 1.0, float(Y[0]) + 1.0)
+            if np.ptp(X_plot) < 1e-12 and np.ptp(Y_plot) < 1e-12:
+                analysis_ax.set_xlim(float(X_plot[0]) - 1.0, float(X_plot[0]) + 1.0)
+                analysis_ax.set_ylim(float(Y_plot[0]) - 1.0, float(Y_plot[0]) + 1.0)
+            elif np.ptp(X_plot) < 1e-12:
+                center_x = float(np.mean(X_plot))
+                span_y = max(float(np.ptp(Y_plot)), 1e-6)
+                half_width = max(span_y * 0.35, 1e-3)
+                analysis_ax.set_xlim(center_x - half_width, center_x + half_width)
             analysis_ax.grid(True, alpha=0.2)
             self.append_debug(f"Spot analysis ok: rays={len(X)}, workers={analysis_workers}")
             return
@@ -3179,6 +3515,15 @@ class KrakenLayoutEditor(tk.Tk):
         if value in {"Angle", "Object Height", "Paraxial Image Height", "Real Image Height"}:
             return value
         return "Angle"
+
+    def _current_spot_view_mode(self) -> str:
+        value = getattr(self, "spot_view_mode_var", None)
+        if value is None:
+            return "Grid"
+        mode = value.get().strip()
+        if mode in {"Grid", "Absolute", "Centroid"}:
+            return mode
+        return "Grid"
 
     def _current_field_value(self) -> float:
         try:
@@ -4777,10 +5122,51 @@ class KrakenLayoutEditor(tk.Tk):
                 )
             z_pos += row.thickness
 
+    def _clear_cardinal_marker_artists(self) -> None:
+        for artist in self._cardinal_marker_artists:
+            try:
+                artist.remove()
+            except Exception:
+                pass
+        self._cardinal_marker_artists.clear()
+
+    def _on_toggle_cardinal_markers(self) -> None:
+        self._clear_cardinal_marker_artists()
+        if not self.show_cardinals_var.get():
+            self.canvas.draw_idle()
+            self.status_var.set("PP / EP / XP hidden")
+            return
+
+        if self._last_optics_info is None and self.last_system is not None and self.last_rays is not None:
+            try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", RuntimeWarning)
+                    self._last_optics_info = self._collect_optics_info(
+                        self.last_system,
+                        self.last_rays,
+                        self._current_wavelength(),
+                    )
+            except Exception:
+                self._last_optics_info = None
+
+        if self._last_optics_info is None:
+            self.canvas.draw_idle()
+            self.status_var.set("PP / EP / XP unavailable for current view")
+            return
+
+        self._draw_optics_markers(self._last_optics_info)
+        self.canvas.draw_idle()
+        self.status_var.set("PP / EP / XP updated")
+        self._autosave_plot()
+
     def _draw_optics_markers(self, optics_info: dict) -> None:
+        self._clear_cardinal_marker_artists()
         if not self.show_cardinals_var.get():
             return
+        x0, x1 = self.ax.get_xlim()
         y0, y1 = self.ax.get_ylim()
+        x_min, x_max = min(x0, x1), max(x0, x1)
+        y_min, y_max = min(y0, y1), max(y0, y1)
         span = y1 - y0
         y_top = y1 - 0.18 * span
         marker_specs = [
@@ -4796,9 +5182,10 @@ class KrakenLayoutEditor(tk.Tk):
             if self._current_display_orientation() == "Horizontal":
                 _, y_vals = self._project_xy([z_val, z_val], [0.0, 0.0])
                 y_mark = float(y_vals[0])
-                self.ax.axhline(y_mark, color=color, linewidth=1.0, linestyle=":", alpha=0.9)
-                x0, x1 = self.ax.get_xlim()
-                self.ax.text(
+                if y_mark < y_min or y_mark > y_max:
+                    continue
+                line = self.ax.axhline(y_mark, color=color, linewidth=1.0, linestyle=":", alpha=0.9)
+                text = self.ax.text(
                     x0 + 0.04 * (x1 - x0),
                     y_mark,
                     label,
@@ -4808,9 +5195,12 @@ class KrakenLayoutEditor(tk.Tk):
                     va="bottom",
                     bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.65, "pad": 0.6},
                 )
+                self._cardinal_marker_artists.extend((line, text))
             else:
-                self.ax.axvline(z_val, color=color, linewidth=1.0, linestyle=":", alpha=0.9)
-                self.ax.text(
+                if z_val < x_min or z_val > x_max:
+                    continue
+                line = self.ax.axvline(z_val, color=color, linewidth=1.0, linestyle=":", alpha=0.9)
+                text = self.ax.text(
                     z_val,
                     y_top,
                     label,
@@ -4820,6 +5210,7 @@ class KrakenLayoutEditor(tk.Tk):
                     va="top",
                     bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.65, "pad": 0.6},
                 )
+                self._cardinal_marker_artists.extend((line, text))
 
     def _set_plot_limits_from_layout(self, max_radius: float) -> None:
         total_length = sum(float(row.thickness) for row in self.rows)
@@ -5097,11 +5488,12 @@ class KrakenLayoutEditor(tk.Tk):
         self._last_analysis_accelerator = str(label)
 
     def _analysis_parallel_summary(self) -> str:
-        if not self._last_analysis_parallel_capable:
-            return "single-threaded"
-        if self._last_analysis_workers <= 1:
-            return "parallel-ready (1 worker)"
-        return f"parallel ({self._last_analysis_workers} workers)"
+        workers = max(1, int(self._last_analysis_workers))
+        if workers <= 1:
+            return "workers: 1"
+        if self._last_analysis_parallel_capable:
+            return f"workers: {workers} (parallel)"
+        return f"workers: {workers}"
 
     def _analysis_compute_summary(self) -> str:
         return f"{self._analysis_parallel_summary()} | {self._last_analysis_accelerator}"
@@ -5227,6 +5619,18 @@ class KrakenLayoutEditor(tk.Tk):
         if cpu_total <= 1 or ray_count < 2048:
             return 1
         return max(1, min(cpu_total - 1, ray_count // 2048))
+
+    def _optimization_worker_count(self) -> int:
+        cpu_total = max(1, int(os.cpu_count() or 1))
+        configured = os.getenv("KRAKEN_OPT_WORKERS", "").strip()
+        if configured:
+            try:
+                parsed = int(configured)
+                if parsed > 0:
+                    return max(1, min(parsed, cpu_total))
+            except ValueError:
+                pass
+        return 1 if cpu_total <= 1 else max(2, cpu_total - 1)
 
     def _ensure_analysis_executor(self, worker_count: int) -> ProcessPoolExecutor | None:
         worker_count = max(1, int(worker_count))
@@ -5929,8 +6333,40 @@ class KrakenLayoutEditor(tk.Tk):
 
         udp = Pygmo2MeritProblem(evaluator=evaluator, variables=variables)
         problem = pg.problem(udp)
-        population = pg.population(problem, size=12, seed=42)
+        population_size = 12
+        optimization_workers = 1
+        optimization_backend = "sequential"
+        population_kwargs: dict[str, object] = {"size": population_size, "seed": 42}
+        parallel_pref = os.getenv("KRAKEN_OPT_PARALLEL", "1").strip().lower()
+        parallel_enabled = parallel_pref not in {"0", "false", "off", "no"}
+        if parallel_enabled:
+            optimization_workers = self._optimization_worker_count()
+            if optimization_workers > 1:
+                try:
+                    pg.mp_bfe.resize_pool(optimization_workers)
+                    population_kwargs["b"] = pg.bfe(pg.mp_bfe())
+                    optimization_backend = f"mp_bfe ({optimization_workers} workers)"
+                except Exception as exc:
+                    optimization_workers = 1
+                    optimization_backend = "sequential"
+                    self.append_debug(f"Optimization parallel backend disabled: {exc}")
+        try:
+            population = pg.population(problem, **population_kwargs)
+        except Exception as exc:
+            if "b" not in population_kwargs:
+                self.append_progress(f"Optimization aborted: failed to initialize population: {exc}")
+                return
+            self.append_debug(f"Optimization population batch evaluator failed: {exc}")
+            self.append_progress("Optimization batch evaluator unavailable; using workers=1.")
+            optimization_workers = 1
+            optimization_backend = "sequential"
+            try:
+                population = pg.population(problem, size=population_size, seed=42)
+            except Exception as fallback_exc:
+                self.append_progress(f"Optimization aborted: failed to initialize fallback population: {fallback_exc}")
+                return
         population.push_back(x0)
+        self.append_progress(f"Optimization compute: {optimization_backend}")
 
         self.optimization_running = True
         self.optimization_cancel_requested = False
@@ -5943,6 +6379,8 @@ class KrakenLayoutEditor(tk.Tk):
             "generations_total": 12,
             "generation_done": 0,
             "verbosity_every": 3,
+            "workers": optimization_workers,
+            "compute_backend": optimization_backend,
         }
         self._update_progress_indicators()
         self._start_progress_spinner()
@@ -6021,6 +6459,8 @@ class KrakenLayoutEditor(tk.Tk):
         self._sync_table()
         self.refresh_plot()
         initial = ctx["initial"]
+        compute_backend = str(ctx.get("compute_backend", "sequential"))
+        compute_workers = max(1, int(ctx.get("workers", 1)))
         if cancelled:
             self.status_var.set(
                 f"Optimization stopped: {initial.total:.6g} -> {champion.total:.6g}"
@@ -6035,6 +6475,7 @@ class KrakenLayoutEditor(tk.Tk):
             self.append_progress(
                 f"Optimization finished | merit {initial.total:.6g} -> {champion.total:.6g}"
             )
+        self.append_progress(f"Optimization compute: {compute_backend} | workers={compute_workers}")
         for operand in champion.operands:
             self.append_progress(
                 f"  {operand.name}: value={operand.value:.6g} weighted={operand.weighted:.6g}"
@@ -6057,9 +6498,19 @@ class KrakenLayoutEditor(tk.Tk):
 
     def _sample_field_values(self, maximum: float) -> list[float]:
         count = self._current_field_count()
-        if count == 1 or maximum <= 1e-9:
+        if count == 1:
             return [0.0]
-        return list(np.linspace(-maximum, maximum, count))
+        span = abs(float(maximum))
+        if span <= 1e-9:
+            if self._current_object_mode() == "Finite" and self.rows:
+                # Finite mode fallback: half object diameter.
+                span = max(float(self.rows[0].diameter) * 0.5, 0.0)
+            elif self._current_object_mode() == "Infinity":
+                # Infinity mode fallback: default half-angle fan.
+                span = 5.0
+        if span <= 1e-9:
+            return [0.0]
+        return list(np.linspace(-span, span, count))
 
     def _sample_fan_angles_deg(self) -> list[float]:
         maximum = self._current_field_angle_deg()
