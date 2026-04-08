@@ -25,7 +25,7 @@ in
 {
   env = {
     GREET = "KrakenOS devenv";
-    LD_LIBRARY_PATH = lib.makeLibraryPath runtimeLibs;
+    LD_LIBRARY_PATH = (lib.makeLibraryPath runtimeLibs) + ":/run/opengl-driver/lib:/run/opengl-driver-32/lib";
   };
 
   languages.python = {
@@ -48,7 +48,7 @@ in
     VENV_DIR="$PWD/.devenv/state/venv"
     REQ_HASH_FILE="$PWD/.devenv/state/kraken-requirements.hash"
     PYTHON_PATH_FILE="$PWD/.devenv/state/kraken-python.path"
-    REQ_HASH="krakenos-v9"
+    REQ_HASH="krakenos-v15"
     CURRENT_PYTHON="$(readlink -f "$(command -v python)")"
 
     if [ ! -x "$VENV_DIR/bin/python" ] || [ ! -f "$PYTHON_PATH_FILE" ] || [ "$(cat "$PYTHON_PATH_FILE" 2>/dev/null)" != "$CURRENT_PYTHON" ]; then
@@ -70,13 +70,17 @@ in
     fi
 
     if [ ! -f "$REQ_HASH_FILE" ] || [ "$(cat "$REQ_HASH_FILE" 2>/dev/null)" != "$REQ_HASH" ]; then
-      "$VENV_DIR/bin/python" -m pip install --upgrade pip setuptools wheel
+      "$VENV_DIR/bin/python" -m pip install --upgrade pip "setuptools<82" wheel
       "$VENV_DIR/bin/python" -m pip install \
         -e . \
         numpy scipy matplotlib pandas pyvista vtk \
         PyVTK csv342 ipython ipykernel jupyter jupyterlab pyzmq \
         packaging setuptools basedpyright ruff PyQt5 sip \
         cloudpickle pybind11
+      # Optional GPU backend for PSF/MTF post-processing. Keep shell startup resilient.
+      "$VENV_DIR/bin/python" -m pip install cupy-cuda12x || true
+      "$VENV_DIR/bin/python" -m pip install nvidia-cuda-nvrtc-cu12 nvidia-cuda-runtime-cu12 nvidia-cufft-cu12 || true
+      "$VENV_DIR/bin/python" -m pip install torch || true
       printf '%s\n' "$REQ_HASH" > "$REQ_HASH_FILE"
     fi
 
@@ -87,6 +91,13 @@ in
     if [ -d /home/thinky/Projects/pagmo2/_install/lib64 ]; then
       export LD_LIBRARY_PATH="/home/thinky/Projects/pagmo2/_install/lib64:$LD_LIBRARY_PATH"
     fi
+
+    # Add CUDA wheel shared libraries (CuPy/Torch) into runtime search path.
+    for nvidia_lib_dir in "$VENV_DIR"/lib/python*/site-packages/nvidia/*/lib; do
+      if [ -d "$nvidia_lib_dir" ]; then
+        export LD_LIBRARY_PATH="$nvidia_lib_dir:$LD_LIBRARY_PATH"
+      fi
+    done
 
     echo "$GREET"
     "$VENV_DIR/bin/python" --version

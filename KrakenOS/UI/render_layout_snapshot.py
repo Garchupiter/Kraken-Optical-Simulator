@@ -8,7 +8,7 @@ from KrakenOS.UI.layout_editor import AUTO_PLOT_PATH, KrakenLayoutEditor
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Render a Kraken layout snapshot without opening the UI.")
-    parser.add_argument("--mode", choices=["2d", "native"], default="native", help="Render mode")
+    parser.add_argument("--mode", choices=["2d", "native", "mtf"], default="native", help="Render mode")
     parser.add_argument("--layout", default=None, help="Common layout title to load")
     parser.add_argument("--output", type=Path, default=AUTO_PLOT_PATH, help="Output image path")
     parser.add_argument("--dpi", type=int, default=180, help="Output DPI")
@@ -21,7 +21,12 @@ def main() -> None:
     try:
         if args.layout:
             app.load_layout_by_name(args.layout)
-        app.analysis_mode = "native_off_axis" if args.mode == "native" else "none"
+        if args.mode == "native":
+            app.analysis_mode = "native_off_axis"
+        elif args.mode == "mtf":
+            app.analysis_mode = "mtf"
+        else:
+            app.analysis_mode = "none"
         app.auto_save_plot_var.set(False)
         try:
             app.attributes("-alpha", 0.0)

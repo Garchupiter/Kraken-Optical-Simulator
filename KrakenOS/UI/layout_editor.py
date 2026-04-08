@@ -10,11 +10,16 @@ from __future__ import annotations
 
 import importlib.util
 import io
+from concurrent.futures import ProcessPoolExecutor
 from contextlib import redirect_stderr, redirect_stdout
+import ctypes
 from dataclasses import dataclass, asdict
 import os
 from pathlib import Path
 import re
+import shutil
+import subprocess
+import time
 import tkinter as tk
 import tkinter.font as tkfont
 from tkinter import filedialog, messagebox, ttk
@@ -40,9 +45,10 @@ from KrakenOS.Optimization.adapters.pygmo2_adapter import Pygmo2MeritProblem
 
 LAYOUTS_DIR = Path(__file__).resolve().parent.parent / "common_optical_layouts"
 EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "Examples"
-DEFAULT_LAYOUT_TITLE = "Double Gauss Lens"
+DEFAULT_LAYOUT_TITLE = "Doublet Lens"
 FOLDED_STARTER_LAYOUT_TITLE = "Double Mirror Fold"
 AUTO_PLOT_PATH = Path.home() / "Pictures" / "kraken_layout_latest.jpg"
+DEBUG_LOG_PATH = Path.home() / "Pictures" / "kraken_debug_latest.log"
 FIELDS = (
     "label",
     "surface",
@@ -154,6 +160,234 @@ def _coerce_bounds(value) -> tuple[float, float] | None:
     return None
 
 
+_CUPY_IMPORT_ATTEMPTED = False
+_CUPY_MODULE = None
+_TORCH_IMPORT_ATTEMPTED = False
+_TORCH_MODULE = None
+_CUDA_LIBS_PRELOADED = False
+_WORKER_SYSTEM_CACHE_SIGNATURE = None
+_WORKER_SYSTEM_CACHE_SYSTEM = None
+
+
+def _preload_cuda_libraries():
+    global _CUDA_LIBS_PRELOADED
+    if _CUDA_LIBS_PRELOADED:
+        return
+    _CUDA_LIBS_PRELOADED = True
+
+    driver_candidates = (
+        "/run/opengl-driver/lib/libcuda.so.1",
+        "/run/opengl-driver/lib/libcuda.so",
+        "/run/opengl-driver-32/lib/libcuda.so.1",
+        "/run/opengl-driver-32/lib/libcuda.so",
+    )
+    for candidate in driver_candidates:
+        if not os.path.exists(candidate):
+            continue
+        try:
+            ctypes.CDLL(candidate, mode=ctypes.RTLD_GLOBAL)
+            break
+        except Exception:
+            continue
+
+    # Best-effort preload of CUDA runtime/NVRTC from pip wheels.
+    package_libs = (
+        ("nvidia.cuda_nvrtc", ("libnvrtc.so",)),
+        ("nvidia.cuda_runtime", ("libcudart.so",)),
+        ("nvidia.cu13", ("libnvrtc-builtins.so", "libnvrtc.so", "libcudart.so", "libcufft.so")),
+    )
+    for module_name, lib_prefixes in package_libs:
+        try:
+            spec = importlib.util.find_spec(module_name)
+            if spec is None or not spec.submodule_search_locations:
+                continue
+            for search_path in spec.submodule_search_locations:
+                lib_dir = Path(search_path) / "lib"
+                if not lib_dir.exists():
+                    continue
+                for prefix in lib_prefixes:
+                    for lib_path in sorted(lib_dir.glob(f"{prefix}*")):
+                        try:
+                            ctypes.CDLL(str(lib_path), mode=ctypes.RTLD_GLOBAL)
+                            break
+                        except Exception:
+                            continue
+        except Exception:
+            continue
+
+
+def _short_error_message(exc: Exception, limit: int = 220) -> str:
+    text = str(exc).strip()
+    if not text:
+        return exc.__class__.__name__
+    first = text.splitlines()[0].strip()
+    if len(first) > limit:
+        return first[:limit] + "..."
+    return first
+
+
+def _optional_cupy():
+    global _CUPY_IMPORT_ATTEMPTED, _CUPY_MODULE
+    if not _CUPY_IMPORT_ATTEMPTED:
+        _CUPY_IMPORT_ATTEMPTED = True
+        _preload_cuda_libraries()
+        try:
+            import cupy as cp  # type: ignore
+            _CUPY_MODULE = cp
+        except Exception:
+            _CUPY_MODULE = None
+    return _CUPY_MODULE
+
+
+def _optional_torch():
+    global _TORCH_IMPORT_ATTEMPTED, _TORCH_MODULE
+    if not _TORCH_IMPORT_ATTEMPTED:
+        _TORCH_IMPORT_ATTEMPTED = True
+        _preload_cuda_libraries()
+        try:
+            import torch  # type: ignore
+            _TORCH_MODULE = torch
+        except Exception:
+            _TORCH_MODULE = None
+    return _TORCH_MODULE
+
+
+def _build_system_from_specs(row_specs: list[dict]) -> object:
+    surfaces = []
+    clear_aperture = max(
+        [max(float(spec["diameter"]), 1.0) for spec in row_specs if spec["surface"] not in {"Object", "Image"}] or [100.0]
+    ) * 4.0
+    for spec in row_specs:
+        surface = Kos.surf()
+        surface.Name = ""
+        surface.Rc = float(spec["rc"])
+        surface.Thickness = float(spec["thickness"])
+        surface.Diameter = clear_aperture if spec["surface"] in {"Object", "Image"} else float(spec["diameter"])
+        surface.Glass = str(spec["glass"])
+        surface.TiltX = float(spec.get("tilt_x", 0.0))
+        surface.TiltY = float(spec.get("tilt_y", 0.0))
+        surface.TiltZ = float(spec.get("tilt_z", 0.0))
+        surface.DespX = float(spec.get("desp_x", 0.0))
+        surface.DespY = float(spec.get("desp_y", 0.0))
+        surface.DespZ = float(spec.get("desp_z", 0.0))
+        surface.AxisMove = float(spec.get("axis_move", 0.0))
+        surface.Drawing = 0.0 if spec["surface"] in {"Object", "Image", "Mirror"} else 1.0
+        if spec["surface"] == "Mirror":
+            surface.Glass = "MIRROR"
+        if spec["surface"] == "Thin Lens":
+            focal = float(spec["rc"])
+            surface.Thin_Lens = focal if focal != 0.0 else 100.0
+            surface.Rc = 0.0
+        elif spec["surface"] == "Grating":
+            surface.Diff_Ord = 1.0
+            surface.Grating_D = 1.0
+        surfaces.append(surface)
+    return Kos.system(surfaces, Kos.Setup(), build=1)
+
+
+def _row_specs_signature(row_specs: list[dict]):
+    signature = []
+    for spec in row_specs:
+        signature.append(
+            (
+                str(spec.get("surface", "")),
+                str(spec.get("name", "")),
+                float(spec.get("rc", 0.0)),
+                float(spec.get("thickness", 0.0)),
+                float(spec.get("diameter", 0.0)),
+                str(spec.get("glass", "AIR")),
+                float(spec.get("tilt_x", 0.0)),
+                float(spec.get("tilt_y", 0.0)),
+                float(spec.get("tilt_z", 0.0)),
+                float(spec.get("desp_x", 0.0)),
+                float(spec.get("desp_y", 0.0)),
+                float(spec.get("desp_z", 0.0)),
+                float(spec.get("axis_move", 0.0)),
+            )
+        )
+    return tuple(signature)
+
+
+def _build_cached_system_from_specs(row_specs: list[dict]) -> object:
+    global _WORKER_SYSTEM_CACHE_SIGNATURE, _WORKER_SYSTEM_CACHE_SYSTEM
+    signature = _row_specs_signature(row_specs)
+    if _WORKER_SYSTEM_CACHE_SYSTEM is None or _WORKER_SYSTEM_CACHE_SIGNATURE != signature:
+        _WORKER_SYSTEM_CACHE_SYSTEM = _build_system_from_specs(row_specs)
+        _WORKER_SYSTEM_CACHE_SIGNATURE = signature
+    return _WORKER_SYSTEM_CACHE_SYSTEM
+
+
+def _pick_image_plane_data_static(rays):
+    try:
+        X, Y, Z, L, M, N = rays.pick(-1, coordinates="local")
+        if np.asarray(X).size:
+            return X, Y, Z, L, M, N
+    except Exception:
+        pass
+    return rays.pick(-1)
+
+
+def _trace_analysis_chunk(
+    row_specs: list[dict],
+    wavelength: float,
+    x_bundle,
+    y_bundle,
+    z_bundle,
+    l_bundle,
+    m_bundle,
+    n_bundle,
+):
+    system = _build_cached_system_from_specs(row_specs)
+    rays = Kos.raykeeper(system)
+    Kos.TraceLoop(
+        np.asarray(x_bundle, dtype=float),
+        np.asarray(y_bundle, dtype=float),
+        np.asarray(z_bundle, dtype=float),
+        np.asarray(l_bundle, dtype=float),
+        np.asarray(m_bundle, dtype=float),
+        np.asarray(n_bundle, dtype=float),
+        float(wavelength),
+        rays,
+        clean=1,
+    )
+    x_local, y_local, _z_local, _l_local, _m_local, _n_local = _pick_image_plane_data_static(rays)
+    return np.asarray(x_local, dtype=float), np.asarray(y_local, dtype=float)
+
+
+def _trace_analysis_chunk_full(
+    row_specs: list[dict],
+    wavelength: float,
+    x_bundle,
+    y_bundle,
+    z_bundle,
+    l_bundle,
+    m_bundle,
+    n_bundle,
+):
+    system = _build_cached_system_from_specs(row_specs)
+    rays = Kos.raykeeper(system)
+    Kos.TraceLoop(
+        np.asarray(x_bundle, dtype=float),
+        np.asarray(y_bundle, dtype=float),
+        np.asarray(z_bundle, dtype=float),
+        np.asarray(l_bundle, dtype=float),
+        np.asarray(m_bundle, dtype=float),
+        np.asarray(n_bundle, dtype=float),
+        float(wavelength),
+        rays,
+        clean=1,
+    )
+    x_local, y_local, z_local, l_local, m_local, n_local = _pick_image_plane_data_static(rays)
+    return (
+        np.asarray(x_local, dtype=float),
+        np.asarray(y_local, dtype=float),
+        np.asarray(z_local, dtype=float),
+        np.asarray(l_local, dtype=float),
+        np.asarray(m_local, dtype=float),
+        np.asarray(n_local, dtype=float),
+    )
+
+
 class KrakenLayoutEditor(tk.Tk):
     def __init__(self, *, headless: bool = False) -> None:
         super().__init__()
@@ -162,7 +396,7 @@ class KrakenLayoutEditor(tk.Tk):
         self.geometry("1400x850")
         self.minsize(1100, 720)
         if not self.headless:
-            self.after(50, self._enter_fullscreen)
+            self.after(50, self._maximize_window)
 
         self.current_layout_file: Path | None = None
         self.layout_files: dict[str, Path] = {}
@@ -172,6 +406,7 @@ class KrakenLayoutEditor(tk.Tk):
         self.popup_menu: tk.Menu | None = None
         self.current_menu_row_id: str | None = None
         self.current_menu_field: str | None = None
+        self._text_popup_menu: tk.Menu | None = None
         self.analysis_mode = "none"
         self.last_system = None
         self.last_rays = None
@@ -213,21 +448,27 @@ class KrakenLayoutEditor(tk.Tk):
         self.show_native_overlays_var = tk.BooleanVar(value=True)
         self.show_native_active_spans_var = tk.BooleanVar(value=False)
         self.show_native_hit_labels_var = tk.BooleanVar(value=False)
+        self._last_analysis_label = "2D"
+        self._last_analysis_workers = 1
+        self._last_analysis_parallel_capable = False
+        self._last_analysis_accelerator = "CPU"
+        self._gpu_backend_reported = False
+        self._analysis_executor: ProcessPoolExecutor | None = None
+        self._analysis_executor_workers = 0
 
         self._build_menu()
         self._build_ui()
+        self._bind_global_copy_shortcuts()
+        self._reset_debug_log()
         self.load_layouts()
         self.load_examples()
         if self.layout_names:
             initial_layout = DEFAULT_LAYOUT_TITLE if DEFAULT_LAYOUT_TITLE in self.layout_files else self.layout_names[0]
             self.load_layout_by_name(initial_layout)
+        self.after(0, self._report_compute_backends)
 
-    def _enter_fullscreen(self) -> None:
-        try:
-            self.attributes("-fullscreen", True)
-            return
-        except Exception:
-            pass
+    def _maximize_window(self) -> None:
+        # Prefer maximize/zoom over fullscreen so copy/paste and WM behavior remain normal.
         try:
             self.state("zoomed")
             return
@@ -235,6 +476,13 @@ class KrakenLayoutEditor(tk.Tk):
             pass
         try:
             self.attributes("-zoomed", True)
+            return
+        except Exception:
+            pass
+        try:
+            width = max(1200, int(self.winfo_screenwidth() * 0.96))
+            height = max(800, int(self.winfo_screenheight() * 0.95))
+            self.geometry(f"{width}x{height}+0+0")
         except Exception:
             pass
 
@@ -250,6 +498,8 @@ class KrakenLayoutEditor(tk.Tk):
 
         action_menu = tk.Menu(menubar, tearoff=0)
         action_menu.add_command(label="Refresh Plot", command=self.refresh_plot)
+        action_menu.add_command(label="Benchmark PSF/MTF", command=self.benchmark_psf_mtf)
+        action_menu.add_command(label="Copy Debug", command=self.copy_debug_to_clipboard)
         action_menu.add_command(label="Clear Marks", command=self.clear_optimization_marks)
         action_menu.add_checkbutton(label="Auto-save JPG", variable=self.auto_save_plot_var)
         action_menu.add_separator()
@@ -259,6 +509,10 @@ class KrakenLayoutEditor(tk.Tk):
         menubar.add_cascade(label="Actions", menu=action_menu)
 
         self.config(menu=menubar)
+
+    def destroy(self) -> None:
+        self._shutdown_analysis_executor()
+        super().destroy()
 
     def _build_ui(self) -> None:
         self.columnconfigure(0, weight=1)
@@ -487,6 +741,11 @@ class KrakenLayoutEditor(tk.Tk):
         debug_scroll = ttk.Scrollbar(debug_frame, orient="vertical", command=self.debug_text.yview)
         debug_scroll.grid(row=0, column=1, sticky="ns")
         self.debug_text.configure(yscrollcommand=debug_scroll.set)
+        self._bind_text_copy_shortcuts(self.debug_text)
+        debug_actions = ttk.Frame(debug_frame)
+        debug_actions.grid(row=1, column=0, sticky="w", pady=(6, 0))
+        ttk.Button(debug_actions, text="Copy Selected", command=lambda: self._copy_selection_from_text_widget(self.debug_text)).pack(side="left")
+        ttk.Button(debug_actions, text="Copy All", command=lambda: self._copy_all_from_text_widget(self.debug_text)).pack(side="left", padx=(6, 0))
 
         status_bar = ttk.Frame(progress_frame)
         status_bar.grid(row=0, column=0, sticky="ew", pady=(0, 6))
@@ -512,6 +771,9 @@ class KrakenLayoutEditor(tk.Tk):
         progress_scroll = ttk.Scrollbar(progress_frame, orient="vertical", command=self.progress_text.yview)
         progress_scroll.grid(row=1, column=1, sticky="ns")
         self.progress_text.configure(yscrollcommand=progress_scroll.set)
+        self._bind_text_copy_shortcuts(self.progress_text)
+        self._bind_text_context_menu(self.debug_text)
+        self._bind_text_context_menu(self.progress_text)
 
         status_bar = ttk.Frame(self)
         status_bar.grid(row=1, column=0, sticky="ew", padx=8, pady=(0, 2))
@@ -565,7 +827,7 @@ class KrakenLayoutEditor(tk.Tk):
         self.display_orientation_menu.bind("<<ComboboxSelected>>", lambda _e: self.refresh_plot())
 
         ttk.Label(parent, text="Ray fan count").grid(row=2, column=1, sticky="w", pady=(0, 2), padx=(8, 0))
-        self.ray_count_var = tk.StringVar(value="21")
+        self.ray_count_var = tk.StringVar(value="31")
         ttk.Entry(parent, textvariable=self.ray_count_var, width=12).grid(
             row=3, column=1, sticky="ew", pady=(0, 8), padx=(8, 0)
         )
@@ -601,7 +863,7 @@ class KrakenLayoutEditor(tk.Tk):
         self.aperture_type_menu.bind("<<ComboboxSelected>>", lambda _e: self.refresh_plot())
 
         ttk.Label(parent, text="Aperture value").grid(row=6, column=1, sticky="w", pady=(0, 2), padx=(8, 0))
-        self.aperture_value_var = tk.StringVar(value="8.0")
+        self.aperture_value_var = tk.StringVar(value="4.0")
         ttk.Entry(parent, textvariable=self.aperture_value_var, width=12).grid(
             row=7, column=1, sticky="ew", padx=(8, 0)
         )
@@ -815,7 +1077,7 @@ class KrakenLayoutEditor(tk.Tk):
             control_widgets["aperture_value"] = (aperture_value_label, aperture_value_entry)
 
             if spec.label == "MTF @ freq":
-                frequency_var = tk.StringVar(value="10")
+                frequency_var = tk.StringVar(value="5")
                 self.operand_frequency_vars[spec.label] = frequency_var
                 frequency_label = ttk.Label(card, text="Freq")
                 frequency_label.grid(row=frequency_row, column=0, sticky="w")
@@ -1444,6 +1706,14 @@ class KrakenLayoutEditor(tk.Tk):
             self._field_type_defaults["Object Height"] = "0.0"
             self.field_value_var.set("0.0")
             self._sync_field_mode_ui()
+        elif name == "Doublet Lens":
+            self.display_orientation_var.set("Vertical")
+            self.object_mode_var.set("Infinity")
+            self.field_type_var.set("Angle")
+            self._last_field_type = "Angle"
+            self._field_type_defaults["Angle"] = "0.0"
+            self.field_value_var.set("0.0")
+            self._sync_field_mode_ui()
         else:
             self.display_orientation_var.set("Vertical")
             self.object_mode_var.set("Finite")
@@ -1834,6 +2104,140 @@ class KrakenLayoutEditor(tk.Tk):
             row.optimize_thickness = False
         self._sync_table()
 
+    def benchmark_psf_mtf(self) -> None:
+        self.append_progress("Benchmark PSF/MTF started.")
+        try:
+            self._read_rows_from_table()
+            system = self.build_system()
+            wavelength = self._current_wavelength()
+            field_type = "angle" if self._current_object_mode() == "Infinity" else "height"
+            field_y = self._current_field_angle_deg() if field_type == "angle" else self._current_field_height()
+            sample_count = max(64, self._current_ray_count() * 12)
+            self.append_progress(f"Tracing benchmark rays: sample_count={sample_count}")
+            x_local, y_local, workers = self._build_geometric_image_samples(
+                system,
+                wavelength,
+                sample_count=sample_count,
+                pattern="hexapolar",
+                surface_index=self._analysis_surface_index(),
+                aperture_type=self._current_aperture_type(),
+                aperture_value=self._current_aperture_value(),
+                field_type=field_type,
+                field_x=0.0,
+                field_y=field_y,
+            )
+            if x_local.size < 4:
+                raise RuntimeError("Not enough traced image-plane samples for benchmark")
+
+            span_x = max(float(np.ptp(x_local)), 1e-3)
+            span_y = max(float(np.ptp(y_local)), 1e-3)
+            span = max(span_x, span_y) * 1.25
+            bins = 256
+
+            t0 = time.perf_counter()
+            hist_cpu, xedges_cpu, _yedges_cpu = np.histogram2d(
+                x_local,
+                y_local,
+                bins=bins,
+                range=[[-span / 2.0, span / 2.0], [-span / 2.0, span / 2.0]],
+            )
+            psf_cpu = hist_cpu / max(np.sum(hist_cpu), 1.0)
+            otf_cpu = np.fft.fftshift(np.fft.fft2(psf_cpu))
+            mtf_cpu = np.abs(otf_cpu)
+            mtf_cpu /= max(float(np.max(mtf_cpu)), 1e-12)
+            _freq_cpu = np.fft.fftshift(np.fft.fftfreq(bins, d=float(xedges_cpu[1] - xedges_cpu[0])))
+            cpu_sec = time.perf_counter() - t0
+
+            gpu_results: list[tuple[str, float]] = []
+
+            cp = _optional_cupy()
+            if cp is not None:
+                try:
+                    if int(cp.cuda.runtime.getDeviceCount()) > 0:
+                        _ = cp.zeros((1,), dtype=cp.float32)
+                        cp.cuda.Stream.null.synchronize()
+                        t1 = time.perf_counter()
+                        x_gpu = cp.asarray(x_local, dtype=cp.float64)
+                        y_gpu = cp.asarray(y_local, dtype=cp.float64)
+                        hist_gpu, xedges_gpu, _yedges_gpu = cp.histogram2d(
+                            x_gpu,
+                            y_gpu,
+                            bins=bins,
+                            range=[[-span / 2.0, span / 2.0], [-span / 2.0, span / 2.0]],
+                        )
+                        psf_gpu = hist_gpu / cp.maximum(cp.sum(hist_gpu), 1.0)
+                        otf_gpu = cp.fft.fftshift(cp.fft.fft2(psf_gpu))
+                        mtf_gpu = cp.abs(otf_gpu)
+                        mtf_gpu /= cp.maximum(cp.max(mtf_gpu), 1e-12)
+                        _freq_gpu = cp.fft.fftshift(
+                            cp.fft.fftfreq(bins, d=float(cp.asnumpy(xedges_gpu[1] - xedges_gpu[0])))
+                        )
+                        cp.cuda.Stream.null.synchronize()
+                        gpu_results.append(("CuPy", time.perf_counter() - t1))
+                except Exception as exc:
+                    self.append_debug(f"Benchmark CuPy path failed: {_short_error_message(exc)}")
+
+            torch = _optional_torch()
+            if torch is not None:
+                try:
+                    if bool(torch.cuda.is_available()):
+                        device = torch.device("cuda")
+                        _ = torch.zeros((1,), dtype=torch.float32, device=device)
+                        if hasattr(torch.cuda, "synchronize"):
+                            torch.cuda.synchronize()
+                        t2 = time.perf_counter()
+                        lower = -span / 2.0
+                        upper = span / 2.0
+                        step = (upper - lower) / float(bins)
+                        x_t = torch.as_tensor(x_local, dtype=torch.float64, device=device)
+                        y_t = torch.as_tensor(y_local, dtype=torch.float64, device=device)
+                        ix = torch.floor((x_t - lower) / step).to(torch.int64)
+                        iy = torch.floor((y_t - lower) / step).to(torch.int64)
+                        valid = (ix >= 0) & (ix < bins) & (iy >= 0) & (iy < bins)
+                        ix = ix[valid]
+                        iy = iy[valid]
+                        lin = ix * bins + iy
+                        hist_t = torch.zeros(bins * bins, dtype=torch.float64, device=device)
+                        hist_t.scatter_add_(0, lin, torch.ones_like(lin, dtype=torch.float64))
+                        hist_t = hist_t.view(bins, bins)
+                        psf_t = hist_t / torch.clamp(torch.sum(hist_t), min=1.0)
+                        otf_t = torch.fft.fftshift(torch.fft.fft2(psf_t))
+                        mtf_t = torch.abs(otf_t)
+                        mtf_t = mtf_t / torch.clamp(torch.max(mtf_t), min=1e-12)
+                        _freq_t = torch.fft.fftshift(torch.fft.fftfreq(bins, d=step, device=device))
+                        if hasattr(torch.cuda, "synchronize"):
+                            torch.cuda.synchronize()
+                        gpu_results.append(("Torch", time.perf_counter() - t2))
+                except Exception as exc:
+                    self.append_debug(f"Benchmark Torch path failed: {_short_error_message(exc)}")
+
+            self.append_progress(
+                f"Benchmark traced rays={x_local.size} | trace workers={workers} | bins={bins} | CPU post={cpu_sec:.6f}s"
+            )
+            if gpu_results:
+                gpu_results.sort(key=lambda item: item[1])
+                best_name, best_sec = gpu_results[0]
+                speedup = cpu_sec / max(best_sec, 1e-12)
+                for name, timing in gpu_results:
+                    self.append_progress(f"Benchmark {name} post={timing:.6f}s")
+                self.append_progress(
+                    f"Benchmark best GPU={best_name} {best_sec:.6f}s | speedup={speedup:.2f}x"
+                )
+                gpu_summary = ", ".join(f"{name}={timing:.6f}s" for name, timing in gpu_results)
+                self.append_debug(
+                    f"PSF/MTF benchmark: rays={x_local.size}, workers={workers}, cpu={cpu_sec:.6f}s, {gpu_summary}, best={best_name}, speedup={speedup:.2f}x"
+                )
+            else:
+                self.append_progress("Benchmark GPU post=unavailable")
+                self.append_debug(
+                    f"PSF/MTF benchmark: rays={x_local.size}, workers={workers}, cpu={cpu_sec:.6f}s, gpu=unavailable"
+                )
+            self.status_var.set("Benchmark PSF/MTF completed")
+        except Exception as exc:
+            self.append_progress(f"Benchmark PSF/MTF failed: {exc}")
+            self.append_debug(f"Benchmark PSF/MTF failed: {exc}")
+            self.status_var.set("Benchmark PSF/MTF failed")
+
     def build_system(self):
         surfaces = []
         wavelength = self._current_wavelength()
@@ -1892,11 +2296,11 @@ class KrakenLayoutEditor(tk.Tk):
     def _current_mtf_frequency(self) -> float:
         var = self.operand_frequency_vars.get("MTF @ freq")
         if var is None:
-            return 10.0
+            return 5.0
         try:
             value = float(var.get())
         except ValueError:
-            return 10.0
+            return 5.0
         return max(0.0, value)
 
     def _operand_mtf_mode(self, label: str) -> str:
@@ -1933,6 +2337,7 @@ class KrakenLayoutEditor(tk.Tk):
         return (0.0, base_y)
 
     def refresh_plot(self) -> None:
+        self._set_analysis_parallel_status(self.analysis_mode or "2D", 1, False)
         if not self.rows:
             self.ax.clear()
             self.ax.set_title("Axial Layout")
@@ -1955,6 +2360,7 @@ class KrakenLayoutEditor(tk.Tk):
             analysis_ax = self.figure.add_subplot(gs[1])
 
         if self.analysis_mode == "native_off_axis" and self._has_off_axis_geometry():
+            self._set_analysis_parallel_status("Native", 1, False)
             self._plot_native_off_axis_preview(
                 analysis_ax,
                 max_radius,
@@ -1972,6 +2378,7 @@ class KrakenLayoutEditor(tk.Tk):
             return
 
         if self._is_folded_mirror_preview_mode():
+            self._set_analysis_parallel_status("Folded preview", 1, False)
             self._plot_folded_mirror_preview(analysis_ax)
             self.ax.grid(True, alpha=0.2)
             self.ax.set_xlabel("Fold X [mm]")
@@ -2029,7 +2436,7 @@ class KrakenLayoutEditor(tk.Tk):
                 warnings.simplefilter("ignore", RuntimeWarning)
                 self._plot_analysis(analysis_ax, system, rays, wavelength)
                 self._update_results(system, rays, wavelength, optics_info)
-            self.status_var.set("Plot refreshed")
+            self.status_var.set(f"Plot refreshed | {self._last_analysis_label} | {self._analysis_compute_summary()}")
         except Exception as exc:
             self.last_system = None
             self.last_rays = None
@@ -2088,10 +2495,28 @@ class KrakenLayoutEditor(tk.Tk):
             return
         analysis_ax.clear()
         try:
-            analysis_rays = self._build_analysis_rays(system, wavelength)
-            X, Y, Z, L, M, N = self._pick_image_plane_data(analysis_rays)
+            if self.analysis_mode in {"spot", "rms"}:
+                field_type = "angle" if self._current_object_mode() == "Infinity" else "height"
+                field_y = self._current_field_angle_deg() if field_type == "angle" else self._current_field_height()
+                X, Y, Z, L, M, N, analysis_workers = self._build_geometric_image_samples_full(
+                    system,
+                    wavelength,
+                    sample_count=max(24, self._current_ray_count() * 6),
+                    pattern="hexapolar",
+                    surface_index=self._analysis_surface_index(),
+                    aperture_type=self._current_aperture_type(),
+                    aperture_value=self._current_aperture_value(),
+                    field_type=field_type,
+                    field_x=0.0,
+                    field_y=field_y,
+                )
+            else:
+                analysis_rays = self._build_analysis_rays(system, wavelength)
+                X, Y, Z, L, M, N = self._pick_image_plane_data(analysis_rays)
+                analysis_workers = 1
         except Exception:
             X = Y = Z = L = M = N = np.asarray([])
+            analysis_workers = 1
 
         if X.size == 0 and self.analysis_mode in {"spot", "rms"}:
             analysis_ax.text(0.5, 0.5, "No ray data", ha="center", va="center")
@@ -2099,6 +2524,7 @@ class KrakenLayoutEditor(tk.Tk):
             return
 
         if self.analysis_mode == "spot":
+            self._set_analysis_parallel_status("Spot", analysis_workers, True)
             analysis_ax.scatter(X, Y, s=18, c="#c0392b", alpha=0.8)
             analysis_ax.axhline(0.0, color="#2c3e50", linewidth=0.6, alpha=0.5)
             analysis_ax.axvline(0.0, color="#2c3e50", linewidth=0.6, alpha=0.5)
@@ -2110,6 +2536,7 @@ class KrakenLayoutEditor(tk.Tk):
                 analysis_ax.set_xlim(float(X[0]) - 1.0, float(X[0]) + 1.0)
                 analysis_ax.set_ylim(float(Y[0]) - 1.0, float(Y[0]) + 1.0)
             analysis_ax.grid(True, alpha=0.2)
+            self.append_debug(f"Spot analysis ok: rays={len(X)}, workers={analysis_workers}")
             return
 
         if self.analysis_mode == "psf":
@@ -2118,7 +2545,7 @@ class KrakenLayoutEditor(tk.Tk):
                 field_type = "angle" if self._current_object_mode() == "Infinity" else "height"
                 field_y = self._current_field_angle_deg() if field_type == "angle" else self._current_field_height()
                 self._update_analysis_progress("Tracing rays", 1, 3)
-                psf_rays = self._build_analysis_rays(
+                x_local, y_local, worker_count = self._build_geometric_image_samples(
                     system,
                     wavelength,
                     sample_count=max(48, self._current_ray_count() * 10),
@@ -2131,37 +2558,31 @@ class KrakenLayoutEditor(tk.Tk):
                     field_y=field_y,
                 )
                 self._update_analysis_progress("Building PSF image", 2, 3)
-                x_local, y_local, _z_local, _l_local, _m_local, _n_local = self._pick_image_plane_data(psf_rays)
-                x_local = np.asarray(x_local, dtype=float)
-                y_local = np.asarray(y_local, dtype=float)
-                finite = np.isfinite(x_local) & np.isfinite(y_local)
-                x_local = x_local[finite]
-                y_local = y_local[finite]
                 if x_local.size < 4:
                     raise RuntimeError("Not enough image-plane samples for PSF")
                 span_x = max(float(np.ptp(x_local)), 1e-3)
                 span_y = max(float(np.ptp(y_local)), 1e-3)
                 span = max(span_x, span_y) * 1.25
                 bins = 128
-                hist, xedges, yedges = np.histogram2d(
-                    x_local,
-                    y_local,
-                    bins=bins,
-                    range=[[-span / 2.0, span / 2.0], [-span / 2.0, span / 2.0]],
-                )
+                hist, xedges, yedges, accelerator = self._compute_psf_histogram(x_local, y_local, bins, span)
                 psf = hist.T
                 psf /= max(float(np.max(psf)), 1e-12)
                 extent = [float(xedges[0]), float(xedges[-1]), float(yedges[0]), float(yedges[-1])]
                 image = analysis_ax.imshow(psf, origin="lower", extent=extent, cmap="inferno", aspect="equal")
+                self._set_analysis_parallel_status("PSF", worker_count, True)
+                self._set_analysis_accelerator(accelerator)
                 analysis_ax.set_title(f"Geometric PSF  |  {field_type}={field_y:.3g}  |  {wavelength:.4g} um")
                 analysis_ax.set_xlabel("X [mm]")
                 analysis_ax.set_ylabel("Y [mm]")
                 analysis_ax.grid(False)
                 self.figure.colorbar(image, ax=analysis_ax, fraction=0.046, pad=0.04, label="Normalized intensity")
-                self.append_debug(f"PSF analysis ok: rays={x_local.size}, bins={bins}")
+                self.append_debug(
+                    f"PSF analysis ok: rays={x_local.size}, bins={bins}, workers={worker_count}, accel={accelerator}"
+                )
                 self._update_analysis_progress("Rendering", 3, 3)
                 self._finish_analysis_progress("PSF analysis", success=True)
             except Exception as exc:
+                self._set_analysis_parallel_status("PSF", 1, True)
                 self.append_debug(f"PSF analysis error: {exc}")
                 analysis_ax.text(0.5, 0.5, "PSF analysis unavailable", ha="center", va="center")
                 analysis_ax.set_axis_off()
@@ -2169,6 +2590,7 @@ class KrakenLayoutEditor(tk.Tk):
             return
 
         if self.analysis_mode == "rms":
+            self._set_analysis_parallel_status("RMS", analysis_workers, True)
             rms, cenX, cenY = Kos.RMS(X, Y, Z, L, M, N)
             radii = np.sqrt((X - cenX) ** 2 + (Y - cenY) ** 2)
             bins = min(max(5, int(np.sqrt(max(len(radii), 1)))), 20)
@@ -2177,10 +2599,12 @@ class KrakenLayoutEditor(tk.Tk):
             analysis_ax.set_xlabel("Radius [mm]")
             analysis_ax.set_ylabel("Count")
             analysis_ax.grid(True, axis="y", alpha=0.2)
+            self.append_debug(f"RMS analysis ok: rays={len(X)}, workers={analysis_workers}")
             return
 
         if self.analysis_mode == "pupil":
             try:
+                self._set_analysis_parallel_status("Pupil", 1, False)
                 self._begin_analysis_progress("Pupil analysis")
                 self._update_analysis_progress("Building pupil", 1, 2)
                 pupil = Kos.PupilCalc(
@@ -2214,6 +2638,7 @@ class KrakenLayoutEditor(tk.Tk):
 
         if self.analysis_mode == "seidel":
             try:
+                self._set_analysis_parallel_status("Seidel", 1, False)
                 self._begin_analysis_progress("Seidel analysis")
                 self._update_analysis_progress("Building pupil", 1, 3)
                 pupil = Kos.PupilCalc(
@@ -2242,6 +2667,7 @@ class KrakenLayoutEditor(tk.Tk):
 
         if self.analysis_mode == "wavefront":
             try:
+                self._set_analysis_parallel_status("Wavefront", 1, False)
                 self._begin_analysis_progress("Wavefront analysis")
                 self._update_analysis_progress("Building pupil", 1, 3)
                 pupil = Kos.PupilCalc(
@@ -2271,6 +2697,7 @@ class KrakenLayoutEditor(tk.Tk):
 
         if self.analysis_mode == "field_curvature":
             try:
+                self._set_analysis_parallel_status("Field curvature / distortion", 1, True)
                 self._begin_analysis_progress("Field curvature / distortion")
                 field_type = "angle" if self._current_object_mode() == "Infinity" else "height"
                 field_limit = self._current_field_angle_deg() if field_type == "angle" else self._current_field_height()
@@ -2294,6 +2721,7 @@ class KrakenLayoutEditor(tk.Tk):
                     measured_fields: list[float] = []
                     image_heights: list[float] = []
                     focus_shifts: list[float] = []
+                    worker_counts: list[int] = []
                     for field_value in field_samples:
                         completed_steps += 1
                         self._update_analysis_progress(
@@ -2303,7 +2731,7 @@ class KrakenLayoutEditor(tk.Tk):
                         )
                         field_x = field_value if axis_name == "X" else 0.0
                         field_y = field_value if axis_name == "Y" else 0.0
-                        sample_rays = self._build_analysis_rays(
+                        x_local, y_local, _z_local, l_local, m_local, n_local, worker_count = self._build_geometric_image_samples_full(
                             system,
                             wavelength,
                             sample_count=sample_count,
@@ -2315,26 +2743,9 @@ class KrakenLayoutEditor(tk.Tk):
                             field_x=field_x,
                             field_y=field_y,
                         )
-                        x_local, y_local, _z_local, l_local, m_local, n_local = self._pick_image_plane_data(sample_rays)
-                        x_local = np.asarray(x_local, dtype=float)
-                        y_local = np.asarray(y_local, dtype=float)
-                        l_local = np.asarray(l_local, dtype=float)
-                        m_local = np.asarray(m_local, dtype=float)
-                        n_local = np.asarray(n_local, dtype=float)
-                        finite = (
-                            np.isfinite(x_local)
-                            & np.isfinite(y_local)
-                            & np.isfinite(l_local)
-                            & np.isfinite(m_local)
-                            & np.isfinite(n_local)
-                        )
-                        x_local = x_local[finite]
-                        y_local = y_local[finite]
-                        l_local = l_local[finite]
-                        m_local = m_local[finite]
-                        n_local = n_local[finite]
                         if x_local.size < 4:
                             continue
+                        worker_counts.append(worker_count)
 
                         slopes_x = l_local / np.where(np.abs(n_local) < 1e-9, np.sign(n_local) * 1e-9 + 1e-9, n_local)
                         slopes_y = m_local / np.where(np.abs(n_local) < 1e-9, np.sign(n_local) * 1e-9 + 1e-9, n_local)
@@ -2374,6 +2785,7 @@ class KrakenLayoutEditor(tk.Tk):
                         "fields": abs_fields,
                         "focus": focus,
                         "distortion": distortion,
+                        "workers": np.asarray([max(worker_counts) if worker_counts else 1], dtype=float),
                     }
 
                 if not axis_results:
@@ -2467,10 +2879,19 @@ class KrakenLayoutEditor(tk.Tk):
                 analysis_ax.legend(legend_lines, legend_labels, loc="best", fontsize=8)
                 self.append_debug(
                     "Field curvature/distortion ok: "
-                    + ", ".join(f"{axis}={len(data['fields'])}" for axis, data in axis_results.items())
+                    + ", ".join(
+                        f"{axis}={len(data['fields'])},workers={int(data['workers'][0])}"
+                        for axis, data in axis_results.items()
+                    )
+                )
+                self._set_analysis_parallel_status(
+                    "Field curvature / distortion",
+                    max(int(data["workers"][0]) for data in axis_results.values()),
+                    True,
                 )
                 self._finish_analysis_progress("Field curvature / distortion", success=True)
             except Exception as exc:
+                self._set_analysis_parallel_status("Field curvature / distortion", 1, True)
                 self.append_debug(f"Field curvature/distortion error: {exc}")
                 analysis_ax.text(0.5, 0.5, "Field curvature/distortion unavailable", ha="center", va="center")
                 analysis_ax.set_axis_off()
@@ -2479,6 +2900,7 @@ class KrakenLayoutEditor(tk.Tk):
 
         if self.analysis_mode == "mtf":
             try:
+                self._set_analysis_parallel_status("MTF", 1, True)
                 self._begin_analysis_progress("MTF analysis")
                 mtf_settings = self._mtf_analysis_settings()
                 wavelength = float(mtf_settings["wavelength"])
@@ -2576,6 +2998,7 @@ class KrakenLayoutEditor(tk.Tk):
                 analysis_ax.grid(True, alpha=0.2)
                 analysis_ax.legend(loc="upper right", fontsize=8)
                 self.append_debug(f"MTF analysis ok: terms={used_terms}, samples={px.size}")
+                self._set_analysis_parallel_status("MTF", 1, False)
                 self._update_analysis_progress("Rendering diffraction MTF", 4, 4)
                 self._finish_analysis_progress("MTF analysis", success=True)
             except Exception as exc:
@@ -2583,7 +3006,7 @@ class KrakenLayoutEditor(tk.Tk):
                 try:
                     self._update_analysis_progress("Building geometric fallback", 3, 4)
                     dense_count = max(24, self._current_ray_count() * 6)
-                    mtf_rays = self._build_analysis_rays(
+                    x_local, y_local, worker_count = self._build_geometric_image_samples(
                         system,
                         wavelength,
                         sample_count=dense_count,
@@ -2595,12 +3018,6 @@ class KrakenLayoutEditor(tk.Tk):
                         field_x=float(mtf_settings["field_x"]),
                         field_y=float(mtf_settings["field_y"]),
                     )
-                    x_local, y_local, _z_local, _l_local, _m_local, _n_local = self._pick_image_plane_data(mtf_rays)
-                    x_local = np.asarray(x_local, dtype=float)
-                    y_local = np.asarray(y_local, dtype=float)
-                    finite = np.isfinite(x_local) & np.isfinite(y_local)
-                    x_local = x_local[finite]
-                    y_local = y_local[finite]
                     if x_local.size < 4:
                         raise RuntimeError("Not enough image-plane ray samples for geometric MTF")
 
@@ -2610,19 +3027,12 @@ class KrakenLayoutEditor(tk.Tk):
                     if span <= 0:
                         span = 1.0
                     bins = 128
-                    hist, xedges, yedges = np.histogram2d(
+                    mtf, freq, xedges, _unused, accelerator = self._compute_geometric_mtf_arrays(
                         x_local,
                         y_local,
-                        bins=bins,
-                        range=[[-span / 2.0, span / 2.0], [-span / 2.0, span / 2.0]],
+                        bins,
+                        span,
                     )
-                    psf = hist / max(np.sum(hist), 1.0)
-                    otf = np.fft.fftshift(np.fft.fft2(psf))
-                    mtf = np.abs(otf)
-                    mtf /= max(float(np.max(mtf)), 1e-12)
-
-                    dx = float(xedges[1] - xedges[0])
-                    freq = np.fft.fftshift(np.fft.fftfreq(bins, d=dx))
                     center = bins // 2
                     positive = freq[center:]
                     tangential = mtf[center, center:]
@@ -2718,10 +3128,15 @@ class KrakenLayoutEditor(tk.Tk):
                         fontsize=8,
                         bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.75, "pad": 1.5},
                     )
-                    self.append_debug(f"MTF fallback ok: rays={x_local.size}, bins={bins}, pupil_samp={dense_count}")
+                    self._set_analysis_accelerator(accelerator)
+                    self.append_debug(
+                        f"MTF fallback ok: rays={x_local.size}, bins={bins}, pupil_samp={dense_count}, workers={worker_count}, accel={accelerator}"
+                    )
+                    self._set_analysis_parallel_status("MTF", worker_count, True)
                     self._update_analysis_progress("Rendering geometric MTF", 4, 4)
                     self._finish_analysis_progress("MTF analysis", success=True)
                 except Exception as fallback_exc:
+                    self._set_analysis_parallel_status("MTF", 1, True)
                     self.append_debug(f"MTF analysis error: {fallback_exc}")
                     analysis_ax.text(0.5, 0.5, "MTF analysis unavailable", ha="center", va="center")
                     analysis_ax.set_axis_off()
@@ -4502,9 +4917,138 @@ class KrakenLayoutEditor(tk.Tk):
     def append_debug(self, message: str) -> None:
         if not message:
             return
-        self.debug_text.insert("end", message.rstrip() + "\n")
+        line = message.rstrip()
+        self.debug_text.insert("end", line + "\n")
         self.debug_text.see("end")
+        self._append_debug_log(line)
         self.update_idletasks()
+
+    def _bind_text_copy_shortcuts(self, widget: tk.Text) -> None:
+        for sequence in ("<Control-c>", "<Control-C>", "<Control-Insert>", "<<Copy>>", "<Control-KeyPress-c>", "<Control-KeyPress-C>"):
+            widget.bind(sequence, lambda _e, w=widget: self._copy_selection_from_text_widget(w), add="+")
+
+    def _bind_text_context_menu(self, widget: tk.Text) -> None:
+        widget.bind("<Button-3>", lambda e, w=widget: self._show_text_context_menu(e, w), add="+")
+
+    def _bind_global_copy_shortcuts(self) -> None:
+        for sequence in ("<Control-c>", "<Control-C>", "<Control-Insert>"):
+            self.bind_all(sequence, self._copy_selection_from_focus, add="+")
+
+    def _show_text_context_menu(self, event, widget: tk.Text):
+        if self._text_popup_menu is None:
+            menu = tk.Menu(self, tearoff=0)
+            menu.add_command(label="Copy Selected", command=lambda: self._copy_selection_from_text_widget(widget))
+            menu.add_command(label="Copy All", command=lambda: self._copy_all_from_text_widget(widget))
+            self._text_popup_menu = menu
+        else:
+            self._text_popup_menu.entryconfigure(0, command=lambda: self._copy_selection_from_text_widget(widget))
+            self._text_popup_menu.entryconfigure(1, command=lambda: self._copy_all_from_text_widget(widget))
+        self._text_popup_menu.tk_popup(event.x_root, event.y_root)
+        return "break"
+
+    def _copy_selection_from_focus(self, _event=None):
+        candidates = []
+        focused = self.focus_get()
+        if isinstance(focused, tk.Text):
+            candidates.append(focused)
+        for widget in (getattr(self, "debug_text", None), getattr(self, "progress_text", None)):
+            if isinstance(widget, tk.Text) and widget not in candidates:
+                candidates.append(widget)
+        for widget in candidates:
+            try:
+                text = widget.get("sel.first", "sel.last")
+            except tk.TclError:
+                continue
+            if not text:
+                continue
+            try:
+                ok, backend = self._copy_text_to_clipboard(text)
+                if ok:
+                    self.status_var.set(f"Selected text copied to clipboard ({backend})")
+                else:
+                    self.status_var.set("Copy failed")
+                return "break"
+            except Exception as exc:
+                self.append_debug(f"Copy selected text failed: {exc}")
+                return "break"
+        return None
+
+    def _copy_selection_from_text_widget(self, widget: tk.Text) -> str:
+        try:
+            text = widget.get("sel.first", "sel.last")
+        except tk.TclError:
+            self.status_var.set("No text selected")
+            return "break"
+        if not text:
+            self.status_var.set("No text selected")
+            return "break"
+        try:
+            ok, backend = self._copy_text_to_clipboard(text)
+            if ok:
+                self.status_var.set(f"Selected text copied to clipboard ({backend})")
+            else:
+                self.status_var.set("Copy failed")
+        except Exception as exc:
+            self.append_debug(f"Copy selected text failed: {exc}")
+        return "break"
+
+    def _copy_all_from_text_widget(self, widget: tk.Text) -> str:
+        text = widget.get("1.0", "end-1c")
+        if not text:
+            self.status_var.set("No text to copy")
+            return "break"
+        try:
+            ok, backend = self._copy_text_to_clipboard(text)
+            if ok:
+                self.status_var.set(f"All text copied to clipboard ({backend})")
+            else:
+                self.status_var.set("Copy failed")
+        except Exception as exc:
+            self.append_debug(f"Copy all text failed: {exc}")
+        return "break"
+
+    def _copy_text_to_clipboard(self, text: str) -> tuple[bool, str]:
+        tools = (
+            ("wl-copy", ["wl-copy"]),
+            ("xclip", ["xclip", "-selection", "clipboard"]),
+            ("xsel", ["xsel", "--clipboard", "--input"]),
+        )
+        encoded = text.encode("utf-8", errors="replace")
+        for label, cmd in tools:
+            if shutil.which(cmd[0]) is None:
+                continue
+            try:
+                subprocess.run(cmd, input=encoded, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return True, label
+            except Exception:
+                continue
+        try:
+            self.clipboard_clear()
+            self.clipboard_append(text)
+            self.update()
+            return True, "Tk"
+        except Exception:
+            return False, "none"
+
+    def copy_debug_to_clipboard(self) -> None:
+        try:
+            self._copy_all_from_text_widget(self.debug_text)
+        except Exception as exc:
+            self.append_debug(f"Copy debug failed: {exc}")
+
+    def _reset_debug_log(self) -> None:
+        try:
+            DEBUG_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+            DEBUG_LOG_PATH.write_text("", encoding="utf-8")
+        except Exception:
+            pass
+
+    def _append_debug_log(self, line: str) -> None:
+        try:
+            with DEBUG_LOG_PATH.open("a", encoding="utf-8") as fh:
+                fh.write(line + "\n")
+        except Exception:
+            pass
 
     def append_progress(self, message: str) -> None:
         if not message:
@@ -4542,6 +5086,59 @@ class KrakenLayoutEditor(tk.Tk):
         self.progress_percent_var.set("100%" if success else "failed")
         self.progress_bar_var.set(100.0 if success else 0.0)
         self.append_progress(f"{label} {'completed' if success else 'failed'}.")
+
+    def _set_analysis_parallel_status(self, label: str, workers: int = 1, parallel_capable: bool = False) -> None:
+        self._last_analysis_label = str(label)
+        self._last_analysis_workers = max(1, int(workers))
+        self._last_analysis_parallel_capable = bool(parallel_capable)
+        self._last_analysis_accelerator = "CPU"
+
+    def _set_analysis_accelerator(self, label: str) -> None:
+        self._last_analysis_accelerator = str(label)
+
+    def _analysis_parallel_summary(self) -> str:
+        if not self._last_analysis_parallel_capable:
+            return "single-threaded"
+        if self._last_analysis_workers <= 1:
+            return "parallel-ready (1 worker)"
+        return f"parallel ({self._last_analysis_workers} workers)"
+
+    def _analysis_compute_summary(self) -> str:
+        return f"{self._analysis_parallel_summary()} | {self._last_analysis_accelerator}"
+
+    def _report_compute_backends(self) -> None:
+        if self._gpu_backend_reported:
+            return
+        self._gpu_backend_reported = True
+        backend_pref = os.getenv("KRAKEN_POSTPROC_BACKEND", "auto").strip().lower()
+        if backend_pref not in {"auto", "torch", "cupy", "cpu"}:
+            backend_pref = "auto"
+        self.append_debug(f"Post-processing backend preference: {backend_pref}")
+
+        torch = _optional_torch()
+        if torch is None:
+            self.append_debug("Torch backend: unavailable.")
+        else:
+            try:
+                if bool(torch.cuda.is_available()):
+                    self.append_debug(f"Torch backend: CUDA available ({torch.cuda.device_count()} device(s)).")
+                else:
+                    self.append_debug("Torch backend: installed, CUDA not available.")
+            except Exception as exc:
+                self.append_debug(f"Torch backend: probe failed: {exc}")
+
+        cp = _optional_cupy()
+        if cp is None:
+            self.append_debug("GPU backend: CuPy unavailable, PSF/MTF post-processing will use CPU.")
+            return
+        try:
+            device_count = int(cp.cuda.runtime.getDeviceCount())
+        except Exception:
+            device_count = 0
+        if device_count > 0:
+            self.append_debug(f"GPU backend: CuPy available, detected {device_count} CUDA device(s).")
+        else:
+            self.append_debug("GPU backend: CuPy import succeeded, but no CUDA devices were detected.")
 
     def _update_progress_indicators(self) -> None:
         if not self.optimization_running or self.optimization_context is None:
@@ -4621,6 +5218,369 @@ class KrakenLayoutEditor(tk.Tk):
                 Kos.TraceLoop(x, y, z, L, M, N, wavelength, rays, clean=clean)
                 clean = 0
         return rays
+
+    def _serializable_row_specs(self) -> list[dict]:
+        return [asdict(row) for row in self.rows]
+
+    def _mtf_worker_count(self, ray_count: int) -> int:
+        cpu_total = os.cpu_count() or 1
+        if cpu_total <= 1 or ray_count < 2048:
+            return 1
+        return max(1, min(cpu_total - 1, ray_count // 2048))
+
+    def _ensure_analysis_executor(self, worker_count: int) -> ProcessPoolExecutor | None:
+        worker_count = max(1, int(worker_count))
+        if worker_count <= 1:
+            return None
+        if self._analysis_executor is not None and self._analysis_executor_workers == worker_count:
+            return self._analysis_executor
+        self._shutdown_analysis_executor()
+        self._analysis_executor = ProcessPoolExecutor(max_workers=worker_count)
+        self._analysis_executor_workers = worker_count
+        return self._analysis_executor
+
+    def _shutdown_analysis_executor(self) -> None:
+        if self._analysis_executor is not None:
+            self._analysis_executor.shutdown(wait=False, cancel_futures=True)
+            self._analysis_executor = None
+            self._analysis_executor_workers = 0
+
+    def _trace_pattern_chunks_parallel(
+        self,
+        wavelength: float,
+        bundles: list[tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]],
+    ) -> tuple[np.ndarray, np.ndarray, int]:
+        total_rays = int(sum(len(np.asarray(bundle[0])) for bundle in bundles))
+        worker_count = self._mtf_worker_count(total_rays)
+        if worker_count <= 1:
+            x_parts: list[np.ndarray] = []
+            y_parts: list[np.ndarray] = []
+            row_specs = self._serializable_row_specs()
+            for bundle in bundles:
+                x_local, y_local = _trace_analysis_chunk(row_specs, wavelength, *bundle)
+                if x_local.size:
+                    x_parts.append(x_local)
+                    y_parts.append(y_local)
+            if not x_parts:
+                return np.asarray([], dtype=float), np.asarray([], dtype=float), 1
+            return np.concatenate(x_parts), np.concatenate(y_parts), 1
+
+        row_specs = self._serializable_row_specs()
+        futures = []
+        x_parts = []
+        y_parts = []
+        executor = self._ensure_analysis_executor(worker_count)
+        if executor is None:
+            return np.asarray([], dtype=float), np.asarray([], dtype=float), 1
+        for bundle in bundles:
+            ray_total = len(np.asarray(bundle[0]))
+            if ray_total == 0:
+                continue
+            indices = np.array_split(np.arange(ray_total), worker_count)
+            for chunk in indices:
+                if chunk.size == 0:
+                    continue
+                chunk_bundle = tuple(np.asarray(values)[chunk] for values in bundle)
+                futures.append(executor.submit(_trace_analysis_chunk, row_specs, wavelength, *chunk_bundle))
+        for future in futures:
+            x_local, y_local = future.result()
+            if x_local.size:
+                x_parts.append(x_local)
+                y_parts.append(y_local)
+        if not x_parts:
+            return np.asarray([], dtype=float), np.asarray([], dtype=float), worker_count
+        return np.concatenate(x_parts), np.concatenate(y_parts), worker_count
+
+    def _trace_pattern_chunks_parallel_full(
+        self,
+        wavelength: float,
+        bundles: list[tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]],
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, int]:
+        total_rays = int(sum(len(np.asarray(bundle[0])) for bundle in bundles))
+        worker_count = self._mtf_worker_count(total_rays)
+        if worker_count <= 1:
+            parts = [[] for _ in range(6)]
+            row_specs = self._serializable_row_specs()
+            for bundle in bundles:
+                outputs = _trace_analysis_chunk_full(row_specs, wavelength, *bundle)
+                if outputs[0].size:
+                    for idx, arr in enumerate(outputs):
+                        parts[idx].append(arr)
+            if not parts[0]:
+                empty = np.asarray([], dtype=float)
+                return empty, empty, empty, empty, empty, empty, 1
+            merged = [np.concatenate(group) for group in parts]
+            return (*merged, 1)
+
+        row_specs = self._serializable_row_specs()
+        futures = []
+        parts = [[] for _ in range(6)]
+        executor = self._ensure_analysis_executor(worker_count)
+        if executor is None:
+            empty = np.asarray([], dtype=float)
+            return empty, empty, empty, empty, empty, empty, 1
+        for bundle in bundles:
+            ray_total = len(np.asarray(bundle[0]))
+            if ray_total == 0:
+                continue
+            indices = np.array_split(np.arange(ray_total), worker_count)
+            for chunk in indices:
+                if chunk.size == 0:
+                    continue
+                chunk_bundle = tuple(np.asarray(values)[chunk] for values in bundle)
+                futures.append(executor.submit(_trace_analysis_chunk_full, row_specs, wavelength, *chunk_bundle))
+        for future in futures:
+            outputs = future.result()
+            if outputs[0].size:
+                for idx, arr in enumerate(outputs):
+                    parts[idx].append(arr)
+        if not parts[0]:
+            empty = np.asarray([], dtype=float)
+            return empty, empty, empty, empty, empty, empty, worker_count
+        merged = [np.concatenate(group) for group in parts]
+        return (*merged, worker_count)
+
+    def _build_geometric_image_samples(
+        self,
+        system,
+        wavelength: float,
+        sample_count: int,
+        pattern: str = "hexapolar",
+        *,
+        surface_index: int,
+        aperture_type: str,
+        aperture_value: float,
+        field_type: str,
+        field_x: float,
+        field_y: float,
+    ) -> tuple[np.ndarray, np.ndarray, int]:
+        pupil = Kos.PupilCalc(
+            system,
+            int(surface_index),
+            wavelength,
+            str(aperture_type),
+            float(aperture_value),
+        )
+        pupil.Samp = max(2, int(sample_count))
+        pupil.Ptype = str(pattern)
+        pupil.FieldType = str(field_type)
+        field_pairs = [(float(field_x), float(field_y))]
+        bundles = []
+        for fx, fy in field_pairs:
+            pupil.FieldX = fx
+            pupil.FieldY = fy
+            bundles.append(tuple(np.asarray(values, dtype=float) for values in pupil.Pattern2Field()))
+        x_local, y_local, worker_count = self._trace_pattern_chunks_parallel(wavelength, bundles)
+        finite = np.isfinite(x_local) & np.isfinite(y_local)
+        return x_local[finite], y_local[finite], worker_count
+
+    def _build_geometric_image_samples_full(
+        self,
+        system,
+        wavelength: float,
+        sample_count: int,
+        pattern: str = "hexapolar",
+        *,
+        surface_index: int,
+        aperture_type: str,
+        aperture_value: float,
+        field_type: str,
+        field_x: float,
+        field_y: float,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, int]:
+        pupil = Kos.PupilCalc(
+            system,
+            int(surface_index),
+            wavelength,
+            str(aperture_type),
+            float(aperture_value),
+        )
+        pupil.Samp = max(2, int(sample_count))
+        pupil.Ptype = str(pattern)
+        pupil.FieldType = str(field_type)
+        pupil.FieldX = float(field_x)
+        pupil.FieldY = float(field_y)
+        bundles = [tuple(np.asarray(values, dtype=float) for values in pupil.Pattern2Field())]
+        x_local, y_local, z_local, l_local, m_local, n_local, worker_count = self._trace_pattern_chunks_parallel_full(
+            wavelength,
+            bundles,
+        )
+        finite = (
+            np.isfinite(x_local)
+            & np.isfinite(y_local)
+            & np.isfinite(z_local)
+            & np.isfinite(l_local)
+            & np.isfinite(m_local)
+            & np.isfinite(n_local)
+        )
+        return (
+            x_local[finite],
+            y_local[finite],
+            z_local[finite],
+            l_local[finite],
+            m_local[finite],
+            n_local[finite],
+            worker_count,
+        )
+
+    def _compute_psf_histogram(
+        self,
+        x_local: np.ndarray,
+        y_local: np.ndarray,
+        bins: int,
+        span: float,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, str]:
+        backend_pref = os.getenv("KRAKEN_POSTPROC_BACKEND", "auto").strip().lower()
+        gpu_min_samples = max(1, int(os.getenv("KRAKEN_GPU_MIN_SAMPLES", "1000000")))
+        allow_auto_gpu = x_local.size >= gpu_min_samples
+        if backend_pref == "auto" and not allow_auto_gpu:
+            backend_pref = "cpu"
+        if backend_pref in {"auto", "torch"}:
+            torch = _optional_torch()
+            if torch is not None:
+                try:
+                    if bool(torch.cuda.is_available()):
+                        device = torch.device("cuda")
+                        lower = -span / 2.0
+                        upper = span / 2.0
+                        step = (upper - lower) / float(bins)
+                        x_t = torch.as_tensor(x_local, dtype=torch.float64, device=device)
+                        y_t = torch.as_tensor(y_local, dtype=torch.float64, device=device)
+                        ix = torch.floor((x_t - lower) / step).to(torch.int64)
+                        iy = torch.floor((y_t - lower) / step).to(torch.int64)
+                        valid = (ix >= 0) & (ix < bins) & (iy >= 0) & (iy < bins)
+                        ix = ix[valid]
+                        iy = iy[valid]
+                        lin = ix * bins + iy
+                        hist_t = torch.zeros(bins * bins, dtype=torch.float64, device=device)
+                        hist_t.scatter_add_(0, lin, torch.ones_like(lin, dtype=torch.float64))
+                        hist_t = hist_t.view(bins, bins)
+                        xedges_t = torch.linspace(lower, upper, bins + 1, dtype=torch.float64, device=device)
+                        yedges_t = torch.linspace(lower, upper, bins + 1, dtype=torch.float64, device=device)
+                        return (
+                            hist_t.detach().cpu().numpy(),
+                            xedges_t.detach().cpu().numpy(),
+                            yedges_t.detach().cpu().numpy(),
+                            "GPU-Torch",
+                        )
+                except Exception:
+                    pass
+        if backend_pref in {"auto", "cupy"}:
+            cp = _optional_cupy()
+            if cp is not None:
+                try:
+                    x_gpu = cp.asarray(x_local, dtype=cp.float64)
+                    y_gpu = cp.asarray(y_local, dtype=cp.float64)
+                    hist_gpu, xedges_gpu, yedges_gpu = cp.histogram2d(
+                        x_gpu,
+                        y_gpu,
+                        bins=bins,
+                        range=[[-span / 2.0, span / 2.0], [-span / 2.0, span / 2.0]],
+                    )
+                    return (
+                        cp.asnumpy(hist_gpu),
+                        cp.asnumpy(xedges_gpu),
+                        cp.asnumpy(yedges_gpu),
+                        "GPU-CuPy",
+                    )
+                except Exception:
+                    pass
+        hist, xedges, yedges = np.histogram2d(
+            x_local,
+            y_local,
+            bins=bins,
+            range=[[-span / 2.0, span / 2.0], [-span / 2.0, span / 2.0]],
+        )
+        return hist, xedges, yedges, "CPU"
+
+    def _compute_geometric_mtf_arrays(
+        self,
+        x_local: np.ndarray,
+        y_local: np.ndarray,
+        bins: int,
+        span: float,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, str]:
+        backend_pref = os.getenv("KRAKEN_POSTPROC_BACKEND", "auto").strip().lower()
+        gpu_min_samples = max(1, int(os.getenv("KRAKEN_GPU_MIN_SAMPLES", "1000000")))
+        allow_auto_gpu = x_local.size >= gpu_min_samples
+        if backend_pref == "auto" and not allow_auto_gpu:
+            backend_pref = "cpu"
+        if backend_pref in {"auto", "torch"}:
+            torch = _optional_torch()
+            if torch is not None:
+                try:
+                    if bool(torch.cuda.is_available()):
+                        device = torch.device("cuda")
+                        lower = -span / 2.0
+                        upper = span / 2.0
+                        step = (upper - lower) / float(bins)
+                        x_t = torch.as_tensor(x_local, dtype=torch.float64, device=device)
+                        y_t = torch.as_tensor(y_local, dtype=torch.float64, device=device)
+                        ix = torch.floor((x_t - lower) / step).to(torch.int64)
+                        iy = torch.floor((y_t - lower) / step).to(torch.int64)
+                        valid = (ix >= 0) & (ix < bins) & (iy >= 0) & (iy < bins)
+                        ix = ix[valid]
+                        iy = iy[valid]
+                        lin = ix * bins + iy
+                        hist_t = torch.zeros(bins * bins, dtype=torch.float64, device=device)
+                        hist_t.scatter_add_(0, lin, torch.ones_like(lin, dtype=torch.float64))
+                        hist_t = hist_t.view(bins, bins)
+                        psf_t = hist_t / torch.clamp(torch.sum(hist_t), min=1.0)
+                        otf_t = torch.fft.fftshift(torch.fft.fft2(psf_t))
+                        mtf_t = torch.abs(otf_t)
+                        mtf_t = mtf_t / torch.clamp(torch.max(mtf_t), min=1e-12)
+                        xedges_t = torch.linspace(lower, upper, bins + 1, dtype=torch.float64, device=device)
+                        dx = float((xedges_t[1] - xedges_t[0]).detach().cpu().item())
+                        freq_t = torch.fft.fftshift(torch.fft.fftfreq(bins, d=dx, device=device))
+                        return (
+                            mtf_t.detach().cpu().numpy(),
+                            freq_t.detach().cpu().numpy(),
+                            xedges_t.detach().cpu().numpy(),
+                            np.asarray([], dtype=float),
+                            "GPU-Torch",
+                        )
+                except Exception:
+                    pass
+        if backend_pref in {"auto", "cupy"}:
+            cp = _optional_cupy()
+            if cp is not None:
+                try:
+                    x_gpu = cp.asarray(x_local, dtype=cp.float64)
+                    y_gpu = cp.asarray(y_local, dtype=cp.float64)
+                    hist_gpu, xedges_gpu, _yedges_gpu = cp.histogram2d(
+                        x_gpu,
+                        y_gpu,
+                        bins=bins,
+                        range=[[-span / 2.0, span / 2.0], [-span / 2.0, span / 2.0]],
+                    )
+                    psf_gpu = hist_gpu / cp.maximum(cp.sum(hist_gpu), 1.0)
+                    otf_gpu = cp.fft.fftshift(cp.fft.fft2(psf_gpu))
+                    mtf_gpu = cp.abs(otf_gpu)
+                    mtf_gpu /= cp.maximum(cp.max(mtf_gpu), 1e-12)
+                    dx = float(cp.asnumpy(xedges_gpu[1] - xedges_gpu[0]))
+                    freq_gpu = cp.fft.fftshift(cp.fft.fftfreq(bins, d=dx))
+                    return (
+                        cp.asnumpy(mtf_gpu),
+                        cp.asnumpy(freq_gpu),
+                        cp.asnumpy(xedges_gpu),
+                        np.asarray([], dtype=float),
+                        "GPU-CuPy",
+                    )
+                except Exception:
+                    pass
+        hist, xedges, _yedges = np.histogram2d(
+            x_local,
+            y_local,
+            bins=bins,
+            range=[[-span / 2.0, span / 2.0], [-span / 2.0, span / 2.0]],
+        )
+        psf = hist / max(np.sum(hist), 1.0)
+        otf = np.fft.fftshift(np.fft.fft2(psf))
+        mtf = np.abs(otf)
+        mtf /= max(float(np.max(mtf)), 1e-12)
+        dx = float(xedges[1] - xedges[0])
+        freq = np.fft.fftshift(np.fft.fftfreq(bins, d=dx))
+        return mtf, freq, xedges, np.asarray([], dtype=float), "CPU"
 
     def _collect_optics_info(self, system, rays, wavelength: float) -> dict:
         info: dict[str, float | None | str] = {
@@ -4719,6 +5679,8 @@ class KrakenLayoutEditor(tk.Tk):
         items.append(("Optimized vars", str(len(self._build_optimization_variables()))))
         items.append(("Object mode", self._current_object_mode()))
         items.append(("Wavelength [um]", f"{wavelength:.4g}"))
+        items.append(("Analysis mode", self._last_analysis_label))
+        items.append(("Analysis workers", self._analysis_compute_summary()))
         items.append(("Analysis surface", str(self._analysis_surface_index())))
         items.append(("Aperture type", self._current_aperture_type()))
         items.append(("Aperture value", f"{self._current_aperture_value():.4g}"))
