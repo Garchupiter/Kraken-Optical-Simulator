@@ -71,6 +71,8 @@ class MTFAtFrequencyOperand(MeritOperand):
     frequency: float = 50.0
     ray_count: int = 30
     mode: str = "average"
+    aperture_type: str = "EPD"
+    aperture_value: float = 10.0
     field_type: str = "angle"
     field_x: float = 0.0
     field_y: float = 0.0

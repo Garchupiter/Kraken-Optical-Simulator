@@ -121,7 +121,7 @@ def Wavefront_Zernike_Phase(x, y, COEF):
     tcoef = COEF.shape[0]
     p = np.sqrt(((x * x) + (y * y)))
     f = np.arctan2(x, y)
-    ZFP = 0.0
+    ZFP = np.zeros_like(p, dtype=float)
     for i in range(0, tcoef):
         if (COEF[i] != 0):
             ZFP = (ZFP + (COEF[i] * zernike_polynomials(i, p, f, Zern_pol, z_pow)))

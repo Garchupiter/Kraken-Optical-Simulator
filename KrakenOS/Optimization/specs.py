@@ -206,21 +206,41 @@ def _thickness_penalty_operands(editor) -> list[object]:
 
 
 def _mtf_at_frequency_operands(editor) -> list[object]:
-    return [
-        MTFAtFrequencyOperand(
-            name="MTF @ freq",
-            weight=editor._operand_weight("MTF @ freq"),
-            target=editor._operand_target("MTF @ freq"),
-            surface_index=editor._operand_surface_index("MTF @ freq"),
-            wavelength=editor._operand_wavelength("MTF @ freq"),
-            frequency=editor._current_mtf_frequency(),
-            ray_count=max(24, editor._current_ray_count() * 6),
-            mode=editor._operand_mtf_mode("MTF @ freq"),
-            field_type=editor._operand_field_type("MTF @ freq"),
-            field_x=editor._operand_field_x("MTF @ freq"),
-            field_y=editor._operand_field_y("MTF @ freq"),
+    samples = editor._resolved_mtf_field_samples("MTF @ freq")
+    if not samples:
+        samples = [
+            {
+                "basis": editor._current_field_type(),
+                "unit": editor._field_type_unit(editor._current_field_type()),
+                "display_y": editor._operand_field_y("MTF @ freq"),
+                "field_type": editor._operand_field_type("MTF @ freq"),
+                "field_x": editor._operand_field_x("MTF @ freq"),
+                "field_y": editor._operand_field_y("MTF @ freq"),
+            }
+        ]
+    total_weight = editor._operand_weight("MTF @ freq")
+    per_sample_weight = total_weight / max(1, len(samples))
+    operands: list[object] = []
+    for sample in samples:
+        sample_name = f"{editor._format_field_sample_value(float(sample['display_y']))} {sample['unit']}".strip()
+        operands.append(
+            MTFAtFrequencyOperand(
+                name=f"MTF @ freq [{sample['basis']}={sample_name}]",
+                weight=per_sample_weight,
+                target=editor._operand_target("MTF @ freq"),
+                surface_index=editor._operand_surface_index("MTF @ freq"),
+                wavelength=editor._operand_wavelength("MTF @ freq"),
+                frequency=editor._current_mtf_frequency(),
+                ray_count=max(24, editor._current_ray_count() * 6),
+                mode=editor._operand_mtf_mode("MTF @ freq"),
+                aperture_type=editor._operand_aperture_type("MTF @ freq"),
+                aperture_value=editor._operand_aperture_value("MTF @ freq"),
+                field_type=str(sample["field_type"]),
+                field_x=float(sample["field_x"]),
+                field_y=float(sample["field_y"]),
+            )
         )
-    ]
+    return operands
 
 OPERAND_REGISTRY: dict[str, OperandSpec] = {
     "spot_rms": OperandSpec(

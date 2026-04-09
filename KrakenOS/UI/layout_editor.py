@@ -17,12 +17,15 @@ from dataclasses import dataclass, asdict
 import multiprocessing as mp
 import os
 from pathlib import Path
-import pickle
+from pprint import pformat
+from queue import Empty
 import re
+import signal
 import shutil
 import subprocess
 import sys
 import time
+import traceback
 import tkinter as tk
 import tkinter.font as tkfont
 from tkinter import filedialog, messagebox, ttk
@@ -32,6 +35,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
+from matplotlib.ticker import MaxNLocator
 from matplotlib.transforms import Bbox
 import numpy as np
 
@@ -43,6 +47,7 @@ from KrakenOS.Optimization import (
     VARIABLE_REGISTRY,
     MeritEvaluator,
     MeritFunction,
+    MTFAtFrequencyOperand,
     OpticalVariable,
 )
 from KrakenOS.Optimization.adapters.pygmo2_adapter import Pygmo2MeritProblem
@@ -50,7 +55,7 @@ from KrakenOS.Optimization.adapters.pygmo2_adapter import Pygmo2MeritProblem
 
 LAYOUTS_DIR = Path(__file__).resolve().parent.parent / "common_optical_layouts"
 EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "Examples"
-DEFAULT_LAYOUT_TITLE = "Doublet Lens"
+DEFAULT_LAYOUT_TITLE = "Machine Vision 150 mm (Measured)"
 FOLDED_STARTER_LAYOUT_TITLE = "Double Mirror Fold"
 AUTO_PLOT_PATH = Path.home() / "Pictures" / "kraken_layout_latest.jpg"
 DEBUG_LOG_PATH = Path.home() / "Pictures" / "kraken_debug_latest.log"
@@ -139,7 +144,10 @@ def _load_python_data(path: Path) -> dict:
     surfaces = getattr(module, "SURFACES", None)
     if not isinstance(surfaces, list) or not surfaces:
         raise ValueError(f"{path.name} does not define a non-empty SURFACES list.")
-    return {"title": title, "surfaces": surfaces}
+    settings = getattr(module, "SETTINGS", {})
+    if not isinstance(settings, dict):
+        settings = {}
+    return {"title": title, "surfaces": surfaces, "settings": settings}
 
 
 def _load_python_title(path: Path) -> str:
@@ -393,56 +401,166 @@ def _trace_analysis_chunk_full(
     )
 
 
-def _preload_pagmo_runtime() -> None:
-    pagmo_lib = Path(os.path.expanduser("~/Projects/pagmo2/_install/lib64/libpagmo.so"))
-    if pagmo_lib.exists():
-        try:
-            ctypes.CDLL(str(pagmo_lib), mode=ctypes.RTLD_GLOBAL)
-        except OSError:
-            pass
+def _serialize_operand_results(operands) -> list[dict]:
+    serialized = []
+    for operand in operands:
+        serialized.append(
+            {
+                "name": str(getattr(operand, "name", "")),
+                "value": float(getattr(operand, "value", 0.0)),
+                "weighted": float(getattr(operand, "weighted", 0.0)),
+                "target": float(getattr(operand, "target", 0.0)),
+            }
+        )
+    return serialized
 
 
-def _run_optimization_generation_worker(population_payload: bytes, generation_done: int, seed_jitter: int = 0):
-    _preload_pagmo_runtime()
-    import pygmo as pg  # type: ignore
-
-    population = pickle.loads(population_payload)
-    algorithm = pg.algorithm(pg.de(gen=1, seed=42 + int(generation_done) + int(seed_jitter)))
-    algorithm.set_verbosity(1)
-    capture = io.StringIO()
-    with redirect_stdout(capture), redirect_stderr(capture):
-        evolved = algorithm.evolve(population)
-    logs = algorithm.extract(pg.de).get_log()
-    return pickle.dumps(evolved, protocol=pickle.HIGHEST_PROTOCOL), capture.getvalue(), logs
-
-
-def _bootstrap_optimization_generation_worker(
-    udp_payload: bytes,
+def _run_optimization_job(
+    progress_queue,
+    stop_event,
+    row_specs: list[dict],
+    merit_function: MeritFunction,
+    variables: list[OpticalVariable],
     x0: list[float],
+    generations_total: int,
+    verbosity_every: int,
     population_size: int,
-    generation_done: int,
-    seed_jitter: int = 0,
+    optimization_workers: int,
+    parallel_enabled: bool,
 ):
-    _preload_pagmo_runtime()
-    import pygmo as pg  # type: ignore
+    try:
+        if os.name == "posix":
+            try:
+                os.setsid()
+            except Exception:
+                pass
+        pagmo_lib = Path(os.path.expanduser("~/Projects/pagmo2/_install/lib64/libpagmo.so"))
+        if pagmo_lib.exists():
+            try:
+                ctypes.CDLL(str(pagmo_lib), mode=ctypes.RTLD_GLOBAL)
+            except OSError:
+                pass
+        import pygmo as pg  # type: ignore
 
-    udp = pickle.loads(udp_payload)
-    initial = udp.evaluator.evaluate(udp.variables, x0)
-    problem = pg.problem(udp)
-    population = pg.population(problem, size=int(population_size), seed=42)
-    population.push_back(x0)
-    algorithm = pg.algorithm(pg.de(gen=1, seed=42 + int(generation_done) + int(seed_jitter)))
-    algorithm.set_verbosity(1)
-    capture = io.StringIO()
-    with redirect_stdout(capture), redirect_stderr(capture):
-        evolved = algorithm.evolve(population)
-    logs = algorithm.extract(pg.de).get_log()
-    return (
-        pickle.dumps(initial, protocol=pickle.HIGHEST_PROTOCOL),
-        pickle.dumps(evolved, protocol=pickle.HIGHEST_PROTOCOL),
-        capture.getvalue(),
-        logs,
-    )
+        system = _build_system_from_specs(row_specs)
+        has_mtf_operand = any(isinstance(operand, MTFAtFrequencyOperand) for operand in merit_function.operands)
+        evaluator = MeritEvaluator(
+            system.SDT,
+            setup=system.SETUP,
+            merit_function=merit_function,
+            mtf_worker_count=max(1, int(optimization_workers)) if has_mtf_operand else 1,
+        )
+        try:
+            initial = evaluator.evaluate(variables, x0)
+
+            udp = Pygmo2MeritProblem(evaluator=evaluator, variables=variables)
+            problem = pg.problem(udp)
+            workers = 1
+            backend = "sequential"
+            population_kwargs: dict[str, object] = {"size": int(population_size), "seed": 42}
+            debug_messages: list[str] = []
+            if has_mtf_operand and int(optimization_workers) > 1:
+                workers = max(1, int(optimization_workers))
+                backend = f"mtf_chunks ({workers} workers)"
+                debug_messages.append("Optimization uses internal MTF chunk tracing instead of pygmo mp_bfe.")
+            elif parallel_enabled and int(optimization_workers) > 1:
+                workers = max(1, int(optimization_workers))
+                try:
+                    pg.mp_bfe.resize_pool(workers)
+                    population_kwargs["b"] = pg.bfe(pg.mp_bfe())
+                    backend = f"mp_bfe ({workers} workers)"
+                except Exception as exc:
+                    workers = 1
+                    backend = "sequential"
+                    debug_messages.append(f"Optimization parallel backend disabled: {exc}")
+
+            progress_queue.put(
+                {
+                    "type": "bootstrap",
+                    "initial_total": float(initial.total),
+                    "compute_backend": backend,
+                    "workers": workers,
+                    "debug_messages": debug_messages,
+                }
+            )
+
+            try:
+                population = pg.population(problem, **population_kwargs)
+            except Exception as exc:
+                if "b" not in population_kwargs:
+                    raise RuntimeError(f"failed to initialize population: {exc}") from exc
+                debug_messages.append(f"Optimization population batch evaluator failed: {exc}")
+                workers = 1
+                backend = "sequential"
+                progress_queue.put(
+                    {
+                        "type": "bootstrap",
+                        "initial_total": float(initial.total),
+                        "compute_backend": backend,
+                        "workers": workers,
+                        "debug_messages": [debug_messages[-1]],
+                    }
+                )
+                population = pg.population(problem, size=int(population_size), seed=42)
+            population.push_back(x0)
+
+            for generation_done in range(int(generations_total)):
+                if stop_event.is_set():
+                    break
+                algorithm = pg.algorithm(pg.de(gen=1, seed=42 + int(generation_done)))
+                algorithm.set_verbosity(1)
+                capture = io.StringIO()
+                with redirect_stdout(capture), redirect_stderr(capture):
+                    population = algorithm.evolve(population)
+                logs = algorithm.extract(pg.de).get_log()
+                payload = {
+                    "type": "generation",
+                    "generation_done": int(generation_done) + 1,
+                    "debug": capture.getvalue(),
+                    "champion_x": [float(value) for value in population.champion_x],
+                }
+                if logs:
+                    gen, fevals, best, dx, df = logs[-1]
+                    payload.update(
+                        {
+                            "log_gen": int(gen),
+                            "log_fevals": int(fevals),
+                            "log_best": float(best),
+                            "log_dx": float(dx),
+                            "log_df": float(df),
+                            "verbosity_every": int(verbosity_every),
+                            "generations_total": int(generations_total),
+                        }
+                    )
+                progress_queue.put(payload)
+
+            champion_x = [float(value) for value in population.champion_x]
+            champion = evaluator.evaluate(variables, champion_x)
+            progress_queue.put(
+                {
+                    "type": "complete",
+                    "cancelled": bool(stop_event.is_set()),
+                    "champion_x": champion_x,
+                    "initial_total": float(initial.total),
+                    "final_total": float(champion.total),
+                    "compute_backend": backend,
+                    "workers": workers,
+                    "operands": _serialize_operand_results(champion.operands),
+                }
+            )
+        finally:
+            try:
+                evaluator._shutdown_mtf_executor()
+            except Exception:
+                pass
+    except Exception as exc:
+        progress_queue.put(
+            {
+                "type": "error",
+                "message": str(exc),
+                "traceback": traceback.format_exc(),
+            }
+        )
 
 
 class KrakenLayoutEditor(tk.Tk):
@@ -505,6 +623,7 @@ class KrakenLayoutEditor(tk.Tk):
         self.show_native_overlays_var = tk.BooleanVar(value=True)
         self.show_native_active_spans_var = tk.BooleanVar(value=False)
         self.show_native_hit_labels_var = tk.BooleanVar(value=False)
+        self.show_clipped_rays_var = tk.BooleanVar(value=True)
         self._last_analysis_label = "2D"
         self._last_analysis_workers = 1
         self._last_analysis_parallel_capable = False
@@ -512,13 +631,15 @@ class KrakenLayoutEditor(tk.Tk):
         self._gpu_backend_reported = False
         self._analysis_executor: ProcessPoolExecutor | None = None
         self._analysis_executor_workers = 0
-        self._optimization_executor: ProcessPoolExecutor | None = None
-        self._optimization_executor_workers = 0
+        self._optimization_process = None
+        self._optimization_queue = None
+        self._optimization_stop_event = None
         self._last_optics_info: dict | None = None
         self._cardinal_marker_artists: list = []
         self._analysis_ax = None
         self._hover_hint_artists: dict = {}
         self._hover_axis = None
+        self._last_viewer_open_time = 0.0
 
         self._build_menu()
         self._build_ui()
@@ -576,7 +697,7 @@ class KrakenLayoutEditor(tk.Tk):
 
     def destroy(self) -> None:
         self._shutdown_analysis_executor()
-        self._shutdown_optimization_executor()
+        self._shutdown_optimization_worker(force=True)
         super().destroy()
 
     def _build_ui(self) -> None:
@@ -813,9 +934,9 @@ class KrakenLayoutEditor(tk.Tk):
         self.ax = self.figure.add_subplot(111)
         self.canvas = FigureCanvasTkAgg(self.figure, master=plot_frame)
         self.canvas.get_tk_widget().grid(row=1, column=0, sticky="nsew")
-        self.canvas.mpl_connect("button_press_event", self._on_plot_canvas_click)
         self.canvas.mpl_connect("motion_notify_event", self._on_plot_canvas_motion)
         self.canvas.mpl_connect("figure_leave_event", self._on_plot_canvas_leave)
+        self.canvas.get_tk_widget().bind("<Button-1>", self._on_plot_widget_click, add="+")
 
         self.debug_text = tk.Text(debug_frame, wrap="word", height=8, width=24)
         self.debug_text.grid(row=0, column=0, sticky="nsew")
@@ -965,6 +1086,13 @@ class KrakenLayoutEditor(tk.Tk):
         self.spot_view_mode_menu.grid(row=9, column=0, sticky="ew")
         self.spot_view_mode_menu.bind("<<ComboboxSelected>>", self._mark_plot_update_pending)
 
+        ttk.Checkbutton(
+            parent,
+            text="Show clipped rays",
+            variable=self.show_clipped_rays_var,
+            command=self._mark_plot_update_pending,
+        ).grid(row=9, column=1, sticky="w", padx=(8, 0))
+
         self.show_cardinals_var = tk.BooleanVar(value=True)
 
         self._bind_deferred_manual_update(wavelength_entry)
@@ -1033,23 +1161,31 @@ class KrakenLayoutEditor(tk.Tk):
         parts = [part for part in (note, warning, summary) if part]
         self.status_hint_var.set("  ||  ".join(parts))
     def _build_optimization_panel(self, parent) -> None:
-        parent.columnconfigure(0, weight=1)
-        parent.columnconfigure(1, weight=1)
+        operand_list_width = max((len(spec.label) for spec in OPERAND_REGISTRY.values()), default=14) + 2
+        operand_list_minsize = max(150, operand_list_width * 8)
+        parent.columnconfigure(0, weight=0, minsize=operand_list_minsize)
+        parent.columnconfigure(1, weight=1, minsize=220)
 
         button_row = ttk.Frame(parent)
         button_row.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 8))
         ttk.Button(button_row, text="Start Optimization", command=self.start_optimization).pack(side="left")
         ttk.Button(button_row, text="Stop", command=self.stop_optimization).pack(side="left", padx=(8, 0))
-        ttk.Label(button_row, text="Workers").pack(side="left", padx=(12, 4))
+        cpu_total = max(1, int(os.cpu_count() or 1))
+        worker_choices = ["Auto", "1"]
+        for candidate in (2, 4, 6, 8, 12, 16, cpu_total):
+            candidate = max(1, min(cpu_total, int(candidate)))
+            text = str(candidate)
+            if text not in worker_choices:
+                worker_choices.append(text)
+        ttk.Label(button_row, text="Workers").pack(side="left", padx=(14, 0))
         self.optimization_workers_var = tk.StringVar(value="Auto")
-        self.optimization_workers_menu = ttk.Combobox(
+        ttk.Combobox(
             button_row,
             textvariable=self.optimization_workers_var,
             state="readonly",
             width=6,
-            values=["Auto", "1", "2", "4", "6", "8"],
-        )
-        self.optimization_workers_menu.pack(side="left")
+            values=worker_choices,
+        ).pack(side="left", padx=(6, 0))
 
         ttk.Label(parent, text="Merit operands").grid(row=1, column=0, sticky="w", pady=(0, 2))
         self.merit_mode_list = tk.Listbox(
@@ -1057,37 +1193,37 @@ class KrakenLayoutEditor(tk.Tk):
             exportselection=False,
             selectmode="extended",
             height=min(4, max(2, len(OPERAND_REGISTRY))),
-            width=14,
+            width=operand_list_width,
         )
         for spec in OPERAND_REGISTRY.values():
             self.merit_mode_list.insert("end", spec.label)
         if OPERAND_REGISTRY:
             self.merit_mode_list.selection_set(0)
-        self.merit_mode_list.grid(row=2, column=0, sticky="nsew", pady=(0, 8), padx=(0, 8))
+        self.merit_mode_list.grid(row=2, column=0, sticky="nsw", pady=(0, 8), padx=(0, 8))
         self.merit_mode_list.bind("<<ListboxSelect>>", lambda _e: self._update_operand_setup_visibility())
 
         setup_holder = ttk.Frame(parent, height=320)
-        setup_holder.grid(row=2, column=1, sticky="nsew", pady=(0, 8))
+        setup_holder.grid(row=2, column=1, sticky="nsew", pady=(0, 8), padx=(4, 0))
         setup_holder.grid_propagate(False)
         setup_holder.columnconfigure(0, weight=1)
         setup_holder.rowconfigure(0, weight=1)
 
         setup_frame = ttk.Frame(setup_holder)
         setup_frame.grid(row=0, column=0, sticky="nsew")
-        setup_frame.columnconfigure(0, weight=1)
+        setup_frame.columnconfigure(0, weight=1, minsize=220)
         ttk.Label(setup_frame, text="Operand setup").grid(row=0, column=0, sticky="w", pady=(0, 2))
 
         for idx, spec in enumerate(OPERAND_REGISTRY.values(), start=1):
             card = ttk.LabelFrame(setup_frame, text=spec.label, padding=6)
             card.grid(row=idx, column=0, sticky="ew", pady=(0, 8))
-            card.columnconfigure(1, weight=1)
+            card.columnconfigure(1, weight=1, minsize=120)
             control_widgets: dict[str, tuple[tk.Widget, ...]] = {}
 
             weight_var = tk.StringVar(value=f"{spec.default_weight:g}")
             self.operand_weight_vars[spec.label] = weight_var
             weight_label = ttk.Label(card, text="Weight")
             weight_label.grid(row=0, column=0, sticky="w")
-            weight_entry = ttk.Entry(card, textvariable=weight_var, width=6)
+            weight_entry = ttk.Entry(card, textvariable=weight_var, width=12)
             weight_entry.grid(row=0, column=1, sticky="ew", padx=(6, 0), pady=(0, 4))
             self._bind_deferred_refresh(weight_entry)
             control_widgets["weight"] = (weight_label, weight_entry)
@@ -1096,7 +1232,7 @@ class KrakenLayoutEditor(tk.Tk):
             self.operand_target_vars[spec.label] = target_var
             target_label = ttk.Label(card, text="Target")
             target_label.grid(row=1, column=0, sticky="w")
-            target_entry = ttk.Entry(card, textvariable=target_var, width=6)
+            target_entry = ttk.Entry(card, textvariable=target_var, width=12)
             target_entry.grid(row=1, column=1, sticky="ew", padx=(6, 0), pady=(0, 4))
             self._bind_deferred_refresh(target_entry)
             control_widgets["target"] = (target_label, target_entry)
@@ -1105,7 +1241,7 @@ class KrakenLayoutEditor(tk.Tk):
             self.operand_wavelength_vars[spec.label] = wavelength_var
             wavelength_label = ttk.Label(card, text="Wvl")
             wavelength_label.grid(row=2, column=0, sticky="w")
-            wavelength_entry = ttk.Entry(card, textvariable=wavelength_var, width=6)
+            wavelength_entry = ttk.Entry(card, textvariable=wavelength_var, width=12)
             wavelength_entry.grid(row=2, column=1, sticky="ew", padx=(6, 0), pady=(0, 4))
             self._bind_deferred_refresh(wavelength_entry)
             control_widgets["wavelength"] = (wavelength_label, wavelength_entry)
@@ -1114,7 +1250,7 @@ class KrakenLayoutEditor(tk.Tk):
             self.operand_field_vars[spec.label] = field_var
             field_label = ttk.Label(card, text="Field")
             field_label.grid(row=3, column=0, sticky="w")
-            field_entry = ttk.Entry(card, textvariable=field_var, width=6)
+            field_entry = ttk.Entry(card, textvariable=field_var, width=12)
             field_entry.grid(row=3, column=1, sticky="ew", padx=(6, 0), pady=(0, 4))
             self._bind_deferred_refresh(field_entry)
             control_widgets["field"] = (field_label, field_entry)
@@ -1132,12 +1268,12 @@ class KrakenLayoutEditor(tk.Tk):
                 self.operand_field_y_vars[spec.label] = field_y_var
                 field_x_label = ttk.Label(card, text="Field X")
                 field_x_label.grid(row=3, column=0, sticky="w")
-                field_x_entry = ttk.Entry(card, textvariable=field_x_var, width=6)
+                field_x_entry = ttk.Entry(card, textvariable=field_x_var, width=12)
                 field_x_entry.grid(row=3, column=1, sticky="ew", padx=(6, 0), pady=(0, 4))
                 self._bind_deferred_refresh(field_x_entry)
-                field_y_label = ttk.Label(card, text="Field Y")
+                field_y_label = ttk.Label(card, text="Field Y(s)")
                 field_y_label.grid(row=4, column=0, sticky="w")
-                field_y_entry = ttk.Entry(card, textvariable=field_y_var, width=6)
+                field_y_entry = ttk.Entry(card, textvariable=field_y_var, width=12)
                 field_y_entry.grid(row=4, column=1, sticky="ew", padx=(6, 0), pady=(0, 4))
                 self._bind_deferred_refresh(field_y_entry)
                 control_widgets["field_xy"] = (field_x_label, field_x_entry, field_y_label, field_y_entry)
@@ -1153,7 +1289,7 @@ class KrakenLayoutEditor(tk.Tk):
             self.operand_surface_vars[spec.label] = surface_var
             surface_label = ttk.Label(card, text="Surf")
             surface_label.grid(row=surface_row, column=0, sticky="w")
-            surface_menu = ttk.Combobox(card, textvariable=surface_var, state="readonly", width=6, values=["Auto"])
+            surface_menu = ttk.Combobox(card, textvariable=surface_var, state="readonly", width=12, values=["Auto"])
             surface_menu.grid(row=surface_row, column=1, sticky="ew", padx=(6, 0), pady=(0, 4))
             surface_menu.bind("<<ComboboxSelected>>", lambda _e: self.refresh_plot())
             control_widgets["surface"] = (surface_label, surface_menu)
@@ -1166,7 +1302,7 @@ class KrakenLayoutEditor(tk.Tk):
                 card,
                 textvariable=aperture_type_var,
                 state="readonly",
-                width=6,
+                width=12,
                 values=["STOP", "EPD"],
             )
             aperture_type_menu.grid(row=aperture_type_row, column=1, sticky="ew", padx=(6, 0), pady=(0, 4))
@@ -1177,7 +1313,7 @@ class KrakenLayoutEditor(tk.Tk):
             self.operand_aperture_value_vars[spec.label] = aperture_value_var
             aperture_value_label = ttk.Label(card, text="AVal")
             aperture_value_label.grid(row=aperture_value_row, column=0, sticky="w")
-            aperture_value_entry = ttk.Entry(card, textvariable=aperture_value_var, width=6)
+            aperture_value_entry = ttk.Entry(card, textvariable=aperture_value_var, width=12)
             aperture_value_entry.grid(row=aperture_value_row, column=1, sticky="ew", padx=(6, 0), pady=(0, 0))
             self._bind_deferred_refresh(aperture_value_entry)
             control_widgets["aperture_value"] = (aperture_value_label, aperture_value_entry)
@@ -1187,7 +1323,7 @@ class KrakenLayoutEditor(tk.Tk):
                 self.operand_frequency_vars[spec.label] = frequency_var
                 frequency_label = ttk.Label(card, text="Freq")
                 frequency_label.grid(row=frequency_row, column=0, sticky="w")
-                frequency_entry = ttk.Entry(card, textvariable=frequency_var, width=6)
+                frequency_entry = ttk.Entry(card, textvariable=frequency_var, width=12)
                 frequency_entry.grid(row=frequency_row, column=1, sticky="ew", padx=(6, 0), pady=(0, 0))
                 self._bind_deferred_refresh(frequency_entry)
                 control_widgets["frequency"] = (frequency_label, frequency_entry)
@@ -1200,7 +1336,7 @@ class KrakenLayoutEditor(tk.Tk):
                     card,
                     textvariable=mtf_mode_var,
                     state="readonly",
-                    width=8,
+                    width=12,
                     values=["Average", "Tangential", "Sagittal"],
                 )
                 mtf_mode_menu.grid(row=mode_row, column=1, sticky="ew", padx=(6, 0), pady=(4, 0))
@@ -1357,12 +1493,13 @@ class KrakenLayoutEditor(tk.Tk):
         self._update_analysis_progress("Rendering", 2, 2)
         self._finish_analysis_progress("Display update", success=True)
 
-    def _on_plot_canvas_click(self, event) -> None:
-        if not getattr(event, "dblclick", False):
-            return
-        target_ax = getattr(event, "inaxes", None)
+    def _open_plot_axis_once(self, target_ax) -> None:
         if target_ax not in {self.ax, self._analysis_ax}:
             return
+        now = time.monotonic()
+        if now - self._last_viewer_open_time < 0.4:
+            return
+        self._last_viewer_open_time = now
         self._open_high_res_plot_in_system_viewer(target_ax)
 
     def _on_plot_canvas_motion(self, event) -> None:
@@ -1375,6 +1512,23 @@ class KrakenLayoutEditor(tk.Tk):
 
     def _on_plot_canvas_leave(self, _event=None) -> None:
         self._set_hover_axis(None)
+
+    def _on_plot_widget_click(self, event) -> str | None:
+        try:
+            self.canvas.draw()
+            renderer = self.figure.canvas.get_renderer()
+            widget = self.canvas.get_tk_widget()
+            x_display = float(event.x)
+            y_display = float(widget.winfo_height() - event.y)
+            for axis in (self.ax, self._analysis_ax):
+                if axis is None or axis not in self.figure.axes:
+                    continue
+                if axis.get_window_extent(renderer).contains(x_display, y_display):
+                    self._open_plot_axis_once(axis)
+                    return "break"
+        except Exception as exc:
+            self.append_debug(f"Plot viewer dispatch failed: {exc}")
+        return None
 
     def _configure_plot_hover_hints(self) -> None:
         self._hover_hint_artists = {}
@@ -1403,7 +1557,7 @@ class KrakenLayoutEditor(tk.Tk):
             hint = axis.text(
                 0.5,
                 0.985,
-                "Double-click to open in viewer",
+                "Click to open in viewer",
                 transform=axis.transAxes,
                 ha="center",
                 va="top",
@@ -1532,6 +1686,8 @@ class KrakenLayoutEditor(tk.Tk):
         if path is None:
             return
         self.current_layout_file = path
+        had_existing_rows = bool(self.rows)
+        info: dict[str, object] = {"surfaces": [], "settings": {}}
         try:
             info = _load_python_data(path)
             loaded_rows = [
@@ -1562,7 +1718,7 @@ class KrakenLayoutEditor(tk.Tk):
 
         loaded_rows = self._normalized_rows_copy(loaded_rows)
         insert_after = self._selected_insert_index()
-        if self.rows:
+        if had_existing_rows:
             self.rows = self._append_layout_rows(self.rows, loaded_rows, insert_after=insert_after)
         else:
             self.rows = loaded_rows
@@ -1571,11 +1727,226 @@ class KrakenLayoutEditor(tk.Tk):
 
         self._normalize_special_rows()
         self._sync_table()
+        if not had_existing_rows:
+            self._apply_layout_settings(info.get("settings", {}))
         self._select_inserted_layout_rows(loaded_rows, insert_after=insert_after)
         self.refresh_plot()
         self.layout_var.set(name)
         self.example_var.set("Examples")
         self.status_var.set(f"Appended {name}")
+
+    def _selected_operand_labels(self) -> list[str]:
+        if not hasattr(self, "merit_mode_list"):
+            return []
+        return [self.merit_mode_list.get(i) for i in self.merit_mode_list.curselection()]
+
+    def _set_selected_operand_labels(self, labels: list[str]) -> None:
+        if not hasattr(self, "merit_mode_list"):
+            return
+        self.merit_mode_list.selection_clear(0, "end")
+        wanted = {str(label) for label in labels}
+        for index in range(self.merit_mode_list.size()):
+            label = self.merit_mode_list.get(index)
+            if label in wanted:
+                self.merit_mode_list.selection_set(index)
+        self._update_operand_setup_visibility()
+
+    def _collect_layout_settings(self) -> dict[str, object]:
+        operand_settings: dict[str, dict[str, object]] = {}
+        all_labels = {spec.label for spec in OPERAND_REGISTRY.values()}
+        for label in all_labels:
+            payload: dict[str, object] = {}
+            var = self.operand_weight_vars.get(label)
+            if var is not None:
+                payload["weight"] = var.get()
+            var = self.operand_target_vars.get(label)
+            if var is not None:
+                payload["target"] = var.get()
+            var = self.operand_wavelength_vars.get(label)
+            if var is not None:
+                payload["wavelength"] = var.get()
+            var = self.operand_field_vars.get(label)
+            if var is not None:
+                payload["field"] = var.get()
+            var = self.operand_field_x_vars.get(label)
+            if var is not None:
+                payload["field_x"] = var.get()
+            var = self.operand_field_y_vars.get(label)
+            if var is not None:
+                payload["field_y"] = var.get()
+            var = self.operand_surface_vars.get(label)
+            if var is not None:
+                payload["surface"] = var.get()
+            var = self.operand_aperture_type_vars.get(label)
+            if var is not None:
+                payload["aperture_type"] = var.get()
+            var = self.operand_aperture_value_vars.get(label)
+            if var is not None:
+                payload["aperture_value"] = var.get()
+            var = self.operand_frequency_vars.get(label)
+            if var is not None:
+                payload["frequency"] = var.get()
+            var = self.operand_mtf_mode_vars.get(label)
+            if var is not None:
+                payload["mtf_mode"] = var.get()
+            if payload:
+                operand_settings[label] = payload
+
+        return {
+            "object_mode": self.object_mode_var.get().strip(),
+            "display_orientation": self.display_orientation_var.get().strip(),
+            "wavelength": self.wavelength_var.get().strip(),
+            "ray_count": self.ray_count_var.get().strip(),
+            "ray_height_factor": self.ray_height_factor_var.get().strip(),
+            "analysis_surface": self.analysis_surface_var.get().strip(),
+            "aperture_type": self.aperture_type_var.get().strip(),
+            "aperture_value": self.aperture_value_var.get().strip(),
+            "spot_view_mode": self.spot_view_mode_var.get().strip(),
+            "show_clipped_rays": bool(self.show_clipped_rays_var.get()),
+            "show_cardinals": bool(self.show_cardinals_var.get()),
+            "field_type": self.field_type_var.get().strip(),
+            "field_value": self.field_value_var.get().strip(),
+            "field_count": self.field_count_var.get().strip(),
+            "analysis_mode": str(self.analysis_mode or "none").strip(),
+            "auto_save_plot": bool(self.auto_save_plot_var.get()),
+            "show_native_overlays": bool(self.show_native_overlays_var.get()),
+            "show_native_active_spans": bool(self.show_native_active_spans_var.get()),
+            "show_native_hit_labels": bool(self.show_native_hit_labels_var.get()),
+            "optimization_workers": self.optimization_workers_var.get().strip() if hasattr(self, "optimization_workers_var") else "Auto",
+            "selected_operands": self._selected_operand_labels(),
+            "operands": operand_settings,
+        }
+
+    def _apply_layout_settings(self, settings: object) -> None:
+        if not isinstance(settings, dict):
+            return
+
+        def _parse_bool(value) -> bool:
+            if isinstance(value, str):
+                return value.strip().lower() in {"1", "true", "yes", "on"}
+            return bool(value)
+
+        def _set_text(var, key: str) -> None:
+            value = settings.get(key)
+            if value is not None:
+                var.set(str(value).strip())
+
+        display_orientation = str(settings.get("display_orientation", "")).strip()
+        if display_orientation in {"Vertical", "Horizontal"}:
+            self.display_orientation_var.set(display_orientation)
+
+        object_mode = str(settings.get("object_mode", "")).strip()
+        if object_mode in {"Finite", "Infinity"}:
+            self.object_mode_var.set(object_mode)
+
+        _set_text(self.wavelength_var, "wavelength")
+        _set_text(self.ray_count_var, "ray_count")
+        _set_text(self.ray_height_factor_var, "ray_height_factor")
+
+        aperture_type = str(settings.get("aperture_type", "")).strip().upper()
+        if aperture_type in {"STOP", "EPD"}:
+            self.aperture_type_var.set(aperture_type)
+        _set_text(self.aperture_value_var, "aperture_value")
+
+        if "spot_view_mode" in settings:
+            spot_view_mode = str(settings.get("spot_view_mode", "")).strip()
+            if spot_view_mode in {"Grid", "Absolute", "Centroid"}:
+                self.spot_view_mode_var.set(spot_view_mode)
+
+        field_count = settings.get("field_count")
+        if field_count is not None:
+            self.field_count_var.set(str(field_count).strip())
+
+        self._sync_field_mode_ui()
+
+        field_type = str(settings.get("field_type", "")).strip()
+        if field_type in {"Angle", "Object Height", "Paraxial Image Height", "Real Image Height"}:
+            self.field_type_var.set(field_type)
+            self._last_field_type = field_type
+
+        field_value = settings.get("field_value")
+        if field_value is not None:
+            field_value_text = str(field_value).strip()
+            self.field_value_var.set(field_value_text)
+            self._field_type_defaults[self._current_field_type()] = field_value_text
+
+        analysis_surface = settings.get("analysis_surface")
+        if analysis_surface is not None:
+            analysis_surface_text = str(analysis_surface).strip()
+            if analysis_surface_text == "Auto":
+                self.analysis_surface_var.set("Auto")
+            elif analysis_surface_text in set(self.analysis_surface_menu["values"]):
+                self.analysis_surface_var.set(analysis_surface_text)
+            else:
+                try:
+                    index = int(float(analysis_surface_text))
+                except (TypeError, ValueError):
+                    index = -1
+                if 0 <= index < len(self.rows):
+                    self.analysis_surface_var.set(f"{index}: {self.rows[index].name}")
+
+        bool_vars = {
+            "show_clipped_rays": self.show_clipped_rays_var,
+            "show_cardinals": self.show_cardinals_var,
+            "auto_save_plot": self.auto_save_plot_var,
+            "show_native_overlays": self.show_native_overlays_var,
+            "show_native_active_spans": self.show_native_active_spans_var,
+            "show_native_hit_labels": self.show_native_hit_labels_var,
+        }
+        for key, var in bool_vars.items():
+            if key in settings:
+                var.set(_parse_bool(settings.get(key)))
+
+        if hasattr(self, "optimization_workers_var") and "optimization_workers" in settings:
+            worker_text = str(settings.get("optimization_workers", "Auto")).strip() or "Auto"
+            self.optimization_workers_var.set(worker_text)
+
+        selected_operands = settings.get("selected_operands")
+        if isinstance(selected_operands, (list, tuple)):
+            self._set_selected_operand_labels([str(label) for label in selected_operands])
+
+        operand_settings = settings.get("operands")
+        if isinstance(operand_settings, dict):
+            for label, payload in operand_settings.items():
+                if not isinstance(payload, dict):
+                    continue
+                if label in self.operand_weight_vars and "weight" in payload:
+                    self.operand_weight_vars[label].set(str(payload["weight"]).strip())
+                if label in self.operand_target_vars and "target" in payload:
+                    self.operand_target_vars[label].set(str(payload["target"]).strip())
+                if label in self.operand_wavelength_vars and "wavelength" in payload:
+                    self.operand_wavelength_vars[label].set(str(payload["wavelength"]).strip())
+                if label in self.operand_field_vars and "field" in payload:
+                    self.operand_field_vars[label].set(str(payload["field"]).strip())
+                if label in self.operand_field_x_vars and "field_x" in payload:
+                    self.operand_field_x_vars[label].set(str(payload["field_x"]).strip())
+                if label in self.operand_field_y_vars and "field_y" in payload:
+                    self.operand_field_y_vars[label].set(str(payload["field_y"]).strip())
+                if label in self.operand_surface_vars and "surface" in payload:
+                    surface_text = str(payload["surface"]).strip()
+                    if surface_text:
+                        self.operand_surface_vars[label].set(surface_text)
+                if label in self.operand_aperture_type_vars and "aperture_type" in payload:
+                    aperture_text = str(payload["aperture_type"]).strip().upper()
+                    if aperture_text in {"STOP", "EPD"}:
+                        self.operand_aperture_type_vars[label].set(aperture_text)
+                if label in self.operand_aperture_value_vars and "aperture_value" in payload:
+                    self.operand_aperture_value_vars[label].set(str(payload["aperture_value"]).strip())
+                if label in self.operand_frequency_vars and "frequency" in payload:
+                    self.operand_frequency_vars[label].set(str(payload["frequency"]).strip())
+                if label in self.operand_mtf_mode_vars and "mtf_mode" in payload:
+                    mode_text = str(payload["mtf_mode"]).strip()
+                    if mode_text in {"Average", "Tangential", "Sagittal"}:
+                        self.operand_mtf_mode_vars[label].set(mode_text)
+
+        analysis_mode = str(settings.get("analysis_mode", "")).strip()
+        if analysis_mode in {"none", "native_off_axis", "spot", "psf", "rms", "field_curvature", "pupil", "seidel", "wavefront", "mtf"}:
+            self.analysis_mode = analysis_mode
+            if hasattr(self, "analysis_mode_button_var"):
+                self.analysis_mode_button_var.set(analysis_mode)
+
+        self._sync_object_controls()
+        self._update_field_status_hint()
 
     def load_example_by_name(self, name: str) -> None:
         path = self.example_files.get(name)
@@ -2633,6 +3004,37 @@ class KrakenLayoutEditor(tk.Tk):
         }
 
     @staticmethod
+    def _field_type_unit(field_type: str) -> str:
+        units = {
+            "Angle": "deg",
+            "Object Height": "mm",
+            "Paraxial Image Height": "mm",
+            "Real Image Height": "mm",
+        }
+        return units.get(str(field_type), "")
+
+    @staticmethod
+    def _format_field_sample_value(value: float) -> str:
+        return f"{float(value):.3f}".rstrip("0").rstrip(".")
+
+    def _parse_numeric_series(self, value: str) -> list[float]:
+        text = str(value or "").strip()
+        if not text:
+            return []
+        samples: list[float] = []
+        invalid: list[str] = []
+        for token in re.split(r"[\s,;]+", text):
+            if not token:
+                continue
+            try:
+                samples.append(float(token))
+            except ValueError:
+                invalid.append(token)
+        if invalid:
+            self.append_debug(f"Ignoring invalid numeric samples: {', '.join(invalid)}")
+        return samples
+
+    @staticmethod
     def _name_offset(row: SurfaceRow) -> tuple[float, float]:
         if row.surface not in {"Object", "Image"}:
             return (0.0, 0.0)
@@ -2742,7 +3144,6 @@ class KrakenLayoutEditor(tk.Tk):
                 self.ax.set_aspect("equal", adjustable="box")
             else:
                 self._set_plot_limits_from_layout(max_radius)
-            self._draw_input_ray_overlay(max_radius)
             self._draw_reference_plane_labels()
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", RuntimeWarning)
@@ -2860,7 +3261,8 @@ class KrakenLayoutEditor(tk.Tk):
                 analysis_rays = self._build_analysis_rays(system, wavelength)
                 X, Y, Z, L, M, N = self._pick_image_plane_data(analysis_rays)
                 analysis_workers = 1
-        except Exception:
+        except Exception as exc:
+            self.append_debug(f"{self.analysis_mode.upper()} analysis trace error: {exc}")
             X = Y = Z = L = M = N = np.asarray([])
             analysis_workers = 1
 
@@ -2903,14 +3305,21 @@ class KrakenLayoutEditor(tk.Tk):
                         prepared_series = centered_series
                 X_plot = np.concatenate([item[0] for item in prepared_series]) if prepared_series else X
                 Y_plot = np.concatenate([item[1] for item in prepared_series]) if prepared_series else Y
-                for index, (_x_field, _y_field, field_value) in enumerate(prepared_series):
+                draw_order = sorted(
+                    range(len(prepared_series)),
+                    key=lambda idx: abs(float(prepared_series[idx][2])),
+                    reverse=True,
+                )
+                for rank, index in enumerate(draw_order):
+                    _x_field, _y_field, field_value = prepared_series[index]
                     analysis_ax.scatter(
-                        prepared_series[index][0],
-                        prepared_series[index][1],
+                        _x_field,
+                        _y_field,
                         s=8,
                         c=colors[index],
                         alpha=0.45,
                         label=f"{field_value:.3g} {field_unit}",
+                        zorder=3 + rank,
                     )
                 if len(spot_field_series) > 1:
                     analysis_ax.legend(loc="upper right", fontsize=7, title="Field")
@@ -2932,7 +3341,6 @@ class KrakenLayoutEditor(tk.Tk):
             analysis_ax.set_title(f"Spot Diagram ({title_suffix})")
             analysis_ax.set_xlabel("X [mm]")
             analysis_ax.set_ylabel("Y [mm]")
-            analysis_ax.set_aspect("equal", adjustable="box")
             if np.ptp(X_plot) < 1e-12 and np.ptp(Y_plot) < 1e-12:
                 analysis_ax.set_xlim(float(X_plot[0]) - 1.0, float(X_plot[0]) + 1.0)
                 analysis_ax.set_ylim(float(Y_plot[0]) - 1.0, float(Y_plot[0]) + 1.0)
@@ -2941,6 +3349,26 @@ class KrakenLayoutEditor(tk.Tk):
                 span_y = max(float(np.ptp(Y_plot)), 1e-6)
                 half_width = max(span_y * 0.35, 1e-3)
                 analysis_ax.set_xlim(center_x - half_width, center_x + half_width)
+            if spot_mode == "Absolute":
+                x_min = float(np.min(X_plot))
+                x_max = float(np.max(X_plot))
+                y_min = float(np.min(Y_plot))
+                y_max = float(np.max(Y_plot))
+                x_span = max(x_max - x_min, 1e-9)
+                y_span = max(y_max - y_min, 1e-9)
+                center_x = 0.5 * (x_min + x_max)
+                center_y = 0.5 * (y_min + y_max)
+                half_x = max(x_span * 0.7, y_span * 0.55, 0.25)
+                half_y = max(y_span * 0.55, x_span * 2.0, 0.25)
+                analysis_ax.set_xlim(center_x - half_x, center_x + half_x)
+                analysis_ax.set_ylim(center_y - half_y, center_y + half_y)
+                analysis_ax.set_aspect("auto")
+                analysis_ax.set_box_aspect(1.0)
+                analysis_ax.xaxis.set_major_locator(MaxNLocator(5))
+                analysis_ax.yaxis.set_major_locator(MaxNLocator(7))
+                analysis_ax.tick_params(axis="x", labelrotation=0)
+            else:
+                analysis_ax.set_aspect("equal", adjustable="box")
             analysis_ax.grid(True, alpha=0.2)
             self.append_debug(f"Spot analysis ok: rays={len(X)}, workers={analysis_workers}")
             return
@@ -3310,243 +3738,209 @@ class KrakenLayoutEditor(tk.Tk):
                 self._begin_analysis_progress("MTF analysis")
                 mtf_settings = self._mtf_analysis_settings()
                 wavelength = float(mtf_settings["wavelength"])
-                self._update_analysis_progress("Preparing pupil", 1, 4)
-                pupil = Kos.PupilCalc(
-                    system,
-                    int(mtf_settings["surface_index"]),
-                    wavelength,
-                    str(mtf_settings["aperture_type"]),
-                    float(mtf_settings["aperture_value"]),
-                )
-                pupil.FieldType = str(mtf_settings["field_type"])
-                pupil.FieldX = float(mtf_settings["field_x"])
-                pupil.FieldY = float(mtf_settings["field_y"])
-                px, py, phase, _p2v = Kos.Phase(pupil)
-                px = np.asarray(px, dtype=float)
-                py = np.asarray(py, dtype=float)
-                phase = np.asarray(phase, dtype=float)
-                finite = np.isfinite(px) & np.isfinite(py) & np.isfinite(phase)
-                px = px[finite]
-                py = py[finite]
-                phase = phase[finite]
-                if px.size < 6:
-                    raise RuntimeError("Not enough finite pupil samples for MTF fitting")
-
-                zcoef = None
-                used_terms = None
-                last_error = None
-                self._update_analysis_progress("Fitting Zernike terms", 2, 4)
-                for term_count in (15, 10, 6, 4):
-                    if px.size <= term_count:
-                        continue
-                    try:
-                        coef_seed = np.ones(term_count)
-                        zcoef, _mat, _rms_chief, _rms_centroid, _fitting_error = Kos.Zernike_Fitting(
-                            px,
-                            py,
-                            phase,
-                            coef_seed,
-                        )
-                        used_terms = term_count
-                        break
-                    except Exception as exc:
-                        last_error = exc
-                if zcoef is None:
-                    raise RuntimeError(f"Zernike fit failed: {last_error}")
-
-                focal = max(0.01, float(getattr(pupil, "EFFL", 0.0)))
-                diameter = max(0.01, 2.0 * float(getattr(pupil, "RadPupInp", 1.0)))
-                mtf = Kos.calculate_mtf(
-                    np.asarray(zcoef, dtype=float),
-                    focal,
-                    diameter,
-                    wavelength,
-                    pixels=256,
-                    PupilSample=4,
-                )
-                samples = int(mtf.shape[0])
-                freq_max = diameter / max(wavelength * 1e-3, 1e-9)
-                freq = np.linspace(0.0, freq_max, samples // 2) / 10.0
-                tangential = np.asarray(mtf[samples // 2, samples // 2:], dtype=float)
-                sagittal = np.asarray(mtf[samples // 2:, samples // 2], dtype=float)
-                count = min(len(freq), len(tangential), len(sagittal))
                 mtf_mode = self._operand_mtf_mode("MTF @ freq")
-                tan_label = "Tangential"
-                sag_label = "Sagittal"
-                tan_style = {"linewidth": 2.2, "alpha": 1.0}
-                sag_style = {"linewidth": 2.2, "alpha": 1.0}
-                if mtf_mode == "tangential":
-                    sag_style = {"linewidth": 1.2, "alpha": 0.35}
-                    tan_label = "Tangential (selected)"
-                elif mtf_mode == "sagittal":
-                    tan_style = {"linewidth": 1.2, "alpha": 0.35}
-                    sag_label = "Sagittal (selected)"
-                analysis_ax.plot(
-                    freq[:count],
-                    tangential[:count],
-                    label=tan_label,
-                    color="#1f77b4",
-                    **tan_style,
-                )
-                analysis_ax.plot(
-                    freq[:count],
-                    sagittal[:count],
-                    label=sag_label,
-                    color="#d62728",
-                    **sag_style,
-                )
-                analysis_ax.set_title(
-                    f"Diffraction MTF  |  {pupil.FieldType}=({float(mtf_settings['field_x']):.3g}, {float(mtf_settings['field_y']):.3g})  |  {wavelength:.4g} um"
-                )
-                analysis_ax.set_xlabel("Spatial frequency [cycles/mm]")
-                analysis_ax.set_ylabel("MTF")
-                analysis_ax.set_ylim(0.0, 1.05)
-                analysis_ax.grid(True, alpha=0.2)
-                analysis_ax.legend(loc="upper right", fontsize=8)
-                self.append_debug(f"MTF analysis ok: terms={used_terms}, samples={px.size}")
-                self._set_analysis_parallel_status("MTF", 1, False)
-                self._update_analysis_progress("Rendering diffraction MTF", 4, 4)
-                self._finish_analysis_progress("MTF analysis", success=True)
-            except Exception as exc:
-                self.append_debug(f"MTF diffraction path failed: {exc}")
-                try:
-                    self._update_analysis_progress("Building geometric fallback", 3, 4)
-                    dense_count = max(24, self._current_ray_count() * 6)
-                    x_local, y_local, worker_count = self._build_geometric_image_samples(
-                        system,
-                        wavelength,
-                        sample_count=dense_count,
-                        pattern="hexapolar",
-                        surface_index=int(mtf_settings["surface_index"]),
-                        aperture_type=str(mtf_settings["aperture_type"]),
-                        aperture_value=float(mtf_settings["aperture_value"]),
-                        field_type=str(mtf_settings["field_type"]),
-                        field_x=float(mtf_settings["field_x"]),
-                        field_y=float(mtf_settings["field_y"]),
-                    )
-                    if x_local.size < 4:
-                        raise RuntimeError("Not enough image-plane ray samples for geometric MTF")
+                target_freq = self._current_mtf_frequency()
+                field_samples = self._resolved_mtf_field_samples("MTF @ freq")
+                if not field_samples:
+                    raise RuntimeError("No valid MTF field samples")
 
-                    span_x = max(float(np.ptp(x_local)), 1e-3)
-                    span_y = max(float(np.ptp(y_local)), 1e-3)
-                    span = max(span_x, span_y) * 1.25
-                    if span <= 0:
-                        span = 1.0
-                    bins = 128
-                    mtf, freq, xedges, _unused, accelerator = self._compute_geometric_mtf_arrays(
-                        x_local,
-                        y_local,
-                        bins,
-                        span,
+                sample_results: list[dict[str, object]] = []
+                max_workers = 1
+                accelerators: set[str] = set()
+                total_steps = max(2, len(field_samples) + 1)
+                for index, sample in enumerate(field_samples, start=1):
+                    legend = str(sample["legend"])
+                    self._update_analysis_progress(
+                        f"MTF field {index}/{len(field_samples)}: {legend}",
+                        index,
+                        total_steps,
                     )
-                    center = bins // 2
-                    positive = freq[center:]
-                    tangential = mtf[center, center:]
-                    sagittal = mtf[center:, center]
-                    count = min(len(positive), len(tangential), len(sagittal))
+                    try:
+                        result = self._compute_diffraction_mtf_sample(
+                            system,
+                            wavelength=wavelength,
+                            surface_index=int(mtf_settings["surface_index"]),
+                            aperture_type=str(mtf_settings["aperture_type"]),
+                            aperture_value=float(mtf_settings["aperture_value"]),
+                            field_type=str(sample["field_type"]),
+                            field_x=float(sample["field_x"]),
+                            field_y=float(sample["field_y"]),
+                        )
+                        self.append_debug(
+                            f"MTF sample {legend}: diffraction ok: method={result.get('phase_method', 'Phase')}, terms={result['used_terms']}, samples={result['sample_count']}"
+                        )
+                    except Exception as diff_exc:
+                        self.append_debug(f"MTF sample {legend}: diffraction failed: {diff_exc}")
+                        try:
+                            result = self._compute_geometric_mtf_sample(
+                                system,
+                                wavelength=wavelength,
+                                surface_index=int(mtf_settings["surface_index"]),
+                                aperture_type=str(mtf_settings["aperture_type"]),
+                                aperture_value=float(mtf_settings["aperture_value"]),
+                                field_type=str(sample["field_type"]),
+                                field_x=float(sample["field_x"]),
+                                field_y=float(sample["field_y"]),
+                            )
+                            self.append_debug(
+                                "MTF sample {legend}: geometric ok: rays={rays}, pupil_samp={pupil_samp}, workers={workers}, accel={accel}".format(
+                                    legend=legend,
+                                    rays=int(result["sample_count"]),
+                                    pupil_samp=int(result.get("pupil_samp", 0)),
+                                    workers=int(result["worker_count"]),
+                                    accel=str(result["accelerator"]),
+                                )
+                            )
+                        except Exception as geom_exc:
+                            self.append_debug(f"MTF sample {legend}: geometric failed: {geom_exc}")
+                            continue
 
-                    plot_freq = positive[:count]
-                    plot_tan = tangential[:count]
-                    plot_sag = sagittal[:count]
-                    target_freq = self._current_mtf_frequency()
-                    mtf_mode = self._operand_mtf_mode("MTF @ freq")
+                    plot_freq = np.asarray(result["plot_freq"], dtype=float)
+                    plot_tan = np.asarray(result["plot_tan"], dtype=float)
+                    plot_sag = np.asarray(result["plot_sag"], dtype=float)
+                    if plot_freq.size == 0 or plot_tan.size == 0 or plot_sag.size == 0:
+                        continue
+
                     tan_value = float(np.interp(target_freq, plot_freq, plot_tan, left=plot_tan[0], right=plot_tan[-1]))
                     sag_value = float(np.interp(target_freq, plot_freq, plot_sag, left=plot_sag[0], right=plot_sag[-1]))
                     if mtf_mode == "tangential":
                         selected_value = tan_value
-                        selected_color = "#1f77b4"
                         selected_label = "Tangential"
                     elif mtf_mode == "sagittal":
                         selected_value = sag_value
-                        selected_color = "#d62728"
                         selected_label = "Sagittal"
                     else:
                         selected_value = 0.5 * (tan_value + sag_value)
-                        selected_color = "#2c3e50"
                         selected_label = "Average"
-                    tan_label = "Tangential"
-                    sag_label = "Sagittal"
-                    tan_style = {"linewidth": 2.2, "alpha": 1.0}
-                    sag_style = {"linewidth": 2.2, "alpha": 1.0}
-                    if mtf_mode == "tangential":
-                        sag_style = {"linewidth": 1.2, "alpha": 0.35}
-                        tan_label = "Tangential (selected)"
-                    elif mtf_mode == "sagittal":
-                        tan_style = {"linewidth": 1.2, "alpha": 0.35}
-                        sag_label = "Sagittal (selected)"
-                    analysis_ax.plot(
-                        plot_freq,
-                        plot_tan,
-                        label=tan_label,
-                        color="#1f77b4",
-                        **tan_style,
+
+                    result.update(
+                        {
+                            "legend": legend,
+                            "basis": str(sample["basis"]),
+                            "unit": str(sample["unit"]),
+                            "display_x": float(sample["display_x"]),
+                            "display_y": float(sample["display_y"]),
+                            "tan_value": tan_value,
+                            "sag_value": sag_value,
+                            "selected_value": float(selected_value),
+                            "selected_label": selected_label,
+                        }
                     )
-                    analysis_ax.plot(
-                        plot_freq,
-                        plot_sag,
-                        label=sag_label,
-                        color="#d62728",
-                        **sag_style,
+                    sample_results.append(result)
+                    max_workers = max(max_workers, int(result.get("worker_count", 1)))
+                    accelerators.add(str(result.get("accelerator", "CPU")))
+
+                if not sample_results:
+                    raise RuntimeError("MTF analysis unavailable for all selected field samples")
+
+                colors = self._field_colors(len(sample_results))
+                max_plot_freq = 0.0
+                for color, result in zip(colors, sample_results):
+                    plot_freq = np.asarray(result["plot_freq"], dtype=float)
+                    plot_tan = np.asarray(result["plot_tan"], dtype=float)
+                    plot_sag = np.asarray(result["plot_sag"], dtype=float)
+                    max_plot_freq = max(max_plot_freq, float(plot_freq[-1]))
+                    legend = str(result["legend"])
+                    overlap = bool(
+                        np.allclose(
+                            plot_tan,
+                            plot_sag,
+                            rtol=1e-3,
+                            atol=max(1e-4, 5e-3 * float(max(np.max(np.abs(plot_tan)), np.max(np.abs(plot_sag)), 1e-9))),
+                        )
                     )
-                    analysis_ax.axvline(target_freq, color="#2c3e50", linewidth=1.0, linestyle="--", alpha=0.8)
+                    result["ts_overlap"] = overlap
+                    if overlap:
+                        analysis_ax.plot(
+                            plot_freq,
+                            plot_tan,
+                            label=f"T=S {legend}",
+                            color=color,
+                            linewidth=2.2,
+                            alpha=1.0,
+                            linestyle="-",
+                            zorder=3,
+                        )
+                    else:
+                        analysis_ax.plot(
+                            plot_freq,
+                            plot_tan,
+                            label=f"T {legend}",
+                            color=color,
+                            linewidth=2.2,
+                            alpha=1.0,
+                            linestyle="-",
+                            zorder=3,
+                        )
+                        analysis_ax.plot(
+                            plot_freq,
+                            plot_sag,
+                            label=f"S {legend}",
+                            color=color,
+                            linewidth=2.0,
+                            alpha=1.0,
+                            linestyle=(0, (6, 3)),
+                            marker="o",
+                            markerfacecolor="white",
+                            markeredgecolor=color,
+                            markeredgewidth=0.9,
+                            markersize=3.2,
+                            markevery=max(1, len(plot_freq) // 10),
+                            zorder=4,
+                        )
                     analysis_ax.scatter(
                         [target_freq],
-                        [tan_value],
-                        color="#1f77b4",
-                        s=32 if mtf_mode == "tangential" else 20,
-                        alpha=1.0 if mtf_mode != "sagittal" else 0.45,
-                        zorder=4,
-                    )
-                    analysis_ax.scatter(
-                        [target_freq],
-                        [sag_value],
-                        color="#d62728",
-                        s=32 if mtf_mode == "sagittal" else 20,
-                        alpha=1.0 if mtf_mode != "tangential" else 0.45,
-                        zorder=4,
-                    )
-                    analysis_ax.scatter(
-                        [target_freq],
-                        [selected_value],
-                        color=selected_color,
+                        [float(result["selected_value"])],
+                        color=color,
                         edgecolors="white",
                         linewidths=0.8,
-                        s=48,
+                        s=42,
                         zorder=5,
                     )
-                    analysis_ax.set_title(
-                        f"Geometric MTF  |  {mtf_settings['field_type']}=({float(mtf_settings['field_x']):.3g}, {float(mtf_settings['field_y']):.3g})  |  {wavelength:.4g} um"
-                    )
-                    analysis_ax.set_xlabel("Spatial frequency [cycles/mm]")
-                    analysis_ax.set_ylabel("MTF")
-                    analysis_ax.set_ylim(0.0, 1.05)
-                    xmax = min(float(plot_freq[-1]), max(100.0, target_freq * 2.5))
-                    analysis_ax.set_xlim(0.0, xmax)
-                    analysis_ax.grid(True, alpha=0.2)
-                    analysis_ax.legend(loc="upper right", fontsize=8)
-                    analysis_ax.text(
-                        0.02,
-                        0.02,
-                        f"{target_freq:.1f} cy/mm\\n{selected_label}={selected_value:.3f}\\nT={tan_value:.3f}  S={sag_value:.3f}",
-                        transform=analysis_ax.transAxes,
-                        ha="left",
-                        va="bottom",
-                        fontsize=8,
-                        bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.75, "pad": 1.5},
-                    )
-                    self._set_analysis_accelerator(accelerator)
-                    self.append_debug(
-                        f"MTF fallback ok: rays={x_local.size}, bins={bins}, pupil_samp={dense_count}, workers={worker_count}, accel={accelerator}"
-                    )
-                    self._set_analysis_parallel_status("MTF", worker_count, True)
-                    self._update_analysis_progress("Rendering geometric MTF", 4, 4)
-                    self._finish_analysis_progress("MTF analysis", success=True)
-                except Exception as fallback_exc:
-                    self._set_analysis_parallel_status("MTF", 1, True)
-                    self.append_debug(f"MTF analysis error: {fallback_exc}")
-                    analysis_ax.text(0.5, 0.5, "MTF analysis unavailable", ha="center", va="center")
-                    analysis_ax.set_axis_off()
-                    self._finish_analysis_progress("MTF analysis", success=False)
+
+                analysis_ax.axvline(target_freq, color="#2c3e50", linewidth=1.0, linestyle="--", alpha=0.8)
+                basis = str(sample_results[0]["basis"])
+                unit = str(sample_results[0]["unit"])
+                x_text = self._format_field_sample_value(float(sample_results[0]["display_x"]))
+                analysis_ax.set_title(
+                    f"MTF  |  {basis} samples  |  X={x_text} {unit}  |  {wavelength:.4g} um"
+                )
+                analysis_ax.set_xlabel("Spatial frequency [cycles/mm]")
+                analysis_ax.set_ylabel("MTF")
+                analysis_ax.set_ylim(0.0, 1.05)
+                analysis_ax.set_xlim(0.0, min(max_plot_freq, max(100.0, target_freq * 2.5)))
+                analysis_ax.grid(True, alpha=0.2)
+                analysis_ax.legend(loc="upper right", fontsize=8, ncol=(2 if len(sample_results) > 3 else 1))
+
+                summary_lines = [f"{target_freq:.1f} cy/mm  {sample_results[0]['selected_label']}"]
+                for result in sample_results[:6]:
+                    overlap_tag = " T=S" if bool(result.get("ts_overlap")) else ""
+                    summary_lines.append(f"{result['legend']}: {float(result['selected_value']):.3f}{overlap_tag}")
+                if len(sample_results) > 6:
+                    summary_lines.append("...")
+                analysis_ax.text(
+                    0.02,
+                    0.02,
+                    "\n".join(summary_lines),
+                    transform=analysis_ax.transAxes,
+                    ha="left",
+                    va="bottom",
+                    fontsize=8,
+                    bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.75, "pad": 1.5},
+                )
+
+                self._set_analysis_parallel_status("MTF", max_workers, max_workers > 1)
+                if accelerators:
+                    accel_summary = "/".join(sorted(accelerators))
+                    self._set_analysis_accelerator(accel_summary)
+                self._update_analysis_progress("Rendering MTF", total_steps, total_steps)
+                self._finish_analysis_progress("MTF analysis", success=True)
+            except Exception as exc:
+                self._set_analysis_parallel_status("MTF", 1, True)
+                self.append_debug(f"MTF analysis error: {exc}")
+                analysis_ax.text(0.5, 0.5, "MTF analysis unavailable", ha="center", va="center")
+                analysis_ax.set_axis_off()
+                self._finish_analysis_progress("MTF analysis", success=False)
             return
 
     def _analysis_surface_index(self) -> int:
@@ -3607,9 +4001,7 @@ class KrakenLayoutEditor(tk.Tk):
     def _current_field_height(self) -> float:
         return float(self._field_metrics().get("object_height", 0.0))
 
-    def _field_metrics(self) -> dict[str, float]:
-        field_type = self._current_field_type()
-        raw_value = self._current_field_value()
+    def _field_metrics_for_value(self, field_type: str, raw_value: float) -> dict[str, float]:
         object_distance = self._current_object_distance()
         effl = self._current_effl_estimate()
         image_distance = self._current_image_distance()
@@ -3647,6 +4039,9 @@ class KrakenLayoutEditor(tk.Tk):
             "paraxial_image_height": float(paraxial_image_height),
             "real_image_height": float(real_image_height),
         }
+
+    def _field_metrics(self) -> dict[str, float]:
+        return self._field_metrics_for_value(self._current_field_type(), self._current_field_value())
 
     def _current_effl_estimate(self) -> float:
         if self.last_system is not None:
@@ -3705,17 +4100,32 @@ class KrakenLayoutEditor(tk.Tk):
         return [cmap[i % len(cmap)] for i in range(count)]
 
     def _draw_colored_rays(self, rays) -> None:
+        show_clipped_rays = self.show_clipped_rays_var.get()
+        final_surface_index = max(0, len(self.rows) - 1)
         if self._has_off_axis_geometry():
-            before = len(self.ax.lines)
-            try:
-                Plot2DRays(rays, 0, 0, self.ax, 0)
-                for line in self.ax.lines[before:]:
-                    line.set_linewidth(1.8)
-                    line.set_alpha(0.95)
-            except Exception:
-                for ray in rays.CC:
+            if show_clipped_rays:
+                before = len(self.ax.lines)
+                try:
+                    Plot2DRays(rays, 0, 0, self.ax, 0)
+                    for line in self.ax.lines[before:]:
+                        line.set_linewidth(1.8)
+                        line.set_alpha(0.95)
+                except Exception:
+                    for ray in rays.CC:
+                        points = np.asarray(ray, dtype=float)
+                        if points.shape[0] < 2:
+                            continue
+                        self.ax.plot(points[:, 2], points[:, 1], color="#39FF14", linewidth=1.8, alpha=0.95)
+            else:
+                for index, ray in enumerate(rays.CC):
                     points = np.asarray(ray, dtype=float)
                     if points.shape[0] < 2:
+                        continue
+                    try:
+                        surf_ids = np.asarray(rays.SURFACE[index], dtype=int).ravel()
+                        if surf_ids.size == 0 or int(surf_ids[-1]) != final_surface_index:
+                            continue
+                    except Exception:
                         continue
                     self.ax.plot(points[:, 2], points[:, 1], color="#39FF14", linewidth=1.8, alpha=0.95)
             return
@@ -3726,6 +4136,13 @@ class KrakenLayoutEditor(tk.Tk):
             points = np.asarray(ray)
             if points.shape[0] < 2:
                 continue
+            if not show_clipped_rays:
+                try:
+                    surf_ids = np.asarray(rays.SURFACE[index], dtype=int).ravel()
+                    if surf_ids.size == 0 or int(surf_ids[-1]) != final_surface_index:
+                        continue
+                except Exception:
+                    continue
             field_index = min(index // ray_count, field_count - 1)
             color = colors[field_index]
             self.ax.plot(points[:, 2], points[:, 1], color=color, linewidth=1.8, alpha=0.95)
@@ -3905,7 +4322,7 @@ class KrakenLayoutEditor(tk.Tk):
         field_values = self._sample_field_values(self._current_field_height())
         pupil_samples = self._sample_ray_heights(self._entrance_radius(max_half))
         fan_angles = self._sample_fan_angles_deg() if self._current_object_mode() == "Finite" else [0.0]
-        ray_paths: list[list[np.ndarray]] = []
+        ray_paths: list[tuple[list[np.ndarray], bool]] = []
         for field_index, field_value in enumerate(field_values):
             if self._current_object_mode() == "Infinity":
                 for pupil_y in pupil_samples:
@@ -3915,6 +4332,7 @@ class KrakenLayoutEditor(tk.Tk):
                     path = [origin.copy()]
                     current_dir = d
                     current_medium = 1.0
+                    reached_image = False
                     for surface_type, center, row, branch_dir in elements:
                         if surface_type == "Mirror":
                             hit, along = self._intersect_ray_with_line(p, current_dir, center, float(row.tilt_x))
@@ -3959,8 +4377,9 @@ class KrakenLayoutEditor(tk.Tk):
                             if np.linalg.norm(hit - path[-1]) > 1e-9:
                                 path.append(hit.copy())
                             p = hit
+                            reached_image = True
                             break
-                    ray_paths.append(path)
+                    ray_paths.append((path, reached_image))
                     extent_points.extend(path)
             else:
                 for fan_angle in fan_angles:
@@ -3974,6 +4393,7 @@ class KrakenLayoutEditor(tk.Tk):
                     path = [origin.copy()]
                     current_dir = d
                     current_medium = 1.0
+                    reached_image = False
                     for surface_type, center, row, branch_dir in elements:
                         if surface_type == "Mirror":
                             hit, along = self._intersect_ray_with_line(p, current_dir, center, float(row.tilt_x))
@@ -4018,8 +4438,9 @@ class KrakenLayoutEditor(tk.Tk):
                             if np.linalg.norm(hit - path[-1]) > 1e-9:
                                 path.append(hit.copy())
                             p = hit
+                            reached_image = True
                             break
-                    ray_paths.append(path)
+                    ray_paths.append((path, reached_image))
                     extent_points.extend(path)
         for surface_type, center, row, branch_dir in elements:
             if surface_type in {"Mirror", "Standard"} and not draw_optical_surfaces:
@@ -4052,7 +4473,10 @@ class KrakenLayoutEditor(tk.Tk):
 
         if draw_rays:
             rays_per_field = max(1, len(ray_paths) // max(1, len(field_values)))
-            for index, path in enumerate(ray_paths):
+            show_clipped_rays = self.show_clipped_rays_var.get()
+            for index, (path, reached_image) in enumerate(ray_paths):
+                if not show_clipped_rays and not reached_image:
+                    continue
                 pts = np.asarray(path, dtype=float)
                 if pts.shape[0] < 2:
                     continue
@@ -4077,6 +4501,7 @@ class KrakenLayoutEditor(tk.Tk):
                 ("Field type", self._current_field_type()),
                 ("Field count", str(self._current_field_count())),
                 ("Ray fan count", str(self._current_ray_count())),
+                ("Show clipped rays", "Yes" if self.show_clipped_rays_var.get() else "No"),
             ]
         )
         self.status_var.set("Folded mirror preview")
@@ -4217,6 +4642,7 @@ class KrakenLayoutEditor(tk.Tk):
         field_count = max(1, self._current_field_count())
         colors = self._field_colors(field_count)
         ray_count = max(1, self._preview_field_ray_count)
+        show_clipped_rays = self.show_clipped_rays_var.get()
         ray_lengths: list[int] = []
         last_surface_counts: dict[int, int] = {}
         hit_sequences: list[list[int]] = []
@@ -4238,6 +4664,7 @@ class KrakenLayoutEditor(tk.Tk):
             if pts.shape[0] < 2:
                 continue
             ray_lengths.append(int(pts.shape[0]))
+            last_surface: int | None = None
             try:
                 surf_ids = np.asarray(rays.SURFACE[index], dtype=int).ravel()
                 if surf_ids.size:
@@ -4255,6 +4682,8 @@ class KrakenLayoutEditor(tk.Tk):
                         rays_reaching_image += 1
             except Exception:
                 pass
+            if not show_clipped_rays and last_surface != final_surface_index:
+                continue
             field_index = min(index // ray_count, field_count - 1)
             color = colors[field_index]
             if native_fold_paths is not None and index < len(native_fold_paths):
@@ -4316,6 +4745,7 @@ class KrakenLayoutEditor(tk.Tk):
                 ("Field type", self._current_field_type()),
                 ("Field count", str(self._current_field_count())),
                 ("Ray fan count", str(self._current_ray_count())),
+                ("Show clipped rays", "Yes" if self.show_clipped_rays_var.get() else "No"),
                 ("Native rays", str(len(rays.CC))),
                 ("Rays to image", str(rays_reaching_image)),
                 ("Avg ray hits", f"{np.mean(ray_lengths):.3g}" if ray_lengths else "0"),
@@ -5709,7 +6139,7 @@ class KrakenLayoutEditor(tk.Tk):
                     return max(1, min(parsed, cpu_total))
             except ValueError:
                 pass
-        return 1 if cpu_total <= 1 else max(2, min(cpu_total - 1, 4))
+        return 1 if cpu_total <= 1 else max(2, cpu_total - 1)
 
     def _ensure_analysis_executor(self, worker_count: int) -> ProcessPoolExecutor | None:
         worker_count = max(1, int(worker_count))
@@ -5728,91 +6158,57 @@ class KrakenLayoutEditor(tk.Tk):
             self._analysis_executor = None
             self._analysis_executor_workers = 0
 
-    def _ensure_optimization_executor(self, worker_count: int) -> ProcessPoolExecutor:
-        worker_count = max(1, int(worker_count))
-        if (
-            self._optimization_executor is not None
-            and self._optimization_executor_workers == worker_count
-        ):
-            return self._optimization_executor
-        self._shutdown_optimization_executor()
-        self._optimization_executor = ProcessPoolExecutor(
-            max_workers=worker_count,
-            mp_context=mp.get_context("spawn"),
-        )
-        self._optimization_executor_workers = worker_count
-        return self._optimization_executor
+    @staticmethod
+    def _terminate_process_group(pid: int, *, force: bool = False) -> None:
+        if pid <= 0 or os.name != "posix":
+            return
+        signals = (signal.SIGTERM, signal.SIGKILL) if force else (signal.SIGTERM,)
+        for sig in signals:
+            try:
+                os.killpg(pid, sig)
+            except ProcessLookupError:
+                return
+            except Exception:
+                break
+            if sig == signal.SIGTERM:
+                time.sleep(0.05)
 
-    def _shutdown_optimization_executor(self) -> None:
-        if self._optimization_executor is not None:
-            self._optimization_executor.shutdown(wait=False, cancel_futures=True)
-            self._optimization_executor = None
-            self._optimization_executor_workers = 0
-
-    def _schedule_bootstrap_futures(self, ctx: dict) -> None:
-        workers = max(1, int(ctx.get("workers", 1)))
-        executor = self._ensure_optimization_executor(workers)
-        futures = []
-        for island_index in range(workers):
-            futures.append(
-                executor.submit(
-                    _bootstrap_optimization_generation_worker,
-                    ctx["udp_payload"],
-                    ctx["x0"],
-                    int(ctx["population_size"]),
-                    0,
-                    island_index * 100003,
-                )
-            )
-        ctx["pending_future"] = futures
-        ctx["pending_kind"] = "bootstrap"
-
-    def _schedule_generation_futures(self, ctx: dict) -> bool:
-        try:
-            population_payload = pickle.dumps(ctx["population"], protocol=pickle.HIGHEST_PROTOCOL)
-        except Exception as exc:
-            self.append_progress(f"Optimization failed before generation {ctx['generation_done'] + 1}: {exc}")
-            self._finish_optimization(cancelled=True)
-            return False
-        workers = max(1, int(ctx.get("workers", 1)))
-        executor = self._ensure_optimization_executor(workers)
-        futures = []
-        for island_index in range(workers):
-            futures.append(
-                executor.submit(
-                    _run_optimization_generation_worker,
-                    population_payload,
-                    int(ctx["generation_done"]),
-                    island_index * 100003,
-                )
-            )
-        ctx["pending_future"] = futures
-        ctx["pending_kind"] = "evolve"
-        return True
-
-    def _retry_optimization_with_fewer_workers(self, ctx: dict, phase: str, exc: Exception | None) -> bool:
-        workers = max(1, int(ctx.get("workers", 1)))
-        if workers <= 1:
-            return False
-        reduced = max(1, workers // 2)
-        if reduced == workers:
-            reduced = 1
-        self.append_progress(
-            f"Optimization {phase} failed with {workers} workers; retrying with {reduced}. "
-            f"Reason: {_short_error_message(exc) if exc is not None else 'worker failure'}"
-        )
-        ctx["workers"] = reduced
-        ctx["compute_backend"] = "pygmo.de (single worker)" if reduced == 1 else f"pygmo.de islands ({reduced} workers)"
-        self._shutdown_optimization_executor()
-        ctx["pending_future"] = None
-        if phase == "bootstrap":
-            self._schedule_bootstrap_futures(ctx)
-        else:
-            if not self._schedule_generation_futures(ctx):
-                return False
-        self._update_progress_indicators()
-        self.after(1, self._optimization_step)
-        return True
+    def _shutdown_optimization_worker(self, force: bool = False) -> None:
+        if self._optimization_stop_event is not None:
+            try:
+                self._optimization_stop_event.set()
+            except Exception:
+                pass
+        process = self._optimization_process
+        if process is not None:
+            try:
+                process.join(timeout=0.15)
+            except Exception:
+                pass
+            try:
+                if force and process.is_alive():
+                    self._terminate_process_group(int(process.pid or 0), force=True)
+            except Exception:
+                pass
+            try:
+                if process.is_alive():
+                    process.join(timeout=0.15)
+            except Exception:
+                pass
+            try:
+                if not process.is_alive():
+                    process.close()
+            except Exception:
+                pass
+        queue = self._optimization_queue
+        if queue is not None:
+            try:
+                queue.close()
+            except Exception:
+                pass
+        self._optimization_process = None
+        self._optimization_queue = None
+        self._optimization_stop_event = None
 
     def _trace_pattern_chunks_parallel(
         self,
@@ -5908,6 +6304,170 @@ class KrakenLayoutEditor(tk.Tk):
             return empty, empty, empty, empty, empty, empty, worker_count
         merged = [np.concatenate(group) for group in parts]
         return (*merged, worker_count)
+
+    def _compute_diffraction_mtf_sample(
+        self,
+        system,
+        *,
+        wavelength: float,
+        surface_index: int,
+        aperture_type: str,
+        aperture_value: float,
+        field_type: str,
+        field_x: float,
+        field_y: float,
+    ) -> dict[str, object]:
+        def _sanitize_phase_arrays(px, py, phase):
+            px = np.asarray(px, dtype=float)
+            py = np.asarray(py, dtype=float)
+            phase = np.asarray(phase, dtype=float)
+            finite = np.isfinite(px) & np.isfinite(py) & np.isfinite(phase)
+            return px[finite], py[finite], phase[finite]
+
+        def _phase_is_degenerate(px: np.ndarray, py: np.ndarray) -> bool:
+            if px.size < 6:
+                return True
+            unique_x = np.unique(np.round(px, 10)).size
+            unique_y = np.unique(np.round(py, 10)).size
+            return unique_x <= 1 or unique_y <= 1
+
+        pupil = Kos.PupilCalc(
+            system,
+            int(surface_index),
+            float(wavelength),
+            str(aperture_type),
+            float(aperture_value),
+        )
+        pupil.Samp = max(11, min(21, self._current_ray_count()))
+        pupil.Ptype = "hexapolar"
+        pupil.FieldType = str(field_type)
+        pupil.FieldX = float(field_x)
+        pupil.FieldY = float(field_y)
+        phase_method = "Phase"
+        px, py, phase, _p2v = Kos.Phase(pupil)
+        px, py, phase = _sanitize_phase_arrays(px, py, phase)
+        if _phase_is_degenerate(px, py):
+            capture = io.StringIO()
+            with redirect_stdout(capture), redirect_stderr(capture):
+                px, py, phase, _p2v = Kos.Phase2(pupil)
+            phase2_log = capture.getvalue().strip()
+            if phase2_log:
+                self.append_debug(phase2_log)
+            px, py, phase = _sanitize_phase_arrays(px, py, phase)
+            phase_method = "Phase2"
+        if _phase_is_degenerate(px, py):
+            raise RuntimeError("Degenerate pupil sample from Phase/Phase2")
+        if px.size < 6:
+            raise RuntimeError("Not enough finite pupil samples for MTF fitting")
+        phase_ptv = float(np.ptp(phase)) if phase.size else 0.0
+        phase_peak = float(np.max(np.abs(phase))) if phase.size else 0.0
+        if phase_ptv <= 1e-14 and phase_peak <= 1e-14:
+            raise RuntimeError(f"Flat phase map from {phase_method}")
+
+        zcoef = None
+        used_terms = None
+        last_error = None
+        for term_count in (15, 10, 6, 4):
+            if px.size <= term_count:
+                continue
+            try:
+                coef_seed = np.ones(term_count)
+                zcoef, _mat, _rms_chief, _rms_centroid, _fitting_error = Kos.Zernike_Fitting(
+                    px,
+                    py,
+                    phase,
+                    coef_seed,
+                )
+                used_terms = term_count
+                break
+            except Exception as exc:
+                last_error = exc
+        if zcoef is None:
+            raise RuntimeError(f"Zernike fit failed: {last_error}")
+
+        focal = max(0.01, float(getattr(pupil, "EFFL", 0.0)))
+        diameter = max(0.01, 2.0 * float(getattr(pupil, "RadPupInp", 1.0)))
+        mtf = Kos.calculate_mtf(
+            np.asarray(zcoef, dtype=float),
+            focal,
+            diameter,
+            wavelength,
+            pixels=256,
+            PupilSample=4,
+        )
+        samples = int(mtf.shape[0])
+        freq_max = diameter / max(wavelength * 1e-3, 1e-9)
+        freq = np.linspace(0.0, freq_max, samples // 2) / 10.0
+        tangential = np.asarray(mtf[samples // 2, samples // 2:], dtype=float)
+        sagittal = np.asarray(mtf[samples // 2 :, samples // 2], dtype=float)
+        count = min(len(freq), len(tangential), len(sagittal))
+        return {
+            "plot_freq": np.asarray(freq[:count], dtype=float),
+            "plot_tan": np.asarray(tangential[:count], dtype=float),
+            "plot_sag": np.asarray(sagittal[:count], dtype=float),
+            "method": "Diffraction",
+            "worker_count": 1,
+            "accelerator": "CPU",
+            "sample_count": int(px.size),
+            "used_terms": int(used_terms) if used_terms is not None else 0,
+            "phase_method": phase_method,
+        }
+
+    def _compute_geometric_mtf_sample(
+        self,
+        system,
+        *,
+        wavelength: float,
+        surface_index: int,
+        aperture_type: str,
+        aperture_value: float,
+        field_type: str,
+        field_x: float,
+        field_y: float,
+    ) -> dict[str, object]:
+        dense_count = max(24, self._current_ray_count() * 6)
+        x_local, y_local, worker_count = self._build_geometric_image_samples(
+            system,
+            wavelength,
+            sample_count=dense_count,
+            pattern="hexapolar",
+            surface_index=int(surface_index),
+            aperture_type=str(aperture_type),
+            aperture_value=float(aperture_value),
+            field_type=str(field_type),
+            field_x=float(field_x),
+            field_y=float(field_y),
+        )
+        if x_local.size < 4:
+            raise RuntimeError("Not enough image-plane ray samples for geometric MTF")
+
+        span_x = max(float(np.ptp(x_local)), 1e-3)
+        span_y = max(float(np.ptp(y_local)), 1e-3)
+        span = max(span_x, span_y) * 1.25
+        if span <= 0:
+            span = 1.0
+        bins = 128
+        mtf, freq, _xedges, _unused, accelerator = self._compute_geometric_mtf_arrays(
+            x_local,
+            y_local,
+            bins,
+            span,
+        )
+        center = bins // 2
+        positive = np.asarray(freq[center:], dtype=float)
+        tangential = np.asarray(mtf[center, center:], dtype=float)
+        sagittal = np.asarray(mtf[center:, center], dtype=float)
+        count = min(len(positive), len(tangential), len(sagittal))
+        return {
+            "plot_freq": np.asarray(positive[:count], dtype=float),
+            "plot_tan": np.asarray(tangential[:count], dtype=float),
+            "plot_sag": np.asarray(sagittal[:count], dtype=float),
+            "method": "Geometric",
+            "worker_count": int(worker_count),
+            "accelerator": str(accelerator),
+            "sample_count": int(x_local.size),
+            "pupil_samp": int(dense_count),
+        }
 
     def _build_geometric_image_samples(
         self,
@@ -6222,22 +6782,12 @@ class KrakenLayoutEditor(tk.Tk):
             self.after_cancel(self._spinner_after_id)
             self._spinner_after_id = None
         self._spinner_phase = 0
-        try:
-            self.progress_bar.configure(mode="indeterminate")
-            self.progress_bar.start(12)
-        except Exception:
-            pass
         self._animate_progress_spinner()
 
     def _stop_progress_spinner(self) -> None:
         if self._spinner_after_id is not None:
             self.after_cancel(self._spinner_after_id)
             self._spinner_after_id = None
-        try:
-            self.progress_bar.stop()
-            self.progress_bar.configure(mode="determinate")
-        except Exception:
-            pass
         if not self.optimization_running:
             self.progress_spinner_var.set("idle")
 
@@ -6397,6 +6947,41 @@ class KrakenLayoutEditor(tk.Tk):
             return "angle"
         return "height"
 
+    def _resolved_field_coordinate(self, field_basis: str, raw_value: float) -> float:
+        metrics = self._field_metrics_for_value(field_basis, raw_value)
+        if field_basis == "Angle":
+            return float(metrics["angle_deg"])
+        return float(metrics["object_height"])
+
+    def _resolved_mtf_field_samples(self, label: str) -> list[dict[str, float | str]]:
+        field_basis = self._current_field_type()
+        resolved_field_type = "angle" if field_basis == "Angle" else "height"
+        unit = self._field_type_unit(field_basis)
+        raw_x = self._operand_field_x(label)
+        resolved_x = self._resolved_field_coordinate(field_basis, raw_x)
+        field_var = self.operand_field_y_vars.get(label)
+        raw_series = "" if field_var is None else field_var.get()
+        raw_values = self._parse_numeric_series(raw_series)
+        if not raw_values:
+            raw_values = [self._operand_field_y(label)]
+
+        samples: list[dict[str, float | str]] = []
+        for raw_value in raw_values:
+            resolved_y = self._resolved_field_coordinate(field_basis, raw_value)
+            samples.append(
+                {
+                    "basis": field_basis,
+                    "unit": unit,
+                    "display_x": float(raw_x),
+                    "display_y": float(raw_value),
+                    "field_type": resolved_field_type,
+                    "field_x": float(resolved_x),
+                    "field_y": float(resolved_y),
+                    "legend": f"{self._format_field_sample_value(raw_value)} {unit}".strip(),
+                }
+            )
+        return samples
+
     def _operand_surface_index(self, label: str) -> int:
         var = self.operand_surface_vars.get(label)
         if var is None:
@@ -6482,213 +7067,168 @@ class KrakenLayoutEditor(tk.Tk):
             row = self.rows[variable.surface_index]
             x0.append(row.rc if variable.parameter == "Rc" else row.thickness)
 
-        evaluator = MeritEvaluator(system.SDT, setup=system.SETUP, merit_function=merit)
         self.append_progress(
             "Optimization start | operands: "
             + ", ".join(spec.label for spec in merit_specs)
         )
         self.append_progress(f"Variables: {', '.join(v.normalized_name() for v in variables)}")
-
-        udp = Pygmo2MeritProblem(evaluator=evaluator, variables=variables)
         population_size = 12
         optimization_workers = 1
-        optimization_backend = "pygmo.de (single worker)"
-        try:
-            _preload_pagmo_runtime()
-            import pygmo as _pg  # type: ignore  # noqa: F401
-        except Exception as exc:
-            self.append_progress(f"Optimization aborted: pygmo unavailable: {exc}")
-            return
         parallel_pref = os.getenv("KRAKEN_OPT_PARALLEL", "1").strip().lower()
         parallel_enabled = parallel_pref not in {"0", "false", "off", "no"}
         if parallel_enabled:
             optimization_workers = self._optimization_worker_count()
-        if optimization_workers > 1:
-            optimization_backend = f"pygmo.de islands ({optimization_workers} workers)"
-        self.append_progress(f"Optimization compute: {optimization_backend}")
-        self.append_progress("Preparing optimization islands...")
-
-        try:
-            udp_payload = pickle.dumps(udp, protocol=pickle.HIGHEST_PROTOCOL)
-        except Exception as exc:
-            self.append_progress(f"Optimization aborted: failed to prepare optimizer payload: {exc}")
-            return
-
+        self.status_var.set("Optimization starting...")
+        self.append_progress("Preparing optimization worker...")
         self.optimization_running = True
         self.optimization_cancel_requested = False
         self.optimization_context = {
             "variables": variables,
-            "evaluator": evaluator,
-            "initial": None,
-            "population": None,
+            "champion_x": list(x0),
             "generations_total": 12,
             "generation_done": 0,
-            "verbosity_every": 3,
+            "verbosity_every": 1,
             "workers": optimization_workers,
-            "compute_backend": optimization_backend,
-            "udp_payload": udp_payload,
-            "x0": list(x0),
-            "population_size": population_size,
-            "pending_future": None,
-            "pending_kind": None,
+            "compute_backend": "pending",
+            "initial_total": None,
+            "last_best": None,
         }
-        self._schedule_bootstrap_futures(self.optimization_context)
-        self.status_var.set("Optimization preparing...")
         self._update_progress_indicators()
         self._start_progress_spinner()
-        self.after(0, self._optimization_step)
+        ctx = mp.get_context("spawn")
+        self._optimization_queue = ctx.Queue()
+        self._optimization_stop_event = ctx.Event()
+        self._optimization_process = ctx.Process(
+            target=_run_optimization_job,
+            args=(
+                self._optimization_queue,
+                self._optimization_stop_event,
+                self._serializable_row_specs(),
+                merit,
+                variables,
+                list(map(float, x0)),
+                int(self.optimization_context["generations_total"]),
+                int(self.optimization_context["verbosity_every"]),
+                int(population_size),
+                int(optimization_workers),
+                bool(parallel_enabled),
+            ),
+        )
+        self._optimization_process.start()
+        self.after(75, self._poll_optimization_worker)
 
     def stop_optimization(self) -> None:
         if not self.optimization_running:
             self.append_progress("Stop ignored: no optimization is running.")
             return
         self.optimization_cancel_requested = True
-        self.append_progress("Stop requested. Optimization will stop when the current generation finishes.")
-        self._update_progress_indicators()
+        if self._optimization_stop_event is not None:
+            try:
+                self._optimization_stop_event.set()
+            except Exception:
+                pass
+        self.append_progress("Stop requested. Applying the latest completed generation and terminating the worker.")
+        partial_result = None
+        if self.optimization_context is not None:
+            partial_result = {
+                "champion_x": list(self.optimization_context.get("champion_x", [])),
+                "initial_total": self.optimization_context.get("initial_total"),
+                "final_total": self.optimization_context.get("last_best", self.optimization_context.get("initial_total")),
+                "compute_backend": self.optimization_context.get("compute_backend", "pending"),
+                "workers": self.optimization_context.get("workers", 1),
+                "operands": [],
+            }
+        self._finish_optimization(cancelled=True, result=partial_result)
 
-    def _optimization_step(self) -> None:
+    def _poll_optimization_worker(self) -> None:
         if not self.optimization_running or self.optimization_context is None:
             return
 
         ctx = self.optimization_context
-        pending = ctx.get("pending_future")
-        pending_kind = str(ctx.get("pending_kind", "evolve"))
-
-        if self.optimization_cancel_requested:
-            if pending_kind in {"bootstrap", "evolve"} and pending:
-                if any(not future.done() for future in pending):
-                    self.after(25, self._optimization_step)
-                    return
+        queue = self._optimization_queue
+        process = self._optimization_process
+        if queue is None or process is None:
+            self.append_progress("Optimization failed: worker process not available.")
             self._finish_optimization(cancelled=True)
             return
 
-        if pending_kind == "bootstrap":
-            if not pending:
-                self.append_progress("Optimization failed: bootstrap futures missing.")
-                self._finish_optimization(cancelled=True)
-                return
-            if any(not future.done() for future in pending):
-                self.after(25, self._optimization_step)
-                return
-
-            best_population = None
-            best_logs = None
-            best_debug = ""
-            best_score = float("inf")
-            initial_result = None
-            failure = None
-            for future in pending:
-                try:
-                    initial_payload, evolved_payload, debug_output, logs = future.result()
-                    if initial_result is None:
-                        initial_result = pickle.loads(initial_payload)
-                    evolved_population = pickle.loads(evolved_payload)
-                except Exception as exc:
-                    failure = exc
-                    break
-                score = float(evolved_population.champion_f[0])
-                if score < best_score:
-                    best_score = score
-                    best_population = evolved_population
-                    best_logs = logs
-                    best_debug = debug_output
-
-            ctx["pending_future"] = None
-            ctx["pending_kind"] = "evolve"
-
-            if failure is not None or best_population is None or initial_result is None:
-                if self._retry_optimization_with_fewer_workers(ctx, "bootstrap", failure):
-                    return
-                self.append_progress(f"Optimization failed during bootstrap: {failure}")
-                self._finish_optimization(cancelled=True)
-                return
-
-            ctx["initial"] = initial_result
-            ctx["population"] = best_population
-            if best_debug:
-                self.append_debug(best_debug)
-            self.status_var.set(f"Optimization running: initial merit = {initial_result.total:.6g}")
-            self.append_progress(f"Initial merit: {initial_result.total:.6g}")
-            ctx["generation_done"] = 1
-            self._update_progress_indicators()
-            if best_logs:
-                gen, fevals, best, dx, df = best_logs[-1]
-                if (
-                    ctx["generation_done"] == ctx["generations_total"]
-                    or ctx["generation_done"] % ctx["verbosity_every"] == 0
-                    or ctx["generation_done"] == 1
-                ):
-                    self.append_progress(
-                        f"Gen {int(ctx['generation_done']):>3} | fevals {int(fevals):>4} | best {float(best):.6g} | dx {float(dx):.6g} | df {float(df):.6g}"
-                    )
-            if ctx["generation_done"] >= ctx["generations_total"]:
-                self._finish_optimization(cancelled=False)
-                return
-            self.after(1, self._optimization_step)
-            return
-
-        if not pending:
-            if not self._schedule_generation_futures(ctx):
-                return
-            self.after(25, self._optimization_step)
-            return
-
-        if any(not future.done() for future in pending):
-            self.after(25, self._optimization_step)
-            return
-
-        best_population = None
-        best_logs = None
-        best_debug = ""
-        best_score = float("inf")
-        failure = None
-        for future in pending:
+        completed = False
+        while True:
             try:
-                evolved_payload, debug_output, logs = future.result()
-                evolved_population = pickle.loads(evolved_payload)
-            except Exception as exc:
-                failure = exc
+                payload = queue.get_nowait()
+            except Empty:
                 break
-            score = float(evolved_population.champion_f[0])
-            if score < best_score:
-                best_score = score
-                best_population = evolved_population
-                best_logs = logs
-                best_debug = debug_output
 
-        ctx["pending_future"] = None
-        ctx["pending_kind"] = "evolve"
+            message_type = str(payload.get("type", ""))
+            if message_type == "bootstrap":
+                for line in payload.get("debug_messages", []) or []:
+                    self.append_debug(str(line))
+                initial_total = float(payload.get("initial_total", 0.0))
+                ctx["initial_total"] = initial_total
+                ctx["compute_backend"] = str(payload.get("compute_backend", "sequential"))
+                ctx["workers"] = max(1, int(payload.get("workers", 1)))
+                self.status_var.set(f"Optimization running: initial merit = {initial_total:.6g}")
+                self.append_progress(f"Initial merit: {initial_total:.6g}")
+                self.append_progress(f"Optimization compute: {ctx['compute_backend']}")
+            elif message_type == "generation":
+                capture_text = str(payload.get("debug", ""))
+                if capture_text:
+                    self.append_debug(capture_text)
+                ctx["generation_done"] = max(ctx["generation_done"], int(payload.get("generation_done", 0)))
+                champion_x = list(payload.get("champion_x", []))
+                if champion_x:
+                    ctx["champion_x"] = champion_x
+                self._update_progress_indicators()
+                if "log_best" in payload:
+                    ctx["last_best"] = float(payload.get("log_best", 0.0))
+                    if (
+                        ctx["generation_done"] == 1
+                        or ctx["generation_done"] == ctx["generations_total"]
+                        or ctx["generation_done"] % ctx["verbosity_every"] == 0
+                    ):
+                        self.append_progress(
+                            "Gen {gen:>3} | fevals {fevals:>4} | best {best:.6g} | dx {dx:.6g} | df {df:.6g}".format(
+                                gen=int(ctx["generation_done"]),
+                                fevals=int(payload.get("log_fevals", 0)),
+                                best=float(payload.get("log_best", 0.0)),
+                                dx=float(payload.get("log_dx", 0.0)),
+                                df=float(payload.get("log_df", 0.0)),
+                            )
+                        )
+                    if champion_x:
+                        for variable, value in zip(ctx["variables"], champion_x):
+                            row = self.rows[variable.surface_index]
+                            if variable.parameter == "Rc":
+                                row.rc = float(value)
+                            elif variable.parameter == "Thickness":
+                                row.thickness = float(value)
+                        self._sync_table()
+                        self.status_var.set(
+                            f"Optimization running: generation {ctx['generation_done']}/{ctx['generations_total']} | best merit = {ctx['last_best']:.6g}"
+                        )
+            elif message_type == "complete":
+                self._finish_optimization(cancelled=bool(payload.get("cancelled", False)), result=payload)
+                completed = True
+                break
+            elif message_type == "error":
+                tb = str(payload.get("traceback", ""))
+                if tb:
+                    self.append_debug(tb)
+                self.append_progress(f"Optimization failed: {payload.get('message', 'unknown error')}")
+                self._finish_optimization(cancelled=True)
+                completed = True
+                break
 
-        if failure is not None or best_population is None:
-            if self._retry_optimization_with_fewer_workers(ctx, "generation", failure):
-                return
-            self.append_progress(f"Optimization failed at generation {ctx['generation_done'] + 1}: {failure}")
-            self._finish_optimization(cancelled=True)
+        if completed:
             return
-
-        ctx["population"] = best_population
-        if best_debug:
-            self.append_debug(best_debug)
-        ctx["generation_done"] += 1
-        self._update_progress_indicators()
-        if best_logs:
-            gen, fevals, best, dx, df = best_logs[-1]
-            if (
-                ctx["generation_done"] == 1
-                or ctx["generation_done"] == ctx["generations_total"]
-                or ctx["generation_done"] % ctx["verbosity_every"] == 0
-            ):
-                self.append_progress(
-                    f"Gen {int(ctx['generation_done']):>3} | fevals {int(fevals):>4} | best {float(best):.6g} | dx {float(dx):.6g} | df {float(df):.6g}"
-                )
-
-        if ctx["generation_done"] >= ctx["generations_total"]:
-            self._finish_optimization(cancelled=False)
+        if process.is_alive():
+            self.after(75, self._poll_optimization_worker)
             return
+        self.append_progress("Optimization worker exited unexpectedly.")
+        self._finish_optimization(cancelled=True)
 
-        self.after(1, self._optimization_step)
-
-    def _finish_optimization(self, cancelled: bool) -> None:
+    def _finish_optimization(self, cancelled: bool, result: dict | None = None) -> None:
+        self._shutdown_optimization_worker(force=bool(cancelled))
         if self.optimization_context is None:
             self.optimization_running = False
             self.optimization_cancel_requested = False
@@ -6696,27 +7236,15 @@ class KrakenLayoutEditor(tk.Tk):
             return
 
         ctx = self.optimization_context
-        pending = ctx.get("pending_future")
-        pending_kind = str(ctx.get("pending_kind", "evolve"))
-        if pending_kind in {"bootstrap", "evolve"} and pending:
-            for future in pending:
-                if not future.done():
-                    future.cancel()
-            ctx["pending_future"] = None
-        ctx["pending_kind"] = None
-        if ctx.get("population") is None:
-            self.optimization_context = None
-            self.optimization_running = False
-            self.optimization_cancel_requested = False
-            self._stop_progress_spinner()
-            self._update_progress_indicators()
-            self.status_var.set("Optimization cancelled before first generation completed")
-            self.append_progress("Optimization cancelled before first generation completed.")
-            return
-        population = ctx["population"]
-        champion_x = population.champion_x
-        champion = ctx["evaluator"].evaluate(ctx["variables"], champion_x)
+        if result is not None:
+            champion_x = list(result.get("champion_x", []))
+            ctx["champion_x"] = champion_x
+            ctx["compute_backend"] = str(result.get("compute_backend", ctx.get("compute_backend", "sequential")))
+            ctx["workers"] = max(1, int(result.get("workers", ctx.get("workers", 1))))
+            if result.get("initial_total") is not None:
+                ctx["initial_total"] = float(result["initial_total"])
 
+        champion_x = list(ctx.get("champion_x", []))
         for variable, value in zip(ctx["variables"], champion_x):
             row = self.rows[variable.surface_index]
             if variable.parameter == "Rc":
@@ -6726,27 +7254,33 @@ class KrakenLayoutEditor(tk.Tk):
 
         self._sync_table()
         self.refresh_plot()
-        initial = ctx["initial"] or champion
+        initial_total = float(ctx.get("initial_total") or 0.0)
+        final_total_value = initial_total
+        if result is not None:
+            candidate_final = result.get("final_total", initial_total)
+            if candidate_final is not None:
+                final_total_value = float(candidate_final)
+        final_total = float(final_total_value)
         compute_backend = str(ctx.get("compute_backend", "sequential"))
         compute_workers = max(1, int(ctx.get("workers", 1)))
         if cancelled:
             self.status_var.set(
-                f"Optimization stopped: {initial.total:.6g} -> {champion.total:.6g}"
+                f"Optimization stopped: {initial_total:.6g} -> {final_total:.6g}"
             )
             self.append_progress(
-                f"Optimization stopped | merit {initial.total:.6g} -> {champion.total:.6g}"
+                f"Optimization stopped | merit {initial_total:.6g} -> {final_total:.6g}"
             )
         else:
             self.status_var.set(
-                f"Optimization finished: {initial.total:.6g} -> {champion.total:.6g}"
+                f"Optimization finished: {initial_total:.6g} -> {final_total:.6g}"
             )
             self.append_progress(
-                f"Optimization finished | merit {initial.total:.6g} -> {champion.total:.6g}"
+                f"Optimization finished | merit {initial_total:.6g} -> {final_total:.6g}"
             )
         self.append_progress(f"Optimization compute: {compute_backend} | workers={compute_workers}")
-        for operand in champion.operands:
+        for operand in (result.get("operands", []) if result is not None else []):
             self.append_progress(
-                f"  {operand.name}: value={operand.value:.6g} weighted={operand.weighted:.6g}"
+                f"  {operand['name']}: value={float(operand['value']):.6g} weighted={float(operand['weighted']):.6g}"
             )
 
         self.optimization_context = None
@@ -6929,6 +7463,7 @@ class KrakenLayoutEditor(tk.Tk):
         if not path:
             return
         self.current_layout_file = Path(path)
+        info: dict[str, object] = {"surfaces": [], "settings": {}}
         try:
             info = _load_python_data(Path(path))
             self.rows = [
@@ -6951,6 +7486,7 @@ class KrakenLayoutEditor(tk.Tk):
             self.rows = [self._row_from_surface(surface, index, len(surfaces)) for index, surface in enumerate(surfaces)]
         self._normalize_special_rows()
         self._sync_table()
+        self._apply_layout_settings(info.get("settings", {}))
         self.refresh_plot()
         self.status_var.set(f"Opened {Path(path).name}")
 
@@ -6976,9 +7512,13 @@ class KrakenLayoutEditor(tk.Tk):
     def _write_layout_file(self, path: Path) -> None:
         self._read_rows_from_table()
         title = path.stem.replace("_", " ").title()
+        settings = self._collect_layout_settings()
+        settings_text = pformat(settings, sort_dicts=False, width=100)
         lines = [
             "#!/usr/bin/env python3",
             f'TITLE = "{title}"',
+            "",
+            f"SETTINGS = {settings_text}",
             "",
             "import KrakenOS as Kos",
             "",

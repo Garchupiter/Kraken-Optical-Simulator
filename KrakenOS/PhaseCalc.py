@@ -326,7 +326,6 @@ def Phase2(Pupil):
     SS[-1].Rc = -np.sign(SS[-2].Thickness) * np.abs(SphRefRad)
       
     
-    print(Tx, Ty, "----------------------------------------------")
     if Tx > 90:
         Tx = Tx - 180
     
@@ -341,7 +340,6 @@ def Phase2(Pupil):
     
     
     
-    print(Tx, Ty, "----------------------------------------------")
     SS[-1].TiltX = Tx
     SS[-1].TiltY = Ty
     SS[-1].DespX = DespEsfX
@@ -773,4 +771,3 @@ def Phase(PUPIL):
 #     return ((YPUP / Pup.RadPupInp), (XPUP / Pup.RadPupInp), Wi, np.abs(P2V))
 
 #     # return SYSTEM
-
