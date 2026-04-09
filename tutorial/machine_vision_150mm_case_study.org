@@ -1,0 +1,663 @@
+#+TITLE: 150 mm Machine Vision Lens Case Study
+#+AUTHOR: Codex
+#+OPTIONS: toc:2 num:t
+
+* Goal
+
+This note treats the 150 mm machine-vision lens as a physics-class case study.
+The purpose is not to reverse-engineer the real proprietary prescription, because
+that information is not available. The purpose is:
+
+1. to turn the given mechanical and imaging data into a first-order optical model,
+2. to derive the principal-plane positions from those data,
+3. to explain what can and cannot be inferred about the entrance and exit pupils,
+4. to show how the KrakenOS UI preset =Machine Vision 150 mm (Measured)= was built,
+5. to document the corresponding KrakenOS surrogate values for =H1=, =H2=, =EP=,
+   =XP=, effective focal length, and related quantities.
+
+This is therefore a *cardinal-point reconstruction* and *surrogate-model*
+exercise, not a full industrial lens design from glass and curvatures.
+
+* Given Data
+
+The measured system data are:
+
+| Quantity | Symbol | Value |
+|----------+--------+-------|
+| Sensor size | $23 \times 23$ mm | square sensor |
+| Lens focal length | $f$ | 150 mm |
+| Object size | $19.5 \times 19.5$ mm | square object |
+| Front edge to object | $z_{FO}$ | 268 mm |
+| Front edge to sensor | $z_{FI}$ | 357 mm |
+| Physical lens length | $L$ | 48.81 mm |
+| Datasheet f-number | $N$ | 5.6 |
+
+The KrakenOS preset used in the UI is:
+
+- file: =KrakenOS/common_optical_layouts/machine_vision_150mm_measured.py=
+- title: =Machine Vision 150 mm (Measured)=
+
+* Step 1: Magnification From Object and Sensor Size
+
+For a square object and square sensor, the simplest first-order estimate uses one
+transverse dimension:
+
+\[
+|m| = \frac{y'}{y} = \frac{23}{19.5} = 1.179487\ldots
+\]
+
+So the measured setup is approximately a =1.18x= imaging condition if the full
+object width maps to the full sensor width.
+
+Numerically,
+
+\[
+|m| \approx 1.17949
+\]
+
+In paraxial sign convention for a real inverted image we would write
+
+\[
+m = -\frac{s'}{s}
+\]
+
+but for the magnitude estimates here we use
+
+\[
+|m| = \frac{s'}{s}
+\]
+
+* Step 2: Thin-Lens Conjugates Measured From the Principal Planes
+
+For a thin lens or equivalent thick lens written in terms of principal planes,
+
+\[
+\frac{1}{f} = \frac{1}{s} + \frac{1}{s'}
+\]
+
+with
+
+- $s$  = object distance measured from the front principal plane $H_1$,
+- $s'$ = image distance measured from the back principal plane $H_2$.
+
+Using magnification,
+
+\[
+|m| = \frac{s'}{s}
+\]
+
+there are two useful algebraic forms:
+
+\[
+s = f\left(1 + \frac{1}{|m|}\right)
+\]
+
+\[
+s' = f(1 + |m|)
+\]
+
+Insert $f = 150$ mm and $|m| = 1.179487$:
+
+\[
+s = 150\left(1 + \frac{1}{1.179487}\right)
+   = 277.17\ \text{mm}
+\]
+
+\[
+s' = 150(1 + 1.179487)
+    = 326.92\ \text{mm}
+\]
+
+So the first-order equivalent lens predicts:
+
+- object distance from $H_1$: about 277.17 mm
+- image distance from $H_2$: about 326.92 mm
+
+* Step 3: Recovering H1 and H2 From Mechanical Measurements
+
+The measured front-edge reference is not itself a principal plane. Therefore the
+principal-plane offsets must be inferred.
+
+** Front principal plane
+
+The object is measured 268 mm in front of the *front mechanical edge*.
+Since the paraxial object distance is 277.17 mm from $H_1$,
+
+\[
+H_1 - z_{front} = s - z_{FO}
+\]
+
+\[
+H_1 - z_{front} = 277.17 - 268 = 9.17\ \text{mm}
+\]
+
+So the first-order estimate is:
+
+\[
+H_1 \approx 9.17\ \text{mm behind the front edge}
+\]
+
+** Back principal plane
+
+The sensor is measured 357 mm behind the same front-edge reference.
+Since the paraxial image distance is 326.92 mm from $H_2$,
+
+\[
+H_2 - z_{front} = z_{FI} - s'
+\]
+
+\[
+H_2 - z_{front} = 357 - 326.92 = 30.08\ \text{mm}
+\]
+
+So the first-order estimate is:
+
+\[
+H_2 \approx 30.08\ \text{mm behind the front edge}
+\]
+
+Because the lens physical length is 48.81 mm, the back principal plane is also
+
+\[
+L - (H_2 - z_{front}) = 48.81 - 30.08 = 18.73\ \text{mm}
+\]
+
+in front of the back mechanical edge.
+
+** First-order result summary
+
+| Quantity | Value |
+|----------+-------|
+| $|m|$ | 1.17949 |
+| $s$ from $H_1$ | 277.17 mm |
+| $s'$ from $H_2$ | 326.92 mm |
+| $H_1$ from front edge | +9.17 mm |
+| $H_2$ from front edge | +30.08 mm |
+| $H_2$ from back edge | 18.73 mm in front of back edge |
+
+* Step 4: Aperture Estimate From F-Number
+
+From the datasheet f-number $N = 5.6$ and focal length $f = 150$ mm,
+
+the entrance pupil diameter estimate is
+
+\[
+D_{EP} \approx \frac{f}{N} = \frac{150}{5.6} = 26.79\ \text{mm}
+\]
+
+So a very natural starting aperture for KrakenOS is
+
+\[
+D_{EP} \approx 26.8\ \text{mm}
+\]
+
+which is exactly the value used in the preset.
+
+* Step 5: What Can Be Inferred About EP and XP?
+
+This point is important.
+
+From the external measurements alone, one can estimate the *principal planes*
+reasonably well. But the *entrance pupil* and *exit pupil* positions depend on
+where the physical stop is and on how the surrounding groups image that stop.
+Therefore:
+
+- $H_1$ and $H_2$ can be estimated from focal length, magnification, and the
+  measured conjugates.
+- $EP$ and $XP$ cannot be uniquely recovered from the given measurements alone.
+
+To get $EP$ and $XP$ one needs either:
+
+1. the real optical prescription, or
+2. a surrogate model that explicitly includes a stop.
+
+That is why the KrakenOS preset places a =Stop Plane= in the lens body.
+
+* Step 6: Building the KrakenOS Surrogate
+
+The measured KrakenOS surrogate is not the real industrial prescription. It is a
+single-group equivalent lens with an internal stop chosen to satisfy the measured
+mechanical distances and the nominal focal length.
+
+The measured preset surfaces are:
+
+| Surface | Name | Rc [mm] | Thickness [mm] | Diameter [mm] | Glass |
+|---------+------+---------+----------------+---------------+-------|
+| Object | Object | 0.0 | 268.0 | 19.5 | AIR |
+| Standard | Lens Front | 114.6097 | 24.405 | 35.0 | BK7 |
+| Standard | Stop Plane | 0.0 | 24.405 | 26.8 | BK7 |
+| Standard | Lens Back | -211.2054 | 308.19 | 35.0 | AIR |
+| Image | Image | 0.0 | 0.0 | 23.0 | AIR |
+
+Mechanically this means:
+
+- front lens edge absolute position:
+  \[
+  z_{front} = 268.0\ \text{mm}
+  \]
+- back lens edge absolute position:
+  \[
+  z_{back} = 268.0 + 48.81 = 316.81\ \text{mm}
+  \]
+- sensor plane absolute position:
+  \[
+  z_{image} = 268.0 + 48.81 + 308.19 = 625.0\ \text{mm}
+  \]
+
+* Step 7: KrakenOS Cardinal Data for the Measured Surrogate
+
+Using =system.Parax(0.546)= and =Kos.PupilCalc(..., 'STOP', 26.8)= on the
+measured surrogate, KrakenOS gives:
+
+| Quantity | Absolute z [mm] | Referenced to front edge [mm] |
+|----------+-----------------+-------------------------------|
+| $H_1$ | 279.9149 | +11.9149 |
+| $H_2$ | 294.8530 | +26.8530 |
+| $EP$ | 285.3304 | +17.3304 |
+| $XP$ | 300.0809 | +32.0809 |
+
+Referenced to the back edge:
+
+| Quantity | Referenced to back edge |
+|----------+--------------------------|
+| $H_2$ | 21.9570 mm in front of back edge |
+| $XP$ | 16.7291 mm in front of back edge |
+
+Other KrakenOS outputs for the measured surrogate are:
+
+| Quantity | Value |
+|----------+-------|
+| Effective focal length | 150.9482 mm |
+| Paraxial magnification | -0.8544 |
+| Entrance pupil radius | 9.5153 mm |
+| Exit pupil radius | 12.9359 mm |
+
+** Interpreting the Kraken sign convention for H2
+
+KrakenOS returns the back principal-plane quantity as a signed value from the
+image side in its paraxial output. For the measured surrogate,
+
+\[
+PPP = -330.1470\ \text{mm}
+\]
+
+To express the back principal plane on the absolute axial coordinate used in this
+note, use
+
+\[
+H_2^{abs} = z_{image} + PPP
+\]
+
+so that
+
+\[
+H_2^{abs} = 625.0 + (-330.1470) = 294.8530\ \text{mm}
+\]
+
+This is the value reported in the table above.
+
+* Step 8: First-Order Estimate vs Kraken Surrogate
+
+It is useful to compare the purely measured first-order result against the
+KrakenOS surrogate.
+
+| Quantity | First-order from measurements | Kraken measured surrogate |
+|----------+-------------------------------+---------------------------|
+| $H_1$ from front edge | 9.17 mm | 11.91 mm |
+| $H_2$ from front edge | 30.08 mm | 26.85 mm |
+| EFFL | 150.00 mm nominal | 150.95 mm |
+| $EP$ from front edge | not uniquely known | 17.33 mm |
+| $XP$ from front edge | not uniquely known | 32.08 mm |
+
+This is the correct interpretation:
+
+- the first-order reconstruction fixes the approximate principal-plane locations,
+- the surrogate adds an explicit stop and therefore makes $EP$ and $XP$
+  calculable,
+- the surrogate is *one plausible equivalent model*, not the true industrial
+  prescription.
+
+* Step 9: Datasheet 1x and 0.5x Surrogates
+
+Two additional presets were added for the datasheet working distances.
+
+** Datasheet 1x preset
+
+File:
+
+- =KrakenOS/common_optical_layouts/machine_vision_150mm_datasheet_1x.py=
+
+KrakenOS surrogate outputs:
+
+| Quantity | Absolute z [mm] | From front edge [mm] |
+|----------+-----------------+----------------------|
+| $H_1$ | 299.9710 | +24.9710 |
+| $H_2$ | 315.2045 | +40.2045 |
+| $EP$ | 291.5463 | +16.5463 |
+| $XP$ | 306.2765 | +31.2765 |
+
+with
+
+- back edge at 323.81 mm,
+- so $H_2$ is 8.6055 mm in front of the back edge,
+- and $XP$ is 17.5335 mm in front of the back edge.
+
+** Datasheet 0.5x preset
+
+File:
+
+- =KrakenOS/common_optical_layouts/machine_vision_150mm_datasheet_0_5x.py=
+
+KrakenOS surrogate outputs:
+
+| Quantity | Absolute z [mm] | From front edge [mm] |
+|----------+-----------------+----------------------|
+| $H_1$ | 449.9710 | +24.9710 |
+| $H_2$ | 465.2045 | +40.2045 |
+| $EP$ | 441.5457 | +16.5457 |
+| $XP$ | 456.2758 | +31.2758 |
+
+These two presets deliberately share the same equivalent lens group while the
+conjugates change.
+
+* Step 10: How to Reproduce the Numbers in KrakenOS
+
+** In the UI
+
+1. Launch:
+   #+begin_src bash
+   python -m KrakenOS.UI.layout_editor
+   #+end_src
+2. Load =Machine Vision 150 mm (Measured)=.
+3. Set:
+   - Object mode = Finite
+   - Field type = Object Height
+   - Field value = 9.75
+   - Field count = 3
+   - Analysis surface = 2: Stop Plane
+   - Aperture type = STOP
+   - Aperture value = 26.8
+4. Enable =Show PP / EP / XP=.
+5. Click =Update=.
+6. Read the resulting values in the Information panel.
+
+** In Python
+
+#+begin_src python
+import io
+from contextlib import redirect_stdout, redirect_stderr
+from pathlib import Path
+
+import KrakenOS as Kos
+from KrakenOS.UI.layout_editor import _load_python_data, _build_system_from_specs
+
+info = _load_python_data(
+    Path("KrakenOS/common_optical_layouts/machine_vision_150mm_measured.py")
+)
+
+with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+    system = _build_system_from_specs(info["surfaces"])
+    pupil = Kos.PupilCalc(system, 2, 0.546, "STOP", 26.8)
+    parax = system.Parax(0.546)
+
+image_z = sum(float(row["thickness"]) for row in info["surfaces"][:-1])
+front_z = float(info["surfaces"][0]["thickness"])
+back_z = front_z + float(info["surfaces"][1]["thickness"]) + float(info["surfaces"][2]["thickness"])
+
+h1_abs = float(parax[8])
+h2_abs = image_z + float(parax[9])
+ep_abs = float(pupil.PosPupInp[2])
+xp_abs = float(pupil.PosPupOut[2])
+
+print("H1 from front edge:", h1_abs - front_z)
+print("H2 from front edge:", h2_abs - front_z)
+print("EP from front edge:", ep_abs - front_z)
+print("XP from front edge:", xp_abs - front_z)
+print("H2 from back edge:", back_z - h2_abs)
+print("XP from back edge:", back_z - xp_abs)
+#+end_src
+
+* Step 10A: Fast Image-Distance Estimation Workflow
+
+In practical use, the most common question is not
+
+#+begin_quote
+What is the exact prescription?
+#+end_quote
+
+but rather
+
+#+begin_quote
+Given focal length, object size, sensor size, and measured working distance,
+what image distance should I enter so the system is approximately correct?
+#+end_quote
+
+This can be done quickly with first-order optics.
+
+** Case A: object size and sensor size are both known
+
+If the full object width maps to the full sensor width, then
+
+\[
+|m| = \frac{\text{sensor size}}{\text{object size}}
+\]
+
+and
+
+\[
+s = f\left(1 + \frac{1}{|m|}\right)
+\]
+
+\[
+s' = f(1 + |m|)
+\]
+
+where
+
+- $s$ is measured from $H_1$,
+- $s'$ is measured from $H_2$.
+
+If the front-edge principal-plane offsets are $h_1$ and $h_2$, both referenced
+from the front mechanical edge, then
+
+\[
+z_{FO} = s - h_1
+\]
+
+\[
+z_{FI} = s' + h_2
+\]
+
+where
+
+- $z_{FO}$ = front-edge to object,
+- $z_{FI}$ = front-edge to sensor.
+
+For the present 150 mm example,
+
+\[
+|m| = \frac{23}{19.5} = 1.17949
+\]
+
+\[
+s = 150\left(1 + \frac{1}{1.17949}\right) = 277.17\ \text{mm}
+\]
+
+\[
+s' = 150(1 + 1.17949) = 326.92\ \text{mm}
+\]
+
+Using the first-order estimate
+
+\[
+h_2 = 30.08\ \text{mm}
+\]
+
+the sensor distance from the front edge is
+
+\[
+z_{FI} = s' + h_2 = 326.92 + 30.08 = 357.00\ \text{mm}
+\]
+
+This reproduces the measured front-edge-to-sensor distance exactly.
+
+** Converting front-edge-to-sensor distance into the KrakenOS table
+
+In the current surrogate layout, the image-space thickness entered in the table
+is the distance from the back lens edge to the sensor plane.
+
+If the physical lens length is $L$, then the image-space thickness to enter is
+
+\[
+t_{image} = z_{FI} - L
+\]
+
+For this lens,
+
+\[
+t_{image} = 357.00 - 48.81 = 308.19\ \text{mm}
+\]
+
+That is exactly the value used in the measured preset:
+
+\[
+\text{Lens Back Thickness} = 308.19\ \text{mm}
+\]
+
+** What to enter in the UI
+
+For a quick first-order setup, map the physical requirements into the KrakenOS
+table and control panels like this:
+
+| Physical quantity | KrakenOS UI field |
+|-------------------+-------------------|
+| Front edge to object | =Object -> Thickness= |
+| Full object size | =Object -> Diameter= |
+| Lens physical length | sum of the internal lens thickness rows |
+| Sensor size / image size | =Image -> Diameter= |
+| Back edge to sensor | last air-space =Thickness= before =Image= |
+| f-number $N$ | =Aperture value = f/N= |
+
+For this 150 mm case:
+
+| UI field | Value |
+|----------+-------|
+| =Object mode= | =Finite= |
+| =Field type= | =Object Height= |
+| =Field value= | =9.75= mm |
+| =Field count= | =3= |
+| =Object -> Thickness= | =268.0= mm |
+| =Object -> Diameter= | =19.5= mm |
+| =Image -> Diameter= | =23.0= mm |
+| =Aperture type= | =STOP= |
+| =Aperture value= | =26.8= mm |
+| =Lens Back -> Thickness= | =308.19= mm |
+
+The field value is one half of the full object size:
+
+\[
+\text{semi-field} = \frac{19.5}{2} = 9.75\ \text{mm}
+\]
+
+** Fast user procedure in the UI
+
+1. Load =Machine Vision 150 mm (Measured)=.
+2. Replace:
+   - =Object -> Thickness= with the measured front-edge-to-object distance.
+   - =Object -> Diameter= with the full object size.
+   - =Image -> Diameter= with the sensor size or image-circle size.
+3. Compute the target sensor distance:
+
+   \[
+   z_{FI} = s' + h_2
+   \]
+
+4. Convert that to the image-space thickness:
+
+   \[
+   t_{image} = z_{FI} - L
+   \]
+
+5. Enter that value into the last air-space thickness before the =Image= row.
+6. Click =Update=.
+7. Check:
+   - the Information panel,
+   - the 2D layout,
+   - the =Spot= view in =Absolute= mode.
+
+This produces the quick correct first-order image distance without running a
+full optimization.
+
+** When to optimize
+
+After the first-order estimate is entered, optimization should be used only for
+refinement. The recommended order is:
+
+1. compute the first-order image distance analytically,
+2. enter it directly,
+3. only then optimize =Lens Back Thickness= in a narrow range around that value.
+
+For example, after computing
+
+\[
+t_{image} = 308.19\ \text{mm}
+\]
+
+a sensible optimization range is
+
+\[
+[300, 320]\ \text{mm}
+\]
+
+not a wide unbounded search.
+
+* Step 11: What This Case Study Does *Not* Prove
+
+This point should be explicit.
+
+The measured surrogate does *not* prove that the real industrial lens contains:
+
+- one BK7 singlet,
+- one centered stop plane,
+- the exact curvature values used in the preset.
+
+It only gives a mechanically consistent and optically plausible equivalent model
+for UI work, cardinal-point study, pupil study, and troubleshooting.
+
+If the real prescription becomes available, the next step is to replace the
+surrogate with the native KrakenOS surfaces and recompute all cardinal data.
+
+* Conclusion
+
+From the measured data alone, the first-order lecture-style reconstruction gives:
+
+\[
+H_1 \approx 9.17\ \text{mm behind the front edge}
+\]
+
+\[
+H_2 \approx 30.08\ \text{mm behind the front edge}
+\]
+
+Using the KrakenOS measured surrogate with an explicit stop gives the more
+complete working model:
+
+\[
+H_1 \approx 11.91\ \text{mm behind the front edge}
+\]
+
+\[
+H_2 \approx 26.85\ \text{mm behind the front edge}
+\]
+
+\[
+EP \approx 17.33\ \text{mm behind the front edge}
+\]
+
+\[
+XP \approx 32.08\ \text{mm behind the front edge}
+\]
+
+That is the correct way to use this 150 mm lens inside the current KrakenOS UI:
+start from a first-order cardinal-point reconstruction, then use the saved
+surrogate presets to make the pupil and analysis quantities concrete.
