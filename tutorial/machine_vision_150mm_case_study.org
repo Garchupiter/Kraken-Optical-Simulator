@@ -1,5 +1,7 @@
 #+TITLE: 150 mm Machine Vision Lens Case Study
-#+AUTHOR: Codex
+#+LATEX_HEADER: \usepackage{physics}
+
+#+AUTHOR: dragonleopardpig
 #+OPTIONS: toc:2 num:t
 
 * Goal
@@ -22,15 +24,15 @@ exercise, not a full industrial lens design from glass and curvatures.
 
 The measured system data are:
 
-| Quantity | Symbol | Value |
-|----------+--------+-------|
-| Sensor size | $23 \times 23$ mm | square sensor |
-| Lens focal length | $f$ | 150 mm |
-| Object size | $19.5 \times 19.5$ mm | square object |
-| Front edge to object | $z_{FO}$ | 268 mm |
-| Front edge to sensor | $z_{FI}$ | 357 mm |
-| Physical lens length | $L$ | 48.81 mm |
-| Datasheet f-number | $N$ | 5.6 |
+| Quantity             | Symbol         | Value         |
+|----------------------+----------------+---------------|
+| Sensor size          | 23 \times 23 mm     | square sensor |
+| Lens focal length    | f              | 150 mm        |
+| Object size          | 19.5 \times 19.5 mm | square object |
+| Front edge to object | z_{FO}            | 268 mm        |
+| Front edge to sensor | z_{FI}            | 357 mm        |
+| Physical lens length | L              | 48.81 mm      |
+| Datasheet f-number   | N              | 5.6           |
 
 The KrakenOS preset used in the UI is:
 
@@ -43,7 +45,7 @@ For a square object and square sensor, the simplest first-order estimate uses on
 transverse dimension:
 
 \[
-|m| = \frac{y'}{y} = \frac{23}{19.5} = 1.179487\ldots
+\abs{|m|} = \frac{y'}{y} = \frac{23}{19.5} = 1.179487\ldots
 \]
 
 So the measured setup is approximately a =1.18x= imaging condition if the full
@@ -52,7 +54,7 @@ object width maps to the full sensor width.
 Numerically,
 
 \[
-|m| \approx 1.17949
+\abs{|m|} \approx 1.17949
 \]
 
 In paraxial sign convention for a real inverted image we would write
@@ -64,7 +66,7 @@ m = -\frac{s'}{s}
 but for the magnitude estimates here we use
 
 \[
-|m| = \frac{s'}{s}
+\abs{|m|} = \frac{s'}{s}
 \]
 
 * Step 2: Thin-Lens Conjugates Measured From the Principal Planes
@@ -83,7 +85,7 @@ with
 Using magnification,
 
 \[
-|m| = \frac{s'}{s}
+\abs{|m|} = \frac{s'}{s}
 \]
 
 there are two useful algebraic forms:
@@ -166,14 +168,14 @@ in front of the back mechanical edge.
 
 ** First-order result summary
 
-| Quantity | Value |
-|----------+-------|
-| $|m|$ | 1.17949 |
-| $s$ from $H_1$ | 277.17 mm |
-| $s'$ from $H_2$ | 326.92 mm |
-| $H_1$ from front edge | +9.17 mm |
-| $H_2$ from front edge | +30.08 mm |
-| $H_2$ from back edge | 18.73 mm in front of back edge |
+| Quantity             | Value                          |   |   |
+|----------------------+--------------------------------+---+---|
+| $m$                  | 1.17949                        |   |   |
+| $s$ from $H_1$        | 277.17 mm                      |   |   |
+| $s'$ from $H_2$       | 326.92 mm                      |   |   |
+| $H_1$ from front edge | +9.17 mm                       |   |   |
+| $H_2$ from front edge | +30.08 mm                      |   |   |
+| $H_2$ from back edge  | 18.73 mm in front of back edge |   |   |
 
 * Step 4: Aperture Estimate From F-Number
 
@@ -221,13 +223,13 @@ mechanical distances and the nominal focal length.
 
 The measured preset surfaces are:
 
-| Surface | Name | Rc [mm] | Thickness [mm] | Diameter [mm] | Glass |
-|---------+------+---------+----------------+---------------+-------|
-| Object | Object | 0.0 | 268.0 | 19.5 | AIR |
-| Standard | Lens Front | 114.6097 | 24.405 | 35.0 | BK7 |
-| Standard | Stop Plane | 0.0 | 24.405 | 26.8 | BK7 |
-| Standard | Lens Back | -211.2054 | 308.19 | 35.0 | AIR |
-| Image | Image | 0.0 | 0.0 | 23.0 | AIR |
+| Surface  | Name       |   Rc [mm] | Thickness [mm] | Diameter [mm] | Glass |
+|----------+------------+-----------+----------------+---------------+-------|
+| Object   | Object     |       0.0 |          268.0 |          19.5 | AIR   |
+| Standard | Lens Front |  114.6097 |         24.405 |          35.0 | BK7   |
+| Standard | Stop Plane |       0.0 |         24.405 |          26.8 | BK7   |
+| Standard | Lens Back  | -211.2054 |         308.19 |          35.0 | AIR   |
+| Image    | Image      |       0.0 |            0.0 |          23.0 | AIR   |
 
 Mechanically this means:
 
@@ -251,26 +253,26 @@ measured surrogate, KrakenOS gives:
 
 | Quantity | Absolute z [mm] | Referenced to front edge [mm] |
 |----------+-----------------+-------------------------------|
-| $H_1$ | 279.9149 | +11.9149 |
-| $H_2$ | 294.8530 | +26.8530 |
-| $EP$ | 285.3304 | +17.3304 |
-| $XP$ | 300.0809 | +32.0809 |
+| $H_1$     |        279.9149 |                      +11.9149 |
+| $H_2$     |        294.8530 |                      +26.8530 |
+| $EP$     |        285.3304 |                      +17.3304 |
+| $XP$     |        300.0809 |                      +32.0809 |
 
 Referenced to the back edge:
 
-| Quantity | Referenced to back edge |
-|----------+--------------------------|
-| $H_2$ | 21.9570 mm in front of back edge |
-| $XP$ | 16.7291 mm in front of back edge |
+| Quantity | Referenced to back edge          |
+|----------+----------------------------------|
+| $H_2$     | 21.9570 mm in front of back edge |
+| $XP$     | 16.7291 mm in front of back edge |
 
 Other KrakenOS outputs for the measured surrogate are:
 
-| Quantity | Value |
-|----------+-------|
+| Quantity               | Value       |
+|------------------------+-------------|
 | Effective focal length | 150.9482 mm |
-| Paraxial magnification | -0.8544 |
-| Entrance pupil radius | 9.5153 mm |
-| Exit pupil radius | 12.9359 mm |
+| Paraxial magnification | -0.8544     |
+| Entrance pupil radius  | 9.5153 mm   |
+| Exit pupil radius      | 12.9359 mm  |
 
 ** Interpreting the Kraken sign convention for H2
 
@@ -301,13 +303,13 @@ This is the value reported in the table above.
 It is useful to compare the purely measured first-order result against the
 KrakenOS surrogate.
 
-| Quantity | First-order from measurements | Kraken measured surrogate |
-|----------+-------------------------------+---------------------------|
-| $H_1$ from front edge | 9.17 mm | 11.91 mm |
-| $H_2$ from front edge | 30.08 mm | 26.85 mm |
-| EFFL | 150.00 mm nominal | 150.95 mm |
-| $EP$ from front edge | not uniquely known | 17.33 mm |
-| $XP$ from front edge | not uniquely known | 32.08 mm |
+| Quantity             | First-order from measurements | Kraken measured surrogate |
+|----------------------+-------------------------------+---------------------------|
+| $H_1$ from front edge | 9.17 mm                       | 11.91 mm                  |
+| $H_2$ from front edge | 30.08 mm                      | 26.85 mm                  |
+| EFFL                 | 150.00 mm nominal             | 150.95 mm                 |
+| $EP$ from front edge | not uniquely known            | 17.33 mm                  |
+| $XP$ from front edge | not uniquely known            | 32.08 mm                  |
 
 This is the correct interpretation:
 
@@ -331,10 +333,10 @@ KrakenOS surrogate outputs:
 
 | Quantity | Absolute z [mm] | From front edge [mm] |
 |----------+-----------------+----------------------|
-| $H_1$ | 299.9710 | +24.9710 |
-| $H_2$ | 315.2045 | +40.2045 |
-| $EP$ | 291.5463 | +16.5463 |
-| $XP$ | 306.2765 | +31.2765 |
+| $H_1$     |        299.9710 |             +24.9710 |
+| $H_2$     |        315.2045 |             +40.2045 |
+| $EP$     |        291.5463 |             +16.5463 |
+| $XP$     |        306.2765 |             +31.2765 |
 
 with
 
@@ -352,10 +354,10 @@ KrakenOS surrogate outputs:
 
 | Quantity | Absolute z [mm] | From front edge [mm] |
 |----------+-----------------+----------------------|
-| $H_1$ | 449.9710 | +24.9710 |
-| $H_2$ | 465.2045 | +40.2045 |
-| $EP$ | 441.5457 | +16.5457 |
-| $XP$ | 456.2758 | +31.2758 |
+| $H_1$     |        449.9710 |             +24.9710 |
+| $H_2$     |        465.2045 |             +40.2045 |
+| $EP$     |        441.5457 |             +16.5457 |
+| $XP$     |        456.2758 |             +31.2758 |
 
 These two presets deliberately share the same equivalent lens group while the
 conjugates change.
@@ -439,7 +441,7 @@ This can be done quickly with first-order optics.
 If the full object width maps to the full sensor width, then
 
 \[
-|m| = \frac{\text{sensor size}}{\text{object size}}
+\abs{m} = \frac{\text{sensor size}}{\text{object size}}
 \]
 
 and
@@ -529,14 +531,14 @@ That is exactly the value used in the measured preset:
 For a quick first-order setup, map the physical requirements into the KrakenOS
 table and control panels like this:
 
-| Physical quantity | KrakenOS UI field |
-|-------------------+-------------------|
-| Front edge to object | =Object -> Thickness= |
-| Full object size | =Object -> Diameter= |
-| Lens physical length | sum of the internal lens thickness rows |
-| Sensor size / image size | =Image -> Diameter= |
-| Back edge to sensor | last air-space =Thickness= before =Image= |
-| f-number $N$ | =Aperture value = f/N= |
+| Physical quantity        | KrakenOS UI field                       |
+|--------------------------+-----------------------------------------|
+| Front edge to object     | =Object -> Thickness=                     |
+| Full object size         | =Object -> Diameter=                      |
+| Lens physical length     | sum of the internal lens thickness rows |
+| Sensor size / image size | =Image -> Diameter=                       |
+| Back edge to sensor      | last air-space =Thickness= before =Image=   |
+| f-number $N$             | =Aperture value = f/N=                    |
 
 For this 150 mm case:
 

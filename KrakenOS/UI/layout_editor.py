@@ -14,6 +14,7 @@ from concurrent.futures import ProcessPoolExecutor
 from contextlib import redirect_stderr, redirect_stdout
 import ctypes
 from dataclasses import dataclass, asdict
+import html
 import multiprocessing as mp
 import os
 from pathlib import Path
@@ -30,6 +31,7 @@ import tkinter as tk
 import tkinter.font as tkfont
 from tkinter import filedialog, messagebox, ttk
 import warnings
+import webbrowser
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
@@ -41,7 +43,7 @@ import numpy as np
 
 import KrakenOS as Kos
 import pyvista as pv
-from KrakenOS.Display import Plot2DRays, Plot2DSurf, plot3d, rayplot3d
+from KrakenOS.Display import Plot2DRays, Plot2DSurf, edge_3d, filter_face_2dplot, wavelength_to_rgb
 from KrakenOS.Optimization import (
     OPERAND_REGISTRY,
     VARIABLE_REGISTRY,
@@ -52,10 +54,29 @@ from KrakenOS.Optimization import (
 )
 from KrakenOS.Optimization.adapters.pygmo2_adapter import Pygmo2MeritProblem
 
+try:
+    from vtkmodules.tk.vtkTkRenderWindowInteractor import vtkTkRenderWindowInteractor
+except Exception:
+    vtkTkRenderWindowInteractor = None
+
+try:
+    from vtkmodules.vtkFiltersCore import vtkTubeFilter
+    from vtkmodules.vtkInteractionWidgets import vtkOrientationMarkerWidget
+    from vtkmodules.vtkRenderingAnnotation import vtkAxesActor
+    from vtkmodules.vtkRenderingCore import vtkActor, vtkCellPicker, vtkDataSetMapper, vtkRenderer
+except Exception:
+    vtkTubeFilter = None
+    vtkOrientationMarkerWidget = None
+    vtkAxesActor = None
+    vtkActor = None
+    vtkCellPicker = None
+    vtkDataSetMapper = None
+    vtkRenderer = None
+
 
 LAYOUTS_DIR = Path(__file__).resolve().parent.parent / "common_optical_layouts"
 EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "Examples"
-DEFAULT_LAYOUT_TITLE = "Machine Vision 150 mm (Measured)"
+DEFAULT_LAYOUT_TITLE = "Doublet Lens"
 FOLDED_STARTER_LAYOUT_TITLE = "Double Mirror Fold"
 AUTO_PLOT_PATH = Path.home() / "Pictures" / "kraken_layout_latest.jpg"
 DEBUG_LOG_PATH = Path.home() / "Pictures" / "kraken_debug_latest.log"
@@ -237,6 +258,395 @@ def _short_error_message(exc: Exception, limit: int = 220) -> str:
     if len(first) > limit:
         return first[:limit] + "..."
     return first
+
+
+class Kraken3DInspector(tk.Toplevel):
+    def __init__(self, editor: "KrakenLayoutEditor") -> None:
+        super().__init__(editor)
+        self.editor = editor
+        self.available = False
+        self.unavailable_reason = ""
+        self.title("KrakenOS 3D Inspector")
+        self.geometry("1100x780")
+        self.minsize(720, 520)
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
+
+        self._renderer = None
+        self._vtk_widget = None
+        self._vtk_interactor = None
+        self._orientation_widget = None
+        self._picker = None
+        self._picked_row_index: int | None = None
+        self._actor_row_map: dict[str, int] = {}
+        self._row_actor_map: dict[int, list[str]] = {}
+        self._camera_preset = "iso"
+        self.show_rays_var = tk.BooleanVar(value=True)
+        self.status_var = tk.StringVar(value="3D inspector ready")
+
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(1, weight=1)
+
+        host = ttk.Frame(self, padding=8)
+        host.grid(row=1, column=0, sticky="nsew")
+        host.columnconfigure(0, weight=1)
+        host.rowconfigure(0, weight=1)
+
+        if vtkTkRenderWindowInteractor is None or vtkRenderer is None:
+            self.unavailable_reason = "Embedded VTK/Tk viewer unavailable."
+            self.status_var.set(self.unavailable_reason)
+            return
+
+        try:
+            toolbar = ttk.Frame(self, padding=(8, 8, 8, 0))
+            toolbar.grid(row=0, column=0, sticky="ew")
+            ttk.Button(toolbar, text="Refresh", command=self.refresh_from_editor).pack(side="left")
+            ttk.Button(toolbar, text="Iso", command=lambda: self.set_camera_preset("iso")).pack(side="left", padx=(8, 0))
+            ttk.Button(toolbar, text="ZY", command=lambda: self.set_camera_preset("zy")).pack(side="left", padx=(4, 0))
+            ttk.Button(toolbar, text="XY", command=lambda: self.set_camera_preset("xy")).pack(side="left", padx=(4, 0))
+            ttk.Button(toolbar, text="XZ", command=lambda: self.set_camera_preset("xz")).pack(side="left", padx=(4, 0))
+            ttk.Checkbutton(
+                toolbar,
+                text="Show rays",
+                variable=self.show_rays_var,
+                command=self.refresh_from_editor,
+            ).pack(side="left", padx=(12, 0))
+            ttk.Label(
+                toolbar,
+                text="Click a surface in 3D to select its table row",
+                foreground="#4b5563",
+            ).pack(side="right")
+
+            self._vtk_widget = vtkTkRenderWindowInteractor(host, width=1100, height=720)
+            self._vtk_widget.grid(row=0, column=0, sticky="nsew")
+            render_window = self._vtk_widget.GetRenderWindow()
+            self._renderer = vtkRenderer()
+            render_window.AddRenderer(self._renderer)
+            self._renderer.SetBackground(1.0, 1.0, 1.0)
+
+            self._vtk_interactor = render_window.GetInteractor()
+            if self._vtk_interactor is not None:
+                self._vtk_interactor.AddObserver("LeftButtonPressEvent", self._on_left_button_press)
+
+            if vtkCellPicker is not None:
+                self._picker = vtkCellPicker()
+                self._picker.SetTolerance(0.0005)
+
+            if vtkOrientationMarkerWidget is not None and vtkAxesActor is not None and self._vtk_interactor is not None:
+                axes = vtkAxesActor()
+                self._orientation_widget = vtkOrientationMarkerWidget()
+                self._orientation_widget.SetOrientationMarker(axes)
+                self._orientation_widget.SetInteractor(self._vtk_interactor)
+                self._orientation_widget.SetViewport(0.0, 0.0, 0.18, 0.18)
+                self._orientation_widget.SetEnabled(1)
+                self._orientation_widget.InteractiveOff()
+
+            self._vtk_widget.Initialize()
+            ttk.Label(self, textvariable=self.status_var, padding=(8, 0, 8, 8)).grid(row=2, column=0, sticky="ew")
+            self.available = True
+        except Exception as exc:
+            self.unavailable_reason = _short_error_message(exc)
+            self.status_var.set(f"Embedded 3D unavailable: {self.unavailable_reason}")
+            try:
+                host.destroy()
+            except Exception:
+                pass
+
+    @staticmethod
+    def _actor_key(actor) -> str | None:
+        if actor is None:
+            return None
+        try:
+            return str(actor.GetAddressAsString(""))
+        except Exception:
+            return str(id(actor))
+
+    @staticmethod
+    def _surface_color(surface) -> tuple[float, float, float]:
+        absorb_color = (10 / 256.0, 23 / 256.0, 24 / 256.0)
+        mirror_color = (189 / 256.0, 189 / 256.0, 189 / 256.0)
+        glass_color = (12 / 256.0, 238 / 256.0, 246 / 256.0)
+        try:
+            color = tuple(float(v) for v in surface.Color)
+            if len(color) == 3 and any(abs(v) > 1e-9 for v in color):
+                return color
+        except Exception:
+            pass
+        glass = str(getattr(surface, "Glass", "") or "").upper()
+        if glass == "MIRROR":
+            return mirror_color
+        if glass == "ABSORB":
+            return absorb_color
+        return glass_color
+
+    @staticmethod
+    def _mesh_with_transform(poly, transform) -> pv.DataSet | None:
+        try:
+            mesh = pv.wrap(poly)
+        except Exception:
+            return None
+        try:
+            mesh = mesh.extract_surface()
+        except Exception:
+            pass
+        try:
+            mesh = mesh.copy(deep=True)
+        except Exception:
+            return None
+        try:
+            pts = np.asarray(mesh.points, dtype=float)
+        except Exception:
+            return None
+        if pts.size == 0:
+            return None
+        try:
+            transform_arr = np.asarray(transform, dtype=float)
+            if transform_arr.shape == (4, 4):
+                pts_h = np.c_[pts, np.ones(len(pts))]
+                mesh.points = (pts_h @ transform_arr.T)[:, :3]
+        except Exception:
+            pass
+        return mesh
+
+    def _set_row_highlight(self, row_index: int | None) -> None:
+        if row_index == self._picked_row_index:
+            return
+        if self._renderer is None:
+            self._picked_row_index = row_index
+            return
+        collection = self._renderer.GetActors()
+        collection.InitTraversal()
+        for _ in range(collection.GetNumberOfItems()):
+            actor = collection.GetNextActor()
+            key = self._actor_key(actor)
+            prop = actor.GetProperty()
+            if prop is None:
+                continue
+            actor_row_index = self._actor_row_map.get(key) if key is not None else None
+            if row_index is not None and actor_row_index == row_index:
+                prop.SetEdgeVisibility(1)
+                prop.SetEdgeColor(1.0, 0.55, 0.05)
+                prop.SetLineWidth(2.0)
+            else:
+                prop.SetEdgeVisibility(0)
+                prop.SetLineWidth(1.0)
+        self._picked_row_index = row_index
+
+    def highlight_row(self, row_index: int | None) -> None:
+        self._set_row_highlight(row_index)
+        self.render()
+
+    def _add_mesh_actor(
+        self,
+        mesh,
+        *,
+        color: tuple[float, float, float],
+        opacity: float = 1.0,
+        pick_row_index: int | None = None,
+        line_width: float = 1.0,
+        wireframe: bool = False,
+    ) -> None:
+        if self._renderer is None or vtkActor is None or vtkDataSetMapper is None:
+            return
+        mapper = vtkDataSetMapper()
+        mapper.SetInputData(mesh)
+        actor = vtkActor()
+        actor.SetMapper(mapper)
+        prop = actor.GetProperty()
+        prop.SetColor(*color)
+        prop.SetOpacity(opacity)
+        prop.SetLineWidth(line_width)
+        if wireframe:
+            prop.SetRepresentationToWireframe()
+        else:
+            prop.SetInterpolationToPhong()
+            prop.SetSpecular(0.18)
+            prop.SetSpecularPower(12.0)
+        if pick_row_index is None:
+            actor.PickableOff()
+        else:
+            actor_key = self._actor_key(actor)
+            if actor_key is not None:
+                self._actor_row_map[actor_key] = pick_row_index
+                self._row_actor_map.setdefault(pick_row_index, []).append(actor_key)
+        self._renderer.AddActor(actor)
+
+    def _add_ray_actor(self, mesh, *, radius: float, color: tuple[float, float, float]) -> None:
+        if self._renderer is None or vtkActor is None or vtkDataSetMapper is None:
+            return
+        actor = vtkActor()
+        if vtkTubeFilter is not None:
+            tube = vtkTubeFilter()
+            tube.SetInputData(mesh)
+            tube.SetRadius(radius)
+            tube.SetNumberOfSides(10)
+            tube.CappingOn()
+            mapper = vtkDataSetMapper()
+            mapper.SetInputConnection(tube.GetOutputPort())
+            actor.SetMapper(mapper)
+        else:
+            mapper = vtkDataSetMapper()
+            mapper.SetInputData(mesh)
+            actor.SetMapper(mapper)
+            actor.GetProperty().SetLineWidth(2.0)
+        actor.GetProperty().SetColor(*color)
+        actor.GetProperty().SetOpacity(0.95)
+        actor.PickableOff()
+        self._renderer.AddActor(actor)
+
+    def _scene_bounds(self) -> tuple[np.ndarray, float]:
+        if self._renderer is None:
+            return np.zeros(3, dtype=float), 1.0
+        bounds = np.asarray(self._renderer.ComputeVisiblePropBounds(), dtype=float)
+        if bounds.size != 6 or not np.all(np.isfinite(bounds)) or bounds[0] > bounds[1]:
+            return np.zeros(3, dtype=float), 1.0
+        center = np.array(
+            [
+                0.5 * (bounds[0] + bounds[1]),
+                0.5 * (bounds[2] + bounds[3]),
+                0.5 * (bounds[4] + bounds[5]),
+            ],
+            dtype=float,
+        )
+        radius = max(bounds[1] - bounds[0], bounds[3] - bounds[2], bounds[5] - bounds[4], 1.0)
+        return center, radius
+
+    def set_camera_preset(self, preset: str) -> None:
+        self._camera_preset = preset
+        if self._renderer is None:
+            return
+        camera = self._renderer.GetActiveCamera()
+        if camera is None:
+            return
+        center, radius = self._scene_bounds()
+        distance = max(radius * 2.2, 50.0)
+        if preset == "zy":
+            position = center + np.array([distance, 0.0, 0.0], dtype=float)
+            view_up = (0.0, 1.0, 0.0)
+        elif preset == "xy":
+            position = center + np.array([0.0, 0.0, distance], dtype=float)
+            view_up = (0.0, 1.0, 0.0)
+        elif preset == "xz":
+            position = center + np.array([0.0, distance, 0.0], dtype=float)
+            view_up = (0.0, 0.0, 1.0)
+        else:
+            position = center + np.array([-distance * 0.95, distance * 0.55, distance * 0.8], dtype=float)
+            view_up = (0.0, 1.0, 0.0)
+        camera.SetPosition(*position.tolist())
+        camera.SetFocalPoint(*center.tolist())
+        camera.SetViewUp(*view_up)
+        self._renderer.ResetCameraClippingRange()
+        self.render()
+
+    def render(self) -> None:
+        if self._vtk_widget is None:
+            return
+        try:
+            self._vtk_widget.GetRenderWindow().Render()
+        except Exception:
+            pass
+
+    def refresh_scene(self, system, rays, row_names: list[str], *, reset_camera: bool = False) -> None:
+        if self._renderer is None:
+            raise RuntimeError("Embedded VTK/Tk viewer unavailable")
+
+        self._renderer.RemoveAllViewProps()
+        self._actor_row_map.clear()
+        self._row_actor_map.clear()
+        self._picked_row_index = None
+
+        transforms = getattr(system, "TRANS_2A", None)
+        surfaces = getattr(system, "AAA", None)
+        block_count = min(len(row_names), getattr(surfaces, "n_blocks", 0), len(transforms) if transforms is not None else 0)
+        drew_surfaces = 0
+        for index in range(block_count):
+            surface = system.SDT_0[index]
+            mesh = self._mesh_with_transform(surfaces[index], transforms[index])
+            if mesh is None or int(getattr(mesh, "n_points", 0)) == 0:
+                continue
+            color = self._surface_color(surface)
+            self._add_mesh_actor(mesh, color=color, opacity=0.68, pick_row_index=index)
+            try:
+                edges = mesh.extract_feature_edges(
+                    feature_angle=10,
+                    boundary_edges=True,
+                    feature_edges=False,
+                    manifold_edges=False,
+                )
+                if int(getattr(edges, "n_points", 0)) > 0:
+                    self._add_mesh_actor(edges, color=(0.15, 0.15, 0.15), opacity=1.0, line_width=1.0)
+            except Exception:
+                pass
+            drew_surfaces += 1
+
+        side_index = 0
+        for row_index in getattr(system, "side_number", []):
+            if row_index >= len(row_names):
+                side_index += 1
+                continue
+            try:
+                mesh = pv.wrap(system.BBB[side_index]).extract_surface().copy(deep=True)
+            except Exception:
+                side_index += 1
+                continue
+            side_index += 1
+            if int(getattr(mesh, "n_points", 0)) == 0:
+                continue
+            color = self._surface_color(system.SDT_0[row_index])
+            self._add_mesh_actor(mesh, color=color, opacity=0.18, pick_row_index=row_index)
+
+        if self.show_rays_var.get():
+            center, radius = self._scene_bounds()
+            ray_radius = max(radius * 0.0015, 0.08)
+            for wave, ray_pts in zip(getattr(rays, "RayWave", []), getattr(rays, "CC", [])):
+                try:
+                    ray_mesh = pv.lines_from_points(ray_pts)
+                except Exception:
+                    continue
+                if int(getattr(ray_mesh, "n_points", 0)) < 2:
+                    continue
+                color = tuple(wavelength_to_rgb(float(wave) * 1000.0))
+                self._add_ray_actor(ray_mesh, radius=ray_radius, color=color)
+
+        self._renderer.ResetCamera()
+        self.set_camera_preset(self._camera_preset)
+        self.highlight_row(self.editor._current_selected_row_index())
+        self.status_var.set(f"3D scene ready | surfaces={drew_surfaces} | rays={len(getattr(rays, 'CC', []))}")
+        self.render()
+
+    def refresh_from_editor(self) -> None:
+        try:
+            system, rays = self.editor._build_preview_system_and_rays()
+            row_names = [row.name for row in self.editor.rows]
+            self.refresh_scene(system, rays, row_names, reset_camera=False)
+            self.editor.status_var.set("3D inspector updated")
+        except Exception as exc:
+            self.status_var.set(f"3D refresh failed: {_short_error_message(exc)}")
+            self.editor.append_debug(f"3D inspector refresh error: {exc}")
+
+    def _on_left_button_press(self, obj, _event) -> None:
+        if self._picker is None or self._renderer is None or self._vtk_interactor is None:
+            return
+        x, y = self._vtk_interactor.GetEventPosition()
+        self._picker.Pick(x, y, 0.0, self._renderer)
+        actor = self._picker.GetActor()
+        actor_key = self._actor_key(actor)
+        row_index = self._actor_row_map.get(actor_key) if actor_key is not None else None
+        if row_index is None:
+            self._set_row_highlight(None)
+            self.status_var.set("3D scene ready")
+            return
+        self._set_row_highlight(row_index)
+        self.editor._select_table_row(row_index)
+        row_name = self.editor.rows[row_index].name if 0 <= row_index < len(self.editor.rows) else "Surface"
+        self.status_var.set(f"Selected row {row_index}: {row_name}")
+        self.render()
+
+    def _on_close(self) -> None:
+        self.editor._three_d_inspector = None
+        try:
+            self.destroy()
+        except Exception:
+            pass
 
 
 def _optional_cupy():
@@ -582,6 +992,7 @@ class KrakenLayoutEditor(tk.Tk):
         self.current_menu_row_id: str | None = None
         self.current_menu_field: str | None = None
         self._text_popup_menu: tk.Menu | None = None
+        self._formula_help_path: Path | None = None
         self.analysis_mode = "none"
         self.last_system = None
         self.last_rays = None
@@ -599,6 +1010,7 @@ class KrakenLayoutEditor(tk.Tk):
         self.operand_aperture_value_vars: dict[str, tk.StringVar] = {}
         self.operand_frequency_vars: dict[str, tk.StringVar] = {}
         self.operand_mtf_mode_vars: dict[str, tk.StringVar] = {}
+        self.operand_mtf_algorithm_vars: dict[str, tk.StringVar] = {}
         self.operand_control_widgets: dict[str, dict[str, tuple[tk.Widget, ...]]] = {}
         self.operand_setup_frames: dict[str, tk.Widget] = {}
         self._spinner_phase = 0
@@ -640,6 +1052,11 @@ class KrakenLayoutEditor(tk.Tk):
         self._hover_hint_artists: dict = {}
         self._hover_axis = None
         self._last_viewer_open_time = 0.0
+        self._three_d_inspector: Kraken3DInspector | None = None
+        self._legacy_3d_plotter = None
+        self._legacy_3d_after_id = None
+        self._layout_pick_regions: dict[int, np.ndarray] = {}
+        self._layout_selection_artists: list = []
 
         self._build_menu()
         self._build_ui()
@@ -693,9 +1110,21 @@ class KrakenLayoutEditor(tk.Tk):
         action_menu.add_checkbutton(label="Show Native Hit Labels", variable=self.show_native_hit_labels_var, command=self.refresh_plot)
         menubar.add_cascade(label="Actions", menu=action_menu)
 
+        help_menu = tk.Menu(menubar, tearoff=0)
+        help_menu.add_command(label="Paraxial Calculator", command=self.open_paraxial_calculator)
+        help_menu.add_command(label="Optics Formula Sheet", command=self.show_formula_help)
+        menubar.add_cascade(label="Help", menu=help_menu)
+
         self.config(menu=menubar)
 
     def destroy(self) -> None:
+        if self._three_d_inspector is not None:
+            try:
+                self._three_d_inspector.destroy()
+            except Exception:
+                pass
+            self._three_d_inspector = None
+        self._close_legacy_3d_plotter()
         self._shutdown_analysis_executor()
         self._shutdown_optimization_worker(force=True)
         super().destroy()
@@ -857,6 +1286,7 @@ class KrakenLayoutEditor(tk.Tk):
         self.table.bind("<Double-1>", self.begin_edit)
         self.table.bind("<Button-3>", self.show_context_menu)
         self.table.bind("<<TreeviewSelect>>", self._update_active_cell_border, add="+")
+        self.table.bind("<<TreeviewSelect>>", self._on_table_selection_changed, add="+")
         self.table.bind("<Configure>", self._update_active_cell_border, add="+")
         self.table.bind("<Configure>", self._schedule_table_grid_update, add="+")
         self.table.bind("<MouseWheel>", self._update_active_cell_border, add="+")
@@ -1256,10 +1686,9 @@ class KrakenLayoutEditor(tk.Tk):
             control_widgets["field"] = (field_label, field_entry)
 
             surface_row = 4
-            aperture_type_row = 5
-            aperture_value_row = 6
-            frequency_row = 7
-            mode_row = 8
+            frequency_row = 6
+            mode_row = 7
+            algorithm_row = 8
 
             if spec.label == "MTF @ freq":
                 field_x_var = tk.StringVar(value="0")
@@ -1280,10 +1709,9 @@ class KrakenLayoutEditor(tk.Tk):
                 field_label.grid_remove()
                 field_entry.grid_remove()
                 surface_row = 5
-                aperture_type_row = 6
-                aperture_value_row = 7
-                frequency_row = 8
-                mode_row = 9
+                frequency_row = 6
+                mode_row = 7
+                algorithm_row = 8
 
             surface_var = tk.StringVar(value="Auto")
             self.operand_surface_vars[spec.label] = surface_var
@@ -1291,32 +1719,8 @@ class KrakenLayoutEditor(tk.Tk):
             surface_label.grid(row=surface_row, column=0, sticky="w")
             surface_menu = ttk.Combobox(card, textvariable=surface_var, state="readonly", width=12, values=["Auto"])
             surface_menu.grid(row=surface_row, column=1, sticky="ew", padx=(6, 0), pady=(0, 4))
-            surface_menu.bind("<<ComboboxSelected>>", lambda _e: self.refresh_plot())
+            surface_menu.bind("<<ComboboxSelected>>", self._mark_plot_update_pending)
             control_widgets["surface"] = (surface_label, surface_menu)
-
-            aperture_type_var = tk.StringVar(value=self.aperture_type_var.get())
-            self.operand_aperture_type_vars[spec.label] = aperture_type_var
-            aperture_type_label = ttk.Label(card, text="Aper")
-            aperture_type_label.grid(row=aperture_type_row, column=0, sticky="w")
-            aperture_type_menu = ttk.Combobox(
-                card,
-                textvariable=aperture_type_var,
-                state="readonly",
-                width=12,
-                values=["STOP", "EPD"],
-            )
-            aperture_type_menu.grid(row=aperture_type_row, column=1, sticky="ew", padx=(6, 0), pady=(0, 4))
-            aperture_type_menu.bind("<<ComboboxSelected>>", lambda _e: self.refresh_plot())
-            control_widgets["aperture"] = (aperture_type_label, aperture_type_menu)
-
-            aperture_value_var = tk.StringVar(value=self.aperture_value_var.get())
-            self.operand_aperture_value_vars[spec.label] = aperture_value_var
-            aperture_value_label = ttk.Label(card, text="AVal")
-            aperture_value_label.grid(row=aperture_value_row, column=0, sticky="w")
-            aperture_value_entry = ttk.Entry(card, textvariable=aperture_value_var, width=12)
-            aperture_value_entry.grid(row=aperture_value_row, column=1, sticky="ew", padx=(6, 0), pady=(0, 0))
-            self._bind_deferred_refresh(aperture_value_entry)
-            control_widgets["aperture_value"] = (aperture_value_label, aperture_value_entry)
 
             if spec.label == "MTF @ freq":
                 frequency_var = tk.StringVar(value="5")
@@ -1340,8 +1744,23 @@ class KrakenLayoutEditor(tk.Tk):
                     values=["Average", "Tangential", "Sagittal"],
                 )
                 mtf_mode_menu.grid(row=mode_row, column=1, sticky="ew", padx=(6, 0), pady=(4, 0))
-                mtf_mode_menu.bind("<<ComboboxSelected>>", lambda _e: self.refresh_plot())
+                mtf_mode_menu.bind("<<ComboboxSelected>>", self._mark_plot_update_pending)
                 control_widgets["mtf_mode"] = (mode_label, mtf_mode_menu)
+
+                mtf_algorithm_var = tk.StringVar(value="PSF FFT")
+                self.operand_mtf_algorithm_vars[spec.label] = mtf_algorithm_var
+                algorithm_label = ttk.Label(card, text="Alg")
+                algorithm_label.grid(row=algorithm_row, column=0, sticky="w")
+                mtf_algorithm_menu = ttk.Combobox(
+                    card,
+                    textvariable=mtf_algorithm_var,
+                    state="readonly",
+                    width=12,
+                    values=["PSF FFT", "LSF FFT"],
+                )
+                mtf_algorithm_menu.grid(row=algorithm_row, column=1, sticky="ew", padx=(6, 0), pady=(4, 0))
+                mtf_algorithm_menu.bind("<<ComboboxSelected>>", self._mark_plot_update_pending)
+                control_widgets["mtf_algorithm"] = (algorithm_label, mtf_algorithm_menu)
 
             self.operand_control_widgets[spec.label] = control_widgets
             self.operand_setup_frames[spec.label] = card
@@ -1361,9 +1780,9 @@ class KrakenLayoutEditor(tk.Tk):
         self.results_table.configure(yscrollcommand=scroll.set)
 
     def _bind_deferred_refresh(self, widget: tk.Widget) -> None:
-        widget.bind("<Return>", lambda _e: self.refresh_plot())
-        widget.bind("<Tab>", lambda _e: self.refresh_plot())
-        widget.bind("<FocusOut>", lambda _e: self.refresh_plot())
+        widget.bind("<Return>", self._mark_plot_update_pending)
+        widget.bind("<Tab>", self._mark_plot_update_pending)
+        widget.bind("<FocusOut>", self._mark_plot_update_pending)
 
     def _bind_deferred_manual_update(self, widget: tk.Widget, *, sync_fields: bool = False) -> None:
         def _on_commit(_event=None):
@@ -1520,15 +1939,234 @@ class KrakenLayoutEditor(tk.Tk):
             widget = self.canvas.get_tk_widget()
             x_display = float(event.x)
             y_display = float(widget.winfo_height() - event.y)
-            for axis in (self.ax, self._analysis_ax):
-                if axis is None or axis not in self.figure.axes:
-                    continue
-                if axis.get_window_extent(renderer).contains(x_display, y_display):
-                    self._open_plot_axis_once(axis)
+            if self.ax is not None and self.ax in self.figure.axes:
+                if self.ax.get_window_extent(renderer).contains(x_display, y_display):
+                    row_index = self._find_layout_pick_row(x_display, y_display)
+                    if row_index is not None:
+                        self._select_table_row(row_index)
+                        return "break"
+                    self._open_plot_axis_once(self.ax)
+                    return "break"
+            if self._analysis_ax is not None and self._analysis_ax in self.figure.axes:
+                if self._analysis_ax.get_window_extent(renderer).contains(x_display, y_display):
+                    self._open_plot_axis_once(self._analysis_ax)
                     return "break"
         except Exception as exc:
             self.append_debug(f"Plot viewer dispatch failed: {exc}")
         return None
+
+    @staticmethod
+    def _convex_hull_2d(points: np.ndarray) -> np.ndarray:
+        pts = np.asarray(points, dtype=float)
+        if pts.ndim != 2 or pts.shape[1] != 2:
+            return np.empty((0, 2), dtype=float)
+        pts = pts[np.all(np.isfinite(pts), axis=1)]
+        if pts.shape[0] <= 2:
+            return pts
+        pts = np.unique(np.round(pts, decimals=6), axis=0)
+        if pts.shape[0] <= 2:
+            return pts
+
+        def cross(o, a, b) -> float:
+            return float((a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]))
+
+        ordered = sorted((float(x), float(y)) for x, y in pts)
+        lower: list[tuple[float, float]] = []
+        for p in ordered:
+            while len(lower) >= 2 and cross(lower[-2], lower[-1], p) <= 0.0:
+                lower.pop()
+            lower.append(p)
+        upper: list[tuple[float, float]] = []
+        for p in reversed(ordered):
+            while len(upper) >= 2 and cross(upper[-2], upper[-1], p) <= 0.0:
+                upper.pop()
+            upper.append(p)
+        hull = lower[:-1] + upper[:-1]
+        return np.asarray(hull, dtype=float)
+
+    def _clear_layout_selection_overlay(self) -> None:
+        for artist in self._layout_selection_artists:
+            try:
+                artist.remove()
+            except Exception:
+                pass
+        self._layout_selection_artists = []
+
+    def _project_layout_points(self, points: np.ndarray) -> np.ndarray:
+        pts = np.asarray(points, dtype=float)
+        if pts.ndim != 2 or pts.shape[1] < 3:
+            return np.empty((0, 2), dtype=float)
+        proj_x, proj_y = self._project_xy(pts[:, 2], pts[:, 1])
+        return np.column_stack((proj_x, proj_y))
+
+    def _project_layout_polyline(self, z_values, y_values) -> np.ndarray:
+        z_arr = np.asarray(z_values, dtype=float).reshape(-1)
+        y_arr = np.asarray(y_values, dtype=float).reshape(-1)
+        if z_arr.size == 0 or y_arr.size == 0 or z_arr.size != y_arr.size:
+            return np.empty((0, 2), dtype=float)
+        mask = np.isfinite(z_arr) & np.isfinite(y_arr)
+        if not np.any(mask):
+            return np.empty((0, 2), dtype=float)
+        proj_x, proj_y = self._project_xy(z_arr[mask], y_arr[mask])
+        return np.column_stack((proj_x, proj_y))
+
+    def _row_layout_polylines(self, system, row_index: int, z_pos: float) -> list[np.ndarray]:
+        if not (0 <= row_index < len(self.rows)):
+            return []
+        row = self.rows[row_index]
+        polylines: list[np.ndarray] = []
+        if row.surface == "Mirror":
+            half_length = max(float(row.diameter) / 2.0, 0.5)
+            angle = np.deg2rad(float(row.tilt_x))
+            dz = np.cos(angle) * half_length
+            dy = np.sin(angle) * half_length
+            center_z = z_pos + float(row.desp_z)
+            center_y = float(row.desp_y)
+            poly = self._project_layout_polyline(
+                [center_z - dz, center_z + dz],
+                [center_y - dy, center_y + dy],
+            )
+            if poly.size > 0:
+                polylines.append(poly)
+            return polylines
+        if row.surface in {"Object", "Image"}:
+            half_height = max(float(row.diameter) / 2.0, 0.5)
+            center_z = z_pos + float(row.desp_z)
+            center_y = float(row.desp_y)
+            poly = self._project_layout_polyline(
+                [center_z, center_z],
+                [center_y - half_height, center_y + half_height],
+            )
+            if poly.size > 0:
+                polylines.append(poly)
+            return polylines
+        surfaces = getattr(system, "AAA", None)
+        surface_data = getattr(system, "SDT_0", None)
+        if surfaces is None or surface_data is None:
+            return polylines
+        if row_index >= getattr(surfaces, "n_blocks", 0) or row_index >= len(surface_data):
+            return polylines
+        surface = surface_data[row_index]
+        if int(getattr(surface, "Drawing", 1)) != 1:
+            return polylines
+        if str(getattr(surface, "Glass", "") or "").upper() == "NULL":
+            return polylines
+        solid = 1 if getattr(surface, "Solid_3d_stl", "None") != "None" else 0
+        mesh = surfaces[row_index]
+        for direction in (1, -1):
+            try:
+                _ax, ay, az = edge_3d(mesh, direction, 0, 0, solid)
+                az, ay = filter_face_2dplot(np.asarray(az, dtype=float), np.asarray(ay, dtype=float), solid)
+            except Exception:
+                continue
+            poly = self._project_layout_polyline(az, ay)
+            if int(poly.shape[0]) >= 2:
+                polylines.append(poly)
+        return polylines
+
+    def _rebuild_layout_pick_regions(self, system) -> None:
+        self._layout_pick_regions = {}
+        z_pos = 0.0
+        for row_index, row in enumerate(self.rows):
+            polylines = self._row_layout_polylines(system, row_index, z_pos)
+            if polylines:
+                self._layout_pick_regions[row_index] = polylines
+            z_pos += float(row.thickness)
+
+    @staticmethod
+    def _distance_to_polyline(point_xy: np.ndarray, polyline_xy: np.ndarray) -> float:
+        pts = np.asarray(polyline_xy, dtype=float)
+        point = np.asarray(point_xy, dtype=float)
+        if pts.ndim != 2 or pts.shape[0] == 0:
+            return float("inf")
+        if pts.shape[0] == 1:
+            return float(np.linalg.norm(point - pts[0]))
+        best = float("inf")
+        for start, end in zip(pts[:-1], pts[1:]):
+            seg = end - start
+            denom = float(np.dot(seg, seg))
+            if denom <= 1e-12:
+                dist = float(np.linalg.norm(point - start))
+            else:
+                t = float(np.clip(np.dot(point - start, seg) / denom, 0.0, 1.0))
+                proj = start + t * seg
+                dist = float(np.linalg.norm(point - proj))
+            if dist < best:
+                best = dist
+        return best
+
+    def _find_layout_pick_row(self, x_display: float, y_display: float) -> int | None:
+        if self.ax is None or not self._layout_pick_regions:
+            return None
+        best_row = None
+        best_distance = float("inf")
+        threshold = 14.0
+        click_xy = np.array([x_display, y_display], dtype=float)
+        for row_index, polylines in self._layout_pick_regions.items():
+            row_distance = float("inf")
+            for polyline in polylines:
+                try:
+                    display_pts = self.ax.transData.transform(np.asarray(polyline, dtype=float))
+                except Exception:
+                    continue
+                if display_pts.size == 0:
+                    continue
+                row_distance = min(row_distance, self._distance_to_polyline(click_xy, display_pts))
+            if row_distance < best_distance:
+                best_distance = row_distance
+                best_row = int(row_index)
+        if best_distance <= threshold:
+            return best_row
+        return None
+
+    def _update_layout_selection_overlay(self, row_index: int | None = None) -> None:
+        self._clear_layout_selection_overlay()
+        if self.ax is None:
+            return
+        if row_index is None:
+            row_index = self._current_selected_row_index()
+        if row_index is None:
+            return
+        polylines = self._layout_pick_regions.get(int(row_index))
+        if not polylines:
+            return
+        artists: list = []
+        for polyline in polylines:
+            pts = np.asarray(polyline, dtype=float)
+            if pts.ndim != 2 or pts.shape[0] == 0:
+                continue
+            if pts.shape[0] == 1:
+                artists.append(
+                    self.ax.scatter(
+                        pts[:, 0],
+                        pts[:, 1],
+                        s=55,
+                        c="#f97316",
+                        edgecolors="white",
+                        linewidths=1.4,
+                        zorder=950,
+                    )
+                )
+                continue
+            underlay, = self.ax.plot(
+                pts[:, 0],
+                pts[:, 1],
+                color="white",
+                linewidth=5.0,
+                alpha=0.92,
+                zorder=940,
+            )
+            overlay, = self.ax.plot(
+                pts[:, 0],
+                pts[:, 1],
+                color="#f97316",
+                linewidth=2.2,
+                alpha=0.98,
+                zorder=941,
+            )
+            artists.extend([underlay, overlay])
+        self._layout_selection_artists = artists
+        self.canvas.draw_idle()
 
     def _configure_plot_hover_hints(self) -> None:
         self._hover_hint_artists = {}
@@ -1655,31 +2293,888 @@ class KrakenLayoutEditor(tk.Tk):
 
     def open_3d_view(self) -> None:
         try:
-            wavelength = self._current_wavelength()
-            system = self.build_system()
-            rays = Kos.raykeeper(system)
-            max_radius = max((max(row.diameter / 2.0, 0.5) for row in self.rows), default=1.0)
-            self._trace_preview_rays(system, rays, wavelength, max_radius)
-            self.last_system = system
-            self.last_rays = rays
-            plotter = pv.Plotter(shape=(1, 1), title="KrakenOS 3D", notebook=False)
-            plot3d(system, 0, plotter, 0.99)
-            rayplot3d(rays, 0, plotter, 0.99, 0)
-            plotter.add_axes(line_width=4)
-            cx, cy, cz = plotter.center
-            plotter.set_focus([cx, cy, cz])
-            plotter.camera_position = [-1.0, 0.5, 1.0]
-            plotter.set_viewup([0, 1.0, 0])
-            plotter.enable_anti_aliasing()
-            plotter.set_background("white", top="white")
-            plotter.add_text("KrakenOS", position="upper_left", font_size=20, color="royalblue")
-            plotter.show_grid(font_size=6, color="black")
-            plotter.show(auto_close=True, interactive=True, interactive_update=False)
-            self.status_var.set("Opened Kraken 3D view")
-            self.append_debug("Opened Kraken 3D view (close with window X, Alt+F4, or q)")
+            if vtkTkRenderWindowInteractor is not None:
+                try:
+                    if self._three_d_inspector is None or not self._three_d_inspector.winfo_exists():
+                        self._three_d_inspector = Kraken3DInspector(self)
+                    if self._three_d_inspector.available:
+                        self._three_d_inspector.deiconify()
+                        self._three_d_inspector.lift()
+                        self._three_d_inspector.focus_force()
+                        self._three_d_inspector.refresh_from_editor()
+                        self.status_var.set("Opened Kraken 3D inspector")
+                        self.append_debug("Opened Kraken 3D inspector")
+                        return
+                    reason = self._three_d_inspector.unavailable_reason or "VTK/Tk unavailable"
+                    try:
+                        self._three_d_inspector.destroy()
+                    except Exception:
+                        pass
+                    self._three_d_inspector = None
+                    self.append_debug(f"Embedded 3D inspector unavailable: {reason}. Falling back to legacy PyVista viewer.")
+                except Exception as exc:
+                    self.append_debug(f"Embedded 3D inspector failed: {exc}. Falling back to legacy PyVista viewer.")
+                    if self._three_d_inspector is not None:
+                        try:
+                            self._three_d_inspector.destroy()
+                        except Exception:
+                            pass
+                        self._three_d_inspector = None
+
+            self._close_legacy_3d_plotter()
+            system, rays = self._build_preview_system_and_rays()
+            plotter = self._build_legacy_3d_plotter(system, rays)
+            plotter.show(auto_close=False, interactive=True, interactive_update=True)
+            self._legacy_3d_plotter = plotter
+            self._schedule_legacy_3d_poll()
+            self.status_var.set("Opened legacy Kraken 3D view")
+            self.append_debug("Opened legacy Kraken 3D view")
         except Exception as exc:
             self.append_debug(f"3D view error: {exc}")
             self.status_var.set(f"3D view failed: {exc}")
+
+    def _schedule_legacy_3d_poll(self) -> None:
+        if self._legacy_3d_after_id is not None:
+            return
+        try:
+            self._legacy_3d_after_id = self.after(20, self._poll_legacy_3d_plotter)
+        except Exception:
+            self._legacy_3d_after_id = None
+
+    def _poll_legacy_3d_plotter(self) -> None:
+        self._legacy_3d_after_id = None
+        plotter = self._legacy_3d_plotter
+        if plotter is None:
+            return
+        if bool(getattr(plotter, "_closed", False)):
+            self._legacy_3d_plotter = None
+            self.status_var.set("Closed legacy Kraken 3D view")
+            return
+        try:
+            plotter.update(stime=1, force_redraw=True)
+        except Exception as exc:
+            self.append_debug(f"Legacy 3D update failed: {exc}")
+            self._close_legacy_3d_plotter()
+            self.status_var.set(f"3D view closed: {_short_error_message(exc)}")
+            return
+        self._schedule_legacy_3d_poll()
+
+    def _close_legacy_3d_plotter(self) -> None:
+        if self._legacy_3d_after_id is not None:
+            try:
+                self.after_cancel(self._legacy_3d_after_id)
+            except Exception:
+                pass
+            self._legacy_3d_after_id = None
+        plotter = self._legacy_3d_plotter
+        self._legacy_3d_plotter = None
+        if plotter is None:
+            return
+        try:
+            plotter.close()
+        except Exception:
+            pass
+
+    def _build_preview_system_and_rays(self):
+        wavelength = self._current_wavelength()
+        capture = io.StringIO()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            with redirect_stdout(capture), redirect_stderr(capture):
+                system = self.build_system()
+                if getattr(system.Pr3D, "ExistSolid", 0) == 0:
+                    original_build = system.BUILD
+                    system.BUILD = 1
+                    system.build()
+                    system.BUILD = original_build
+                rays = Kos.raykeeper(system)
+                max_radius = max((max(row.diameter / 2.0, 0.5) for row in self.rows), default=1.0)
+                self._trace_preview_rays(system, rays, wavelength, max_radius)
+        self.append_debug(capture.getvalue())
+        self.last_system = system
+        self.last_rays = rays
+        return system, rays
+
+    def _build_legacy_3d_plotter(self, system, rays):
+        plotter = pv.Plotter(shape=(1, 1), title="KrakenOS 3D", notebook=False)
+        plotter.set_background("white", top="white")
+        plotter.enable_anti_aliasing()
+        try:
+            plotter.render_window.SetStereoTypeToFake()
+            plotter.render_window.StereoRenderOff()
+            plotter.render_window.StereoCapableWindowOff()
+        except Exception:
+            pass
+        plotter.add_axes(line_width=3)
+        plotter.show_grid(font_size=6, color="black", n_xlabels=2, n_ylabels=2, n_zlabels=2, fmt="%.0f", bold=False)
+        scene_info = self._populate_legacy_3d_plotter_scene(
+            plotter,
+            system,
+            rays,
+            add_clip_plane=True,
+            add_labels=True,
+        )
+        self._configure_legacy_3d_plotter(
+            plotter,
+            ray_actors=scene_info["ray_actors"],
+            mirror_actors=scene_info["mirror_actors"],
+            lens_actors=scene_info["lens_actors"],
+            helper_actors=scene_info["helper_actors"],
+        )
+        self._enable_legacy_3d_close_handling(plotter)
+        setattr(plotter, "_kraken_scene", scene_info)
+        setattr(plotter, "_kraken_system", system)
+        setattr(plotter, "_kraken_rays", rays)
+        return plotter
+
+    def _populate_legacy_3d_plotter_scene(
+        self,
+        plotter,
+        system,
+        rays,
+        *,
+        add_clip_plane: bool,
+        add_labels: bool,
+    ) -> dict[str, list]:
+        label_points: list[np.ndarray] = []
+        label_text: list[str] = []
+        merged_shell = None
+        merged_bodies = None
+        ray_actors = []
+        mirror_actors = []
+        lens_actors = []
+        helper_actors = []
+        actor_row_map: dict[str, int] = {}
+        row_actor_map: dict[int, list] = {}
+
+        def register_actor(actor, row_index: int | None = None, *, pickable: bool = False):
+            if actor is None:
+                return None
+            try:
+                actor.SetPickable(bool(pickable))
+            except Exception:
+                pass
+            if row_index is None:
+                return actor
+            actor_key = Kraken3DInspector._actor_key(actor)
+            if actor_key is None:
+                return actor
+            actor_row_map[actor_key] = row_index
+            row_actor_map.setdefault(row_index, []).append(actor)
+            try:
+                actor._kraken_row_index = row_index
+                prop = actor.GetProperty()
+                if prop is not None:
+                    actor._kraken_base_style = {
+                        "edge_visibility": int(prop.GetEdgeVisibility()),
+                        "line_width": float(prop.GetLineWidth()),
+                        "edge_color": tuple(float(v) for v in prop.GetEdgeColor()),
+                        "opacity": float(prop.GetOpacity()),
+                        "ambient": float(prop.GetAmbient()),
+                        "diffuse": float(prop.GetDiffuse()),
+                    }
+            except Exception:
+                pass
+            return actor
+
+        transforms = getattr(system, "TRANS_2A", None)
+        surfaces = getattr(system, "AAA", None)
+        if transforms is not None and surfaces is not None:
+            block_count = min(len(self.rows), getattr(surfaces, "n_blocks", 0), len(transforms))
+            for index in range(block_count):
+                row = self.rows[index]
+                if row.surface in {"Object", "Image"}:
+                    continue
+                mesh = Kraken3DInspector._mesh_with_transform(surfaces[index], transforms[index])
+                if mesh is None or int(getattr(mesh, "n_points", 0)) == 0:
+                    continue
+                if self._legacy_3d_is_stop_plane(row):
+                    ring_mesh = self._legacy_3d_stop_ring_mesh(mesh, row)
+                    if ring_mesh is not None and int(getattr(ring_mesh, "n_points", 0)) > 0:
+                        actor = register_actor(
+                            plotter.add_mesh(
+                                ring_mesh,
+                                color="#f59e0b",
+                                opacity=0.95,
+                                smooth_shading=False,
+                                show_edges=False,
+                                pickable=True,
+                            ),
+                            index,
+                            pickable=True,
+                        )
+                        if actor is not None:
+                            helper_actors.append(actor)
+                    if add_labels:
+                        try:
+                            label_points.append(np.mean(np.asarray(mesh.points, dtype=float), axis=0))
+                            label_text.append(f"{index}: {row.name}")
+                        except Exception:
+                            pass
+                    continue
+                color = Kraken3DInspector._surface_color(system.SDT_0[index])
+                opacity = 0.88 if row.surface == "Mirror" else 0.68
+                actor = register_actor(
+                    plotter.add_mesh(
+                        mesh,
+                        color=color,
+                        opacity=opacity,
+                        smooth_shading=True,
+                        show_edges=False,
+                        pickable=True,
+                    ),
+                    index,
+                    pickable=True,
+                )
+                if row.surface == "Mirror":
+                    mirror_actors.append(actor)
+                else:
+                    lens_actors.append(actor)
+                try:
+                    edges = mesh.extract_feature_edges(
+                        feature_angle=10,
+                        boundary_edges=True,
+                        feature_edges=False,
+                        manifold_edges=False,
+                    )
+                    if int(getattr(edges, "n_points", 0)) > 0:
+                        plotter.add_mesh(edges, color="#1f2937", line_width=1.0, pickable=False)
+                except Exception:
+                    pass
+                try:
+                    merged_shell = mesh.copy(deep=True) if merged_shell is None else merged_shell.merge(mesh)
+                except Exception:
+                    pass
+                if add_labels:
+                    try:
+                        label_points.append(np.mean(np.asarray(mesh.points, dtype=float), axis=0))
+                        label_text.append(f"{index}: {row.name}")
+                    except Exception:
+                        pass
+
+        side_index = 0
+        for row_index in getattr(system, "side_number", []):
+            try:
+                body = pv.wrap(system.BBB[side_index]).extract_surface().copy(deep=True)
+            except Exception:
+                side_index += 1
+                continue
+            side_index += 1
+            if int(getattr(body, "n_points", 0)) == 0:
+                continue
+            color = Kraken3DInspector._surface_color(system.SDT_0[row_index])
+            actor = register_actor(
+                plotter.add_mesh(
+                    body,
+                    color=color,
+                    opacity=0.18,
+                    smooth_shading=False,
+                    show_edges=False,
+                    pickable=True,
+                ),
+                row_index,
+                pickable=True,
+            )
+            if self.rows[row_index].surface == "Mirror":
+                mirror_actors.append(actor)
+            else:
+                lens_actors.append(actor)
+            try:
+                merged_bodies = body.copy(deep=True) if merged_bodies is None else merged_bodies.merge(body)
+            except Exception:
+                pass
+
+        merged_scene = merged_shell
+        if merged_bodies is not None:
+            try:
+                merged_scene = merged_bodies.copy(deep=True) if merged_scene is None else merged_scene.merge(merged_bodies)
+            except Exception:
+                pass
+
+        ray_radius = self._legacy_3d_ray_radius(system, rays)
+        for wave, ray_pts in zip(getattr(rays, "RayWave", []), getattr(rays, "CC", [])):
+            try:
+                line = pv.lines_from_points(ray_pts)
+            except Exception:
+                continue
+            if int(getattr(line, "n_points", 0)) < 2:
+                continue
+            try:
+                ray_mesh = line.tube(radius=ray_radius, n_sides=10, capping=True)
+            except Exception:
+                ray_mesh = line
+            actor = plotter.add_mesh(
+                ray_mesh,
+                color=tuple(wavelength_to_rgb(float(wave) * 1000.0)),
+                opacity=0.96,
+                pickable=False,
+            )
+            try:
+                actor.SetPickable(False)
+            except Exception:
+                pass
+            ray_actors.append(actor)
+
+        if merged_scene is not None and int(getattr(merged_scene, "n_points", 0)) > 0:
+            if add_clip_plane:
+                try:
+                    actor = plotter.add_mesh_clip_plane(
+                        merged_scene,
+                        normal=(1.0, 0.0, 0.0),
+                        normal_rotation=True,
+                        color="#f59e0b",
+                        opacity=0.45,
+                        name="folded_clip",
+                    )
+                    try:
+                        actor.SetPickable(False)
+                    except Exception:
+                        pass
+                    helper_actors.append(actor)
+                except Exception as exc:
+                    self.append_debug(f"Legacy 3D clip-plane setup failed: {exc}")
+            try:
+                slice_mesh = merged_scene.slice(normal=(1.0, 0.0, 0.0), origin=np.asarray(merged_scene.center))
+                if int(getattr(slice_mesh, "n_points", 0)) > 0:
+                    actor = plotter.add_mesh(
+                        slice_mesh,
+                        color="#dc2626",
+                        line_width=3,
+                        name="folded_section",
+                        pickable=False,
+                    )
+                    try:
+                        actor.SetPickable(False)
+                    except Exception:
+                        pass
+                    helper_actors.append(actor)
+            except Exception as exc:
+                self.append_debug(f"Legacy 3D section setup failed: {exc}")
+
+        if add_labels and label_points and hasattr(plotter, "add_point_labels"):
+            try:
+                plotter.add_point_labels(
+                    np.asarray(label_points, dtype=float),
+                    label_text,
+                    font_size=10,
+                    point_size=0,
+                    text_color="black",
+                    fill_shape=False,
+                    shape_opacity=0.0,
+                    margin=2,
+                    always_visible=True,
+                )
+            except Exception:
+                pass
+
+        return {
+            "ray_actors": ray_actors,
+            "mirror_actors": mirror_actors,
+            "lens_actors": lens_actors,
+            "helper_actors": helper_actors,
+            "actor_row_map": actor_row_map,
+            "row_actor_map": row_actor_map,
+        }
+
+    def _build_clean_legacy_3d_plotter(self, system, rays):
+        plotter = pv.Plotter(off_screen=True, window_size=(2200, 1400), notebook=False)
+        plotter.set_background("white", top="white")
+        plotter.enable_anti_aliasing()
+        try:
+            plotter.render_window.SetStereoTypeToFake()
+            plotter.render_window.StereoRenderOff()
+            plotter.render_window.StereoCapableWindowOff()
+        except Exception:
+            pass
+        plotter.add_axes(line_width=3)
+        plotter.show_grid(font_size=6, color="black", n_xlabels=2, n_ylabels=2, n_zlabels=2, fmt="%.0f", bold=False)
+        scene_info = self._populate_legacy_3d_plotter_scene(
+            plotter,
+            system,
+            rays,
+            add_clip_plane=False,
+            add_labels=False,
+        )
+        setattr(plotter, "_kraken_scene", scene_info)
+        return plotter
+
+    @staticmethod
+    def _legacy_3d_is_stop_plane(row: SurfaceRow) -> bool:
+        name = (row.name or "").strip().lower()
+        return "stop" in name or "aperture" in name
+
+    @staticmethod
+    def _legacy_3d_stop_ring_mesh(mesh, row: SurfaceRow):
+        try:
+            pts = np.asarray(mesh.points, dtype=float)
+        except Exception:
+            return None
+        if pts.size == 0:
+            return None
+        center = np.mean(pts, axis=0)
+        centered = pts - center
+        try:
+            _u, _s, vh = np.linalg.svd(centered, full_matrices=False)
+            normal = np.asarray(vh[-1], dtype=float)
+        except Exception:
+            normal = np.array([0.0, 0.0, 1.0], dtype=float)
+        norm = max(float(np.linalg.norm(normal)), 1e-12)
+        normal = normal / norm
+        outer = max(float(row.diameter) * 0.5, 0.5)
+        inner = max(outer * 0.82, outer - 0.8)
+        if inner >= outer:
+            inner = outer * 0.9
+        try:
+            return pv.Disc(center=center, inner=inner, outer=outer, normal=normal, r_res=1, c_res=96)
+        except Exception:
+            return None
+
+    def _legacy_3d_ray_radius(self, system, rays) -> float:
+        try:
+            bounds = np.asarray(system.AAA.bounds, dtype=float)
+        except Exception:
+            bounds = np.array([0.0, 100.0, -25.0, 25.0, -25.0, 25.0], dtype=float)
+        span = max(
+            float(bounds[1] - bounds[0]) if bounds.size >= 2 else 0.0,
+            float(bounds[3] - bounds[2]) if bounds.size >= 4 else 0.0,
+            float(bounds[5] - bounds[4]) if bounds.size >= 6 else 0.0,
+            1.0,
+        )
+        ray_count = max(len(getattr(rays, "CC", [])), 1)
+        return max(span * 0.0009 / max(np.sqrt(ray_count), 1.0), 0.05)
+
+    def _configure_legacy_3d_plotter(
+        self,
+        plotter,
+        *,
+        ray_actors=None,
+        mirror_actors=None,
+        lens_actors=None,
+        helper_actors=None,
+    ) -> None:
+        help_lines = [
+            "KrakenOS 3D",
+            "Click a surface to select its row in the editor",
+            "Drag the orange clipping plane through the folded system",
+            "Keys: I Iso  Y YZ  T Top  X XZ  H Home  K Save PNG  Q Close",
+        ]
+        plotter.add_text("\n".join(help_lines), position="upper_left", font_size=12, color="royalblue")
+        self._set_legacy_3d_camera(plotter, "iso")
+        plotter.add_key_event("i", lambda: self._set_legacy_3d_camera(plotter, "iso"))
+        plotter.add_key_event("I", lambda: self._set_legacy_3d_camera(plotter, "iso"))
+        plotter.add_key_event("y", lambda: self._set_legacy_3d_camera(plotter, "yz"))
+        plotter.add_key_event("Y", lambda: self._set_legacy_3d_camera(plotter, "yz"))
+        plotter.add_key_event("t", lambda: self._set_legacy_3d_camera(plotter, "top"))
+        plotter.add_key_event("T", lambda: self._set_legacy_3d_camera(plotter, "top"))
+        plotter.add_key_event("x", lambda: self._set_legacy_3d_camera(plotter, "xz"))
+        plotter.add_key_event("X", lambda: self._set_legacy_3d_camera(plotter, "xz"))
+        plotter.add_key_event("h", lambda: self._set_legacy_3d_camera(plotter, "reset"))
+        plotter.add_key_event("H", lambda: self._set_legacy_3d_camera(plotter, "reset"))
+        plotter.add_key_event("k", lambda: self._save_legacy_3d_screenshot(plotter))
+        plotter.add_key_event("K", lambda: self._save_legacy_3d_screenshot(plotter))
+        plotter.add_key_event("q", self._close_legacy_3d_plotter)
+        plotter.add_key_event("Q", self._close_legacy_3d_plotter)
+
+        ray_actors = list(ray_actors or [])
+        mirror_actors = list(mirror_actors or [])
+        lens_actors = list(lens_actors or [])
+        helper_actors = list(helper_actors or [])
+        setattr(
+            plotter,
+            "_kraken_visibility",
+            {
+                "rays": True,
+                "mirrors": True,
+                "lenses": True,
+                "helpers": True,
+            },
+        )
+        self._add_legacy_3d_action_button(
+            plotter,
+            label="Save PNG",
+            position=(10, 10),
+            callback=lambda _state: self._save_legacy_3d_screenshot(plotter),
+            color="#0f766e",
+        )
+        self._add_legacy_3d_action_button(
+            plotter,
+            label="Close",
+            position=(10, 50),
+            callback=lambda _state: self._close_legacy_3d_plotter(),
+            color="#991b1b",
+        )
+        self._add_legacy_3d_action_button(
+            plotter,
+            label="Iso",
+            position=(10, 90),
+            callback=lambda _state: self._set_legacy_3d_camera(plotter, "iso"),
+            color="#475569",
+        )
+        self._add_legacy_3d_action_button(
+            plotter,
+            label="YZ",
+            position=(10, 130),
+            callback=lambda _state: self._set_legacy_3d_camera(plotter, "yz"),
+            color="#475569",
+        )
+        self._add_legacy_3d_action_button(
+            plotter,
+            label="Top",
+            position=(10, 170),
+            callback=lambda _state: self._set_legacy_3d_camera(plotter, "top"),
+            color="#475569",
+        )
+        self._add_legacy_3d_action_button(
+            plotter,
+            label="XZ",
+            position=(10, 210),
+            callback=lambda _state: self._set_legacy_3d_camera(plotter, "xz"),
+            color="#475569",
+        )
+        self._add_legacy_3d_action_button(
+            plotter,
+            label="Home",
+            position=(10, 250),
+            callback=lambda _state: self._set_legacy_3d_camera(plotter, "reset"),
+            color="#475569",
+        )
+        self._add_legacy_3d_action_button(
+            plotter,
+            label="Rays",
+            position=(10, 310),
+            callback=lambda state: self._legacy_3d_set_actor_visibility(ray_actors, state, plotter, "rays"),
+            value=True,
+            color="#2563eb",
+        )
+        self._add_legacy_3d_action_button(
+            plotter,
+            label="Mirrors",
+            position=(10, 350),
+            callback=lambda state: self._legacy_3d_set_actor_visibility(mirror_actors, state, plotter, "mirrors"),
+            value=True,
+            color="#6b7280",
+        )
+        self._add_legacy_3d_action_button(
+            plotter,
+            label="Lenses",
+            position=(10, 390),
+            callback=lambda state: self._legacy_3d_set_actor_visibility(lens_actors, state, plotter, "lenses"),
+            value=True,
+            color="#0284c7",
+        )
+        self._add_legacy_3d_action_button(
+            plotter,
+            label="Helpers",
+            position=(10, 430),
+            callback=lambda state: self._legacy_3d_set_actor_visibility(helper_actors, state, plotter, "helpers"),
+            value=True,
+            color="#f59e0b",
+        )
+        self._enable_legacy_3d_picking(plotter)
+
+    def _enable_legacy_3d_close_handling(self, plotter) -> None:
+        def request_close(*_args):
+            try:
+                self.after(0, self._close_legacy_3d_plotter)
+            except Exception:
+                self._close_legacy_3d_plotter()
+
+        try:
+            if getattr(plotter, "iren", None) is not None:
+                plotter.iren.add_observer("ExitEvent", request_close)
+        except Exception as exc:
+            self.append_debug(f"Legacy 3D close observer unavailable: {exc}")
+        try:
+            if getattr(plotter, "render_window", None) is not None:
+                plotter.render_window.AddObserver("DeleteEvent", request_close)
+        except Exception:
+            pass
+
+    def _enable_legacy_3d_picking(self, plotter) -> None:
+        if vtkCellPicker is None or getattr(plotter, "iren", None) is None:
+            return
+        try:
+            picker = vtkCellPicker()
+            picker.SetTolerance(0.0005)
+            setattr(plotter, "_kraken_picker", picker)
+            setattr(plotter, "_kraken_selected_row", None)
+            plotter.iren.add_observer(
+                "LeftButtonPressEvent",
+                lambda *_args: self._legacy_3d_pick_click(plotter),
+            )
+        except Exception as exc:
+            self.append_debug(f"Legacy 3D picking unavailable: {exc}")
+
+    def _legacy_3d_pick_click(self, plotter) -> None:
+        picker = getattr(plotter, "_kraken_picker", None)
+        if picker is None or getattr(plotter, "iren", None) is None:
+            return
+        try:
+            x, y = plotter.iren.get_event_position()
+            renderer = plotter.iren.get_poked_renderer(x, y)
+            if renderer is None:
+                renderer = getattr(plotter, "renderer", None)
+            if renderer is None:
+                return
+            picker.Pick(x, y, 0.0, renderer)
+            actor = picker.GetActor()
+        except Exception as exc:
+            self.append_debug(f"Legacy 3D pick failed: {exc}")
+            return
+        actor_key = Kraken3DInspector._actor_key(actor)
+        scene_info = dict(getattr(plotter, "_kraken_scene", {}) or {})
+        row_index = scene_info.get("actor_row_map", {}).get(actor_key) if actor_key is not None else None
+        if row_index is None:
+            self._legacy_3d_set_selected_row(plotter, None)
+            self.status_var.set("3D view ready")
+            return
+        self._legacy_3d_set_selected_row(plotter, int(row_index))
+        self._select_table_row(int(row_index))
+        row_name = self.rows[int(row_index)].name if 0 <= int(row_index) < len(self.rows) else "Surface"
+        self.status_var.set(f"3D selected row {int(row_index)}: {row_name}")
+
+    def _legacy_3d_set_selected_row(self, plotter, row_index: int | None) -> None:
+        current = getattr(plotter, "_kraken_selected_row", None)
+        if current == row_index:
+            return
+        scene_info = dict(getattr(plotter, "_kraken_scene", {}) or {})
+        row_actor_map = dict(scene_info.get("row_actor_map", {}) or {})
+        if current is not None:
+            for actor in row_actor_map.get(int(current), []):
+                self._legacy_3d_set_actor_highlight(actor, False)
+        if row_index is not None:
+            for actor in row_actor_map.get(int(row_index), []):
+                self._legacy_3d_set_actor_highlight(actor, True)
+        setattr(plotter, "_kraken_selected_row", row_index)
+        try:
+            plotter.render()
+        except Exception:
+            pass
+
+    @staticmethod
+    def _legacy_3d_set_actor_highlight(actor, selected: bool) -> None:
+        if actor is None:
+            return
+        try:
+            prop = actor.GetProperty()
+        except Exception:
+            return
+        if prop is None:
+            return
+        base = getattr(actor, "_kraken_base_style", None)
+        if not isinstance(base, dict):
+            try:
+                base = {
+                    "edge_visibility": int(prop.GetEdgeVisibility()),
+                    "line_width": float(prop.GetLineWidth()),
+                    "edge_color": tuple(float(v) for v in prop.GetEdgeColor()),
+                    "opacity": float(prop.GetOpacity()),
+                    "ambient": float(prop.GetAmbient()),
+                    "diffuse": float(prop.GetDiffuse()),
+                }
+                actor._kraken_base_style = base
+            except Exception:
+                base = {}
+        if selected:
+            try:
+                prop.SetEdgeVisibility(1)
+                prop.SetEdgeColor(1.0, 0.45, 0.05)
+                prop.SetLineWidth(max(float(base.get("line_width", 1.0)), 2.5))
+                prop.SetOpacity(min(max(float(base.get("opacity", 1.0)), 0.3) + 0.08, 1.0))
+                prop.SetAmbient(max(float(base.get("ambient", 0.0)), 0.18))
+            except Exception:
+                return
+            return
+        try:
+            prop.SetEdgeVisibility(int(base.get("edge_visibility", 0)))
+            edge_color = tuple(base.get("edge_color", (0.0, 0.0, 0.0)))
+            if len(edge_color) == 3:
+                prop.SetEdgeColor(*edge_color)
+            prop.SetLineWidth(float(base.get("line_width", 1.0)))
+            prop.SetOpacity(float(base.get("opacity", 1.0)))
+            prop.SetAmbient(float(base.get("ambient", 0.0)))
+            prop.SetDiffuse(float(base.get("diffuse", 1.0)))
+        except Exception:
+            pass
+
+    def _add_legacy_3d_action_button(
+        self,
+        plotter,
+        *,
+        label: str,
+        position: tuple[int, int],
+        callback,
+        value: bool = False,
+        color: str = "#2563eb",
+    ) -> None:
+        plotter.add_checkbox_button_widget(
+            callback,
+            value=value,
+            position=position,
+            size=26,
+            border_size=4,
+            color_on=color,
+            color_off=color,
+            background_color="white",
+        )
+        plotter.add_text(
+            label,
+            position=(position[0] + 34, position[1] + 2),
+            font_size=10,
+            color="black",
+        )
+
+    def _legacy_3d_set_actor_visibility(self, actors, visible: bool, plotter, group: str | None = None) -> None:
+        if group:
+            state = dict(getattr(plotter, "_kraken_visibility", {}) or {})
+            state[group] = bool(visible)
+            setattr(plotter, "_kraken_visibility", state)
+        for actor in actors:
+            try:
+                actor.SetVisibility(bool(visible))
+            except Exception:
+                continue
+        plotter.render()
+
+    def _save_legacy_3d_screenshot(self, plotter) -> None:
+        try:
+            default_name = f"kraken_3d_{time.strftime('%Y%m%d_%H%M%S')}.png"
+            selected_path = filedialog.asksaveasfilename(
+                parent=self,
+                title="Save 3D view as PNG",
+                initialdir=str(Path.home() / "Pictures"),
+                initialfile=default_name,
+                defaultextension=".png",
+                filetypes=[("PNG image", "*.png")],
+            )
+            if not selected_path:
+                self.status_var.set("3D PNG save cancelled")
+                return
+            image_path = Path(selected_path)
+            system = getattr(plotter, "_kraken_system", None)
+            rays = getattr(plotter, "_kraken_rays", None)
+            if system is None or rays is None:
+                raise RuntimeError("3D scene data unavailable for clean screenshot")
+            clean_plotter = self._build_clean_legacy_3d_plotter(system, rays)
+            clean_scene = dict(getattr(clean_plotter, "_kraken_scene", {}) or {})
+            visibility = dict(getattr(plotter, "_kraken_visibility", {}) or {})
+            if not visibility.get("rays", True):
+                self._legacy_3d_set_actor_visibility(clean_scene.get("ray_actors", []), False, clean_plotter)
+            if not visibility.get("mirrors", True):
+                self._legacy_3d_set_actor_visibility(clean_scene.get("mirror_actors", []), False, clean_plotter)
+            if not visibility.get("lenses", True):
+                self._legacy_3d_set_actor_visibility(clean_scene.get("lens_actors", []), False, clean_plotter)
+            if not visibility.get("helpers", True):
+                self._legacy_3d_set_actor_visibility(clean_scene.get("helper_actors", []), False, clean_plotter)
+            try:
+                clean_plotter.camera_position = plotter.camera_position
+            except Exception:
+                self._set_legacy_3d_camera(clean_plotter, "iso")
+            clean_plotter.screenshot(str(image_path))
+            try:
+                clean_plotter.close()
+            except Exception:
+                pass
+            self.status_var.set(f"Saved 3D PNG: {image_path.name}")
+            self.append_progress(f"Saved 3D PNG: {image_path}")
+        except Exception as exc:
+            self.append_debug(f"3D screenshot failed: {exc}")
+            self.status_var.set(f"3D screenshot failed: {_short_error_message(exc)}")
+
+    @staticmethod
+    def _set_legacy_3d_camera(plotter, preset: str) -> None:
+        cx, cy, cz = plotter.center
+        bounds = np.asarray(plotter.bounds, dtype=float)
+        span_x = float(bounds[1] - bounds[0]) if bounds.size >= 2 else 0.0
+        span_y = float(bounds[3] - bounds[2]) if bounds.size >= 4 else 0.0
+        span_z = float(bounds[5] - bounds[4]) if bounds.size >= 6 else 0.0
+        span = max(span_x, span_y, span_z, 1.0)
+        distance = max(span * 2.6, 180.0)
+        if preset == "yz":
+            position = (cx + distance, cy, cz)
+            view_up = (0.0, 0.0, 1.0)
+            parallel_scale = max(span_z, span_y, 1.0) * 0.55
+        elif preset == "top":
+            # Exact top view. This used to conflict only because VTK binds the numeric `3` key to stereo.
+            position = (cx, cy, cz + distance)
+            view_up = (0.0, 1.0, 0.0)
+            parallel_scale = max(span_x, span_y, 1.0) * 0.55
+        elif preset == "xz":
+            position = (cx, cy + distance, cz)
+            view_up = (0.0, 0.0, 1.0)
+            parallel_scale = max(span_x, span_z, 1.0) * 0.55
+        else:
+            position = (cx - distance, cy + distance * 0.55, cz + distance * 0.75)
+            view_up = (0.0, 1.0, 0.0)
+            parallel_scale = None
+        plotter.camera_position = [position, (cx, cy, cz), view_up]
+        try:
+            plotter.camera.parallel_projection = parallel_scale is not None
+            if parallel_scale is not None:
+                plotter.camera.parallel_scale = float(parallel_scale)
+        except Exception:
+            pass
+        plotter.reset_camera_clipping_range()
+        plotter.set_background("white", top="white")
+        plotter.render()
+
+    def _refresh_3d_inspector_if_open(self) -> None:
+        if self._three_d_inspector is None:
+            return
+        try:
+            if not self._three_d_inspector.winfo_exists():
+                self._three_d_inspector = None
+                return
+        except Exception:
+            self._three_d_inspector = None
+            return
+        try:
+            if self.last_system is None or self.last_rays is None:
+                return
+            row_names = [row.name for row in self.rows]
+            self._three_d_inspector.refresh_scene(self.last_system, self.last_rays, row_names, reset_camera=False)
+        except Exception as exc:
+            self.append_debug(f"3D inspector sync failed: {exc}")
+
+    def _current_selected_row_index(self) -> int | None:
+        items = self.table.selection()
+        if not items:
+            return None
+        try:
+            return int(self.table.index(items[0]))
+        except Exception:
+            return None
+
+    def _on_table_selection_changed(self, _event: tk.Event | None = None) -> None:
+        self._sync_surface_selection(self._current_selected_row_index(), from_table=True)
+
+    def _sync_surface_selection(self, row_index: int | None, *, from_table: bool = False) -> None:
+        if self._three_d_inspector is not None:
+            try:
+                if self._three_d_inspector.winfo_exists() and self._three_d_inspector.available:
+                    self._three_d_inspector.highlight_row(row_index)
+            except Exception:
+                pass
+        if self._legacy_3d_plotter is not None:
+            try:
+                self._legacy_3d_set_selected_row(self._legacy_3d_plotter, row_index)
+            except Exception:
+                pass
+        self._update_layout_selection_overlay(row_index)
+        if from_table and row_index is not None and 0 <= row_index < len(self.rows):
+            self.status_var.set(f"Selected row {row_index}: {self.rows[row_index].name}")
+
+    def _select_table_row(self, index: int) -> None:
+        items = self.table.get_children()
+        if not (0 <= index < len(items)):
+            return
+        row_id = items[index]
+        self.table.selection_set(row_id)
+        self.table.focus(row_id)
+        self.table.see(row_id)
+        self._active_cell = (row_id, "#1")
+        self._update_active_cell_border()
+        self._sync_surface_selection(index)
 
     def load_layout_by_name(self, name: str) -> None:
         path = self.layout_files.get(name)
@@ -1789,6 +3284,9 @@ class KrakenLayoutEditor(tk.Tk):
             var = self.operand_mtf_mode_vars.get(label)
             if var is not None:
                 payload["mtf_mode"] = var.get()
+            var = self.operand_mtf_algorithm_vars.get(label)
+            if var is not None:
+                payload["mtf_algorithm"] = var.get()
             if payload:
                 operand_settings[label] = payload
 
@@ -1938,6 +3436,10 @@ class KrakenLayoutEditor(tk.Tk):
                     mode_text = str(payload["mtf_mode"]).strip()
                     if mode_text in {"Average", "Tangential", "Sagittal"}:
                         self.operand_mtf_mode_vars[label].set(mode_text)
+                if label in self.operand_mtf_algorithm_vars and "mtf_algorithm" in payload:
+                    algorithm_text = str(payload["mtf_algorithm"]).strip()
+                    if algorithm_text in {"PSF FFT", "LSF FFT"}:
+                        self.operand_mtf_algorithm_vars[label].set(algorithm_text)
 
         analysis_mode = str(settings.get("analysis_mode", "")).strip()
         if analysis_mode in {"none", "native_off_axis", "spot", "psf", "rms", "field_curvature", "pupil", "seidel", "wavefront", "mtf"}:
@@ -2591,27 +4093,52 @@ class KrakenLayoutEditor(tk.Tk):
             return
         column_index = int(column_id.replace("#", "")) - 1
         field = FIELDS[column_index]
-        spec = self._variable_spec_for_field(field)
-        if spec is None:
-            return
         row_index = self.table.index(row_id)
+        paraxial_target = self._paraxial_solve_target_for_cell(row_index, field)
+        spec = self._variable_spec_for_field(field)
         row = self.rows[row_index]
-        if row.surface == "Image" or not spec.is_supported(row):
+        supports_optimization = False
+        bounds = None
+        if spec is not None and row.surface != "Image" and spec.is_supported(row):
+            supports_optimization = True
+            bounds = spec.get_bounds(row)
+        if not supports_optimization and paraxial_target is None:
             return
         if self.popup_menu is not None:
             self.popup_menu.destroy()
         self.current_menu_row_id = row_id
         self.current_menu_field = field
-        marked = spec.is_enabled(row)
-        bounds = spec.get_bounds(row)
         menu = tk.Menu(self, tearoff=0)
-        menu.add_command(
-            label=f"{'Unselect' if marked else 'Select'} {spec.label} for optimization",
-            command=self.toggle_current_optimization_cell,
-        )
-        menu.add_separator()
-        menu.add_command(label="Set bounds...", command=self.edit_current_bounds)
-        menu.add_command(label="Clear bounds", command=self.clear_current_bounds, state=("normal" if bounds else "disabled"))
+        if supports_optimization and spec is not None:
+            marked = spec.is_enabled(row)
+            menu.add_command(
+                label=f"{'Unselect' if marked else 'Select'} {spec.label} for optimization",
+                command=self.toggle_current_optimization_cell,
+            )
+            menu.add_separator()
+            menu.add_command(label="Set bounds...", command=self.edit_current_bounds)
+            menu.add_command(
+                label="Clear bounds",
+                command=self.clear_current_bounds,
+                state=("normal" if bounds else "disabled"),
+            )
+        if paraxial_target is not None:
+            if supports_optimization:
+                menu.add_separator()
+            menu.add_command(
+                label=(
+                    "Paraxial Solve Object Distance"
+                    if paraxial_target == "object"
+                    else "Paraxial Solve Image Distance"
+                ),
+                command=self.solve_current_paraxial_distance,
+            )
+            if paraxial_target == "object":
+                menu.add_command(label="Set Object to 2F", command=self.set_current_object_to_two_f)
+                menu.add_command(label="Set 2F <-> 2F", command=self.set_current_two_f_pair)
+            else:
+                menu.add_command(label="Set Image to 2F", command=self.set_current_image_to_two_f)
+                menu.add_command(label="Set 2F <-> 2F", command=self.set_current_two_f_pair)
         self.popup_menu = menu
         try:
             menu.tk_popup(event.x_root, event.y_root)
@@ -2637,7 +4164,7 @@ class KrakenLayoutEditor(tk.Tk):
         self._read_rows_from_table()
         self._normalize_special_rows()
         self._sync_table()
-        self.refresh_plot()
+        self._mark_plot_update_pending()
 
     def _cancel_edit(self) -> None:
         if self.editor is None:
@@ -2681,7 +4208,7 @@ class KrakenLayoutEditor(tk.Tk):
                 row.glass = "AIR"
         self._normalize_special_rows()
         self._sync_table()
-        self.refresh_plot()
+        self._mark_plot_update_pending()
         if self.popup_menu is not None:
             self.popup_menu.destroy()
             self.popup_menu = None
@@ -2754,6 +4281,7 @@ class KrakenLayoutEditor(tk.Tk):
         ttk.Button(buttons, text="Save", command=accept).pack(side="left")
         ttk.Button(buttons, text="Cancel", command=dialog.destroy).pack(side="left", padx=(8, 0))
 
+        self._center_dialog_over_main_window(dialog)
         self.wait_window(dialog)
         if self.popup_menu is not None:
             self.popup_menu.destroy()
@@ -2776,6 +4304,928 @@ class KrakenLayoutEditor(tk.Tk):
             self.popup_menu = None
         self.current_menu_row_id = None
         self.current_menu_field = None
+
+    def _paraxial_solve_target_for_cell(self, row_index: int, field: str) -> str | None:
+        if field != "thickness" or not self.rows:
+            return None
+        if row_index == 0:
+            return "object"
+        if row_index in {len(self.rows) - 2, len(self.rows) - 1}:
+            return "image"
+        return None
+
+    def _cleanup_current_popup_menu(self) -> None:
+        if self.popup_menu is not None:
+            self.popup_menu.destroy()
+            self.popup_menu = None
+        self.current_menu_row_id = None
+        self.current_menu_field = None
+
+    def _center_dialog_over_main_window(self, dialog: tk.Toplevel) -> None:
+        dialog.update_idletasks()
+        parent_x = self.winfo_rootx()
+        parent_y = self.winfo_rooty()
+        parent_w = max(self.winfo_width(), 1)
+        parent_h = max(self.winfo_height(), 1)
+        dialog_w = max(dialog.winfo_width(), 1)
+        dialog_h = max(dialog.winfo_height(), 1)
+        pos_x = parent_x + max((parent_w - dialog_w) // 2, 0)
+        pos_y = parent_y + max((parent_h - dialog_h) // 2, 0)
+        dialog.geometry(f"+{pos_x}+{pos_y}")
+
+    @staticmethod
+    def _center_dialog_on_screen(dialog: tk.Toplevel) -> None:
+        dialog.update_idletasks()
+        dialog_w = max(dialog.winfo_width(), dialog.winfo_reqwidth(), 1)
+        dialog_h = max(dialog.winfo_height(), dialog.winfo_reqheight(), 1)
+        screen_w = max(dialog.winfo_screenwidth(), 1)
+        screen_h = max(dialog.winfo_screenheight(), 1)
+        pos_x = max((screen_w - dialog_w) // 2, 0)
+        pos_y = max((screen_h - dialog_h) // 2, 0)
+        dialog.geometry(f"+{pos_x}+{pos_y}")
+
+    def show_formula_help(self) -> None:
+        try:
+            html_doc = self._build_formula_help_html()
+            cache_dir = Path.home() / ".cache" / "krakenos"
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            help_path = cache_dir / "optics_formula_sheet.html"
+            help_path.write_text(html_doc, encoding="utf-8")
+            self._formula_help_path = help_path
+            opened = webbrowser.open_new_tab(help_path.as_uri())
+            if not opened:
+                fallback = self._open_document_with_system_viewer(help_path)
+                if not fallback:
+                    raise RuntimeError("No browser opener available.")
+            self.status_var.set(f"Opened optics help: {help_path}")
+        except Exception as exc:
+            self.append_debug(f"Help page open failed: {exc}")
+            self.status_var.set(f"Help page failed: {_short_error_message(exc)}")
+
+    def open_paraxial_calculator(self) -> None:
+        dialog = tk.Toplevel(self)
+        dialog.title("Paraxial Calculator")
+        dialog.transient(self)
+        dialog.grab_set()
+        dialog.resizable(False, False)
+        dialog.columnconfigure(1, weight=1)
+
+        object_default = float(self.rows[0].thickness) if self.rows else 0.0
+        image_row = max(0, len(self.rows) - 2)
+        image_default = float(self.rows[image_row].thickness) if self.rows else 0.0
+        object_mode_default = self._current_object_mode()
+
+        effl_var = tk.StringVar(value=f"{self._current_effl_estimate():.6g}")
+        ppa_var = tk.StringVar(value="0")
+        ppp_var = tk.StringVar(value="0")
+        ep_z_var = tk.StringVar(value="n/a")
+        xp_z_var = tk.StringVar(value="n/a")
+        magnification_var = tk.StringVar(value="0")
+        solve_for_var = tk.StringVar(value="Image distance")
+        object_mode_var = tk.StringVar(value=object_mode_default)
+        object_distance_var = tk.StringVar(value=f"{object_default:.6g}")
+        image_distance_var = tk.StringVar(value=f"{image_default:.6g}")
+        load_note_var = tk.StringVar(value="Set known values, then click Solve.")
+        result_var = tk.StringVar(value="Set known values, then click Solve.")
+        detail_var = tk.StringVar(value="")
+        solved_payload: dict[str, object] = {}
+
+        def _format_calc(value: float) -> str:
+            if not np.isfinite(value):
+                return "Infinity"
+            return f"{float(value):.6g}"
+
+        def _try_load_from_layout() -> None:
+            note_parts: list[str] = []
+            try:
+                effl, ppa, ppp = self._exact_paraxial_cardinals()
+                effl_var.set(f"{float(effl):.6g}")
+                ppa_var.set(f"{float(ppa):.6g}")
+                ppp_var.set(f"{float(ppp):.6g}")
+                note_parts.append("Loaded EFL/H1/H2 from layout.")
+            except Exception as exc:
+                note_parts.append(f"Cardinal extraction unavailable ({_short_error_message(exc)}).")
+            try:
+                system = self.build_system()
+                pupil = Kos.PupilCalc(
+                    system,
+                    self._analysis_surface_index(),
+                    self._current_wavelength(),
+                    self._current_aperture_type(),
+                    self._current_aperture_value(),
+                )
+                ep_z_var.set(_format_calc(float(pupil.PosPupInp[2])))
+                xp_z_var.set(_format_calc(float(pupil.PosPupOut[2])))
+                note_parts.append("Loaded EP/XP from current aperture settings.")
+            except Exception:
+                ep_z_var.set("n/a")
+                xp_z_var.set("n/a")
+            load_note_var.set(" ".join(note_parts) if note_parts else "Using manual values.")
+
+        ttk.Label(dialog, text="Solve for").grid(row=0, column=0, padx=(12, 8), pady=(12, 4), sticky="w")
+        solve_for_menu = ttk.Combobox(
+            dialog,
+            textvariable=solve_for_var,
+            state="readonly",
+            width=26,
+            values=[
+                "Image distance",
+                "Object distance",
+                "Magnification",
+                "Distances from magnification",
+            ],
+        )
+        solve_for_menu.grid(row=0, column=1, padx=(0, 12), pady=(12, 4), sticky="ew")
+
+        ttk.Label(dialog, text="EFL / EFFL [mm]").grid(row=1, column=0, padx=(12, 8), pady=2, sticky="w")
+        effl_entry = ttk.Entry(dialog, textvariable=effl_var, width=22)
+        effl_entry.grid(row=1, column=1, padx=(0, 12), pady=2, sticky="ew")
+
+        ttk.Label(dialog, text="H1 offset PPA [mm]").grid(row=2, column=0, padx=(12, 8), pady=2, sticky="w")
+        ppa_entry = ttk.Entry(dialog, textvariable=ppa_var, width=22)
+        ppa_entry.grid(row=2, column=1, padx=(0, 12), pady=2, sticky="ew")
+
+        ttk.Label(dialog, text="H2 offset PPP [mm]").grid(row=3, column=0, padx=(12, 8), pady=2, sticky="w")
+        ppp_entry = ttk.Entry(dialog, textvariable=ppp_var, width=22)
+        ppp_entry.grid(row=3, column=1, padx=(0, 12), pady=2, sticky="ew")
+
+        ttk.Label(dialog, text="Object mode").grid(row=4, column=0, padx=(12, 8), pady=(8, 2), sticky="w")
+        object_mode_menu = ttk.Combobox(
+            dialog,
+            textvariable=object_mode_var,
+            state="readonly",
+            width=22,
+            values=["Finite", "Infinity"],
+        )
+        object_mode_menu.grid(row=4, column=1, padx=(0, 12), pady=(8, 2), sticky="ew")
+
+        ttk.Label(dialog, text="Object distance [mm]").grid(row=5, column=0, padx=(12, 8), pady=2, sticky="w")
+        object_distance_entry = ttk.Entry(dialog, textvariable=object_distance_var, width=22)
+        object_distance_entry.grid(row=5, column=1, padx=(0, 12), pady=2, sticky="ew")
+
+        ttk.Label(dialog, text="Image distance [mm]").grid(row=6, column=0, padx=(12, 8), pady=2, sticky="w")
+        image_distance_entry = ttk.Entry(dialog, textvariable=image_distance_var, width=22)
+        image_distance_entry.grid(row=6, column=1, padx=(0, 12), pady=2, sticky="ew")
+
+        ttk.Label(dialog, text="Magnification m").grid(row=7, column=0, padx=(12, 8), pady=2, sticky="w")
+        magnification_entry = ttk.Entry(dialog, textvariable=magnification_var, width=22)
+        magnification_entry.grid(row=7, column=1, padx=(0, 12), pady=2, sticky="ew")
+
+        ttk.Label(dialog, text="EP z [mm]").grid(row=8, column=0, padx=(12, 8), pady=2, sticky="w")
+        ep_z_entry = ttk.Entry(dialog, textvariable=ep_z_var, width=22, state="readonly")
+        ep_z_entry.grid(row=8, column=1, padx=(0, 12), pady=2, sticky="ew")
+
+        ttk.Label(dialog, text="XP z [mm]").grid(row=9, column=0, padx=(12, 8), pady=2, sticky="w")
+        xp_z_entry = ttk.Entry(dialog, textvariable=xp_z_var, width=22, state="readonly")
+        xp_z_entry.grid(row=9, column=1, padx=(0, 12), pady=2, sticky="ew")
+
+        note_label = ttk.Label(dialog, textvariable=load_note_var, foreground="#475569", wraplength=500, justify="left")
+        note_label.grid(row=10, column=0, columnspan=2, padx=12, pady=(8, 2), sticky="w")
+
+        ttk.Label(dialog, textvariable=result_var, font=("TkDefaultFont", 10, "bold")).grid(
+            row=11, column=0, columnspan=2, padx=12, pady=(4, 0), sticky="w"
+        )
+        ttk.Label(dialog, textvariable=detail_var, foreground="#475569", wraplength=500, justify="left").grid(
+            row=12, column=0, columnspan=2, padx=12, pady=(2, 0), sticky="w"
+        )
+
+        def _read_float(var: tk.StringVar, label: str) -> float:
+            text = var.get().strip()
+            if not text:
+                raise RuntimeError(f"{label} is required")
+            try:
+                value = float(text)
+            except ValueError as exc:
+                raise RuntimeError(f"{label} must be numeric") from exc
+            if not np.isfinite(value):
+                raise RuntimeError(f"{label} must be finite")
+            return float(value)
+
+        def _refresh_mode_state(_event=None) -> None:
+            target = solve_for_var.get().strip()
+            mode = object_mode_var.get().strip()
+            if target == "Image distance":
+                if mode == "Infinity":
+                    object_distance_entry.configure(state="disabled")
+                else:
+                    object_distance_entry.configure(state="normal")
+                image_distance_entry.configure(state="disabled")
+                magnification_entry.configure(state="readonly")
+            elif target == "Object distance":
+                object_distance_entry.configure(state="disabled")
+                image_distance_entry.configure(state="normal")
+                magnification_entry.configure(state="readonly")
+            elif target == "Magnification":
+                if mode == "Infinity":
+                    object_distance_entry.configure(state="disabled")
+                else:
+                    object_distance_entry.configure(state="normal")
+                image_distance_entry.configure(state="normal")
+                magnification_entry.configure(state="disabled")
+            else:
+                object_distance_entry.configure(state="disabled")
+                image_distance_entry.configure(state="disabled")
+                magnification_entry.configure(state="normal")
+            solved_payload.clear()
+
+        def _solve(_event=None) -> None:
+            try:
+                f = _read_float(effl_var, "EFL")
+                if abs(f) <= 1e-12:
+                    raise RuntimeError("EFL must be non-zero")
+                h1 = _read_float(ppa_var, "H1 offset")
+                h2 = _read_float(ppp_var, "H2 offset")
+                target = solve_for_var.get().strip()
+                mode = object_mode_var.get().strip()
+                solved_payload.clear()
+
+                if target == "Image distance":
+                    if mode == "Infinity":
+                        image_distance = f + h2
+                        object_principal = float("inf")
+                        image_principal = float(f)
+                        magnification = 0.0
+                    else:
+                        object_distance = _read_float(object_distance_var, "Object distance")
+                        object_principal = object_distance + h1
+                        if abs(object_principal) <= 1e-12:
+                            raise RuntimeError("Object is on H1; cannot solve image distance")
+                        balance = (1.0 / f) - (1.0 / object_principal)
+                        if abs(balance) <= 1e-12:
+                            image_distance = float("inf")
+                            image_principal = float("inf")
+                            magnification = float("inf")
+                        else:
+                            image_principal = 1.0 / balance
+                            image_distance = image_principal + h2
+                            magnification = image_principal / object_principal
+                    solved_payload.update(
+                        {
+                            "target": "image",
+                            "value": image_distance,
+                            "object_mode_after": mode,
+                        }
+                    )
+                    magnification_var.set(_format_calc(magnification))
+                    result_var.set(f"Image distance = {self._format_paraxial_value(image_distance)} mm")
+                    detail_var.set(
+                        "s={obj}, s'={img}, m={mag}".format(
+                            obj=self._format_paraxial_value(object_principal),
+                            img=self._format_paraxial_value(image_principal),
+                            mag=self._format_paraxial_value(magnification),
+                        )
+                    )
+                elif target == "Object distance":
+                    image_distance = _read_float(image_distance_var, "Image distance")
+                    image_principal = image_distance - h2
+                    if abs(image_principal) <= 1e-12:
+                        raise RuntimeError("Image is on H2; cannot solve object distance")
+                    balance = (1.0 / f) - (1.0 / image_principal)
+                    if abs(balance) <= 1e-12:
+                        object_principal = float("inf")
+                        object_distance = float("inf")
+                        mode_after = "Infinity"
+                    else:
+                        object_principal = 1.0 / balance
+                        object_distance = object_principal - h1
+                        mode_after = "Infinity" if (not np.isfinite(object_distance) or abs(object_distance) > 1e9) else "Finite"
+                    magnification = image_principal / object_principal if np.isfinite(object_principal) and abs(object_principal) > 1e-12 else float("inf")
+                    solved_payload.update(
+                        {
+                            "target": "object",
+                            "value": object_distance,
+                            "object_mode_after": mode_after,
+                        }
+                    )
+                    magnification_var.set(_format_calc(magnification))
+                    result_var.set(f"Object distance = {self._format_paraxial_value(object_distance)} mm")
+                    detail_var.set(
+                        "s={obj}, s'={img}, m={mag}".format(
+                            obj=self._format_paraxial_value(object_principal),
+                            img=self._format_paraxial_value(image_principal),
+                            mag=self._format_paraxial_value(magnification),
+                        )
+                    )
+                elif target == "Magnification":
+                    if mode == "Infinity":
+                        object_principal = float("inf")
+                        image_principal = _read_float(image_distance_var, "Image distance") - h2
+                        magnification = 0.0
+                    else:
+                        object_distance = _read_float(object_distance_var, "Object distance")
+                        image_distance = _read_float(image_distance_var, "Image distance")
+                        object_principal = object_distance + h1
+                        image_principal = image_distance - h2
+                        if abs(object_principal) <= 1e-12:
+                            raise RuntimeError("Object is on H1; cannot solve magnification")
+                        magnification = image_principal / object_principal
+                    solved_payload.update({"target": "magnification", "value": magnification, "object_mode_after": mode})
+                    magnification_var.set(_format_calc(magnification))
+                    result_var.set(f"Magnification = {self._format_paraxial_value(magnification)}")
+                    detail_var.set(
+                        "s={obj}, s'={img} from H1/H2".format(
+                            obj=self._format_paraxial_value(object_principal),
+                            img=self._format_paraxial_value(image_principal),
+                        )
+                    )
+                else:
+                    magnification = _read_float(magnification_var, "Magnification")
+                    if abs(magnification) <= 1e-12:
+                        raise RuntimeError("Magnification too close to zero; object distance goes to infinity")
+                    if abs(1.0 + magnification) <= 1e-12:
+                        raise RuntimeError("Magnification of -1 makes object/image distance singular")
+                    object_principal = f * (1.0 + (1.0 / magnification))
+                    image_principal = f * (1.0 + magnification)
+                    object_distance = object_principal - h1
+                    image_distance = image_principal + h2
+                    mode_after = "Infinity" if (not np.isfinite(object_distance) or abs(object_distance) > 1e9) else "Finite"
+                    object_distance_var.set(_format_calc(object_distance))
+                    image_distance_var.set(_format_calc(image_distance))
+                    solved_payload.update(
+                        {
+                            "target": "pair",
+                            "object_value": object_distance,
+                            "image_value": image_distance,
+                            "object_mode_after": mode_after,
+                        }
+                    )
+                    result_var.set(
+                        f"Object={self._format_paraxial_value(object_distance)} mm, Image={self._format_paraxial_value(image_distance)} mm"
+                    )
+                    detail_var.set(
+                        "From m={mag}: s={obj}, s'={img}".format(
+                            mag=self._format_paraxial_value(magnification),
+                            obj=self._format_paraxial_value(object_principal),
+                            img=self._format_paraxial_value(image_principal),
+                        )
+                    )
+            except Exception as exc:
+                solved_payload.clear()
+                result_var.set(f"Solve failed: {_short_error_message(exc)}")
+                detail_var.set("")
+
+        def _apply_to_layout() -> bool:
+            try:
+                if not solved_payload:
+                    _solve()
+                    if not solved_payload:
+                        return False
+                target = str(solved_payload.get("target", ""))
+                solved_value = float(solved_payload.get("value", 0.0))
+                mode_after = str(solved_payload.get("object_mode_after", self._current_object_mode()))
+
+                if target == "image":
+                    if not np.isfinite(solved_value):
+                        raise RuntimeError("Solved image distance is infinity and cannot be applied")
+                    row_index = max(0, len(self.rows) - 2)
+                    self.rows[row_index].thickness = solved_value
+                    self._select_table_row(row_index)
+                elif target == "object":
+                    self.object_mode_var.set(mode_after)
+                    if mode_after == "Finite":
+                        if not np.isfinite(solved_value):
+                            raise RuntimeError("Solved object distance is infinity and cannot be applied in Finite mode")
+                        self.rows[0].thickness = solved_value
+                    self._select_table_row(0)
+                elif target == "pair":
+                    object_value = float(solved_payload.get("object_value", float("nan")))
+                    image_value = float(solved_payload.get("image_value", float("nan")))
+                    self.object_mode_var.set(mode_after)
+                    if mode_after == "Finite":
+                        if not np.isfinite(object_value):
+                            raise RuntimeError("Solved object distance is infinity and cannot be applied in Finite mode")
+                        self.rows[0].thickness = object_value
+                    if not np.isfinite(image_value):
+                        raise RuntimeError("Solved image distance is infinity and cannot be applied")
+                    row_index = max(0, len(self.rows) - 2)
+                    self.rows[row_index].thickness = image_value
+                    self._select_table_row(row_index)
+                elif target == "magnification":
+                    self.status_var.set("Magnification computed. No layout cell to apply.")
+                    return False
+                else:
+                    raise RuntimeError("No solved target to apply")
+
+                self._normalize_special_rows()
+                self._sync_table()
+                self._sync_object_controls()
+                self._mark_plot_update_pending()
+                self.append_progress(f"Paraxial calculator applied: {result_var.get()}")
+                self.status_var.set(f"{result_var.get()}  |  Click Update.")
+                return True
+            except Exception as exc:
+                message = _short_error_message(exc)
+                self.append_debug(f"Paraxial calculator apply failed: {exc}")
+                messagebox.showerror("Paraxial Calculator", message)
+                self.status_var.set(f"Paraxial calculator apply failed: {message}")
+                return False
+
+        def _apply_and_close() -> None:
+            if _apply_to_layout():
+                dialog.destroy()
+
+        buttons = ttk.Frame(dialog)
+        buttons.grid(row=13, column=0, columnspan=2, padx=12, pady=(10, 12), sticky="e")
+        ttk.Button(buttons, text="Use Current Layout", command=lambda: (
+            object_mode_var.set(self._current_object_mode()),
+            object_distance_var.set(f"{(float(self.rows[0].thickness) if self.rows else 0.0):.6g}"),
+            image_distance_var.set(f"{(float(self.rows[max(0, len(self.rows) - 2)].thickness) if self.rows else 0.0):.6g}"),
+            _try_load_from_layout(),
+            _refresh_mode_state(),
+            _solve(),
+        )).pack(side="left")
+        ttk.Button(buttons, text="Solve", command=_solve).pack(side="left", padx=(8, 0))
+        ttk.Button(buttons, text="Apply to Layout", command=_apply_and_close).pack(side="left", padx=(8, 0))
+        ttk.Button(buttons, text="Close", command=dialog.destroy).pack(side="left", padx=(8, 0))
+
+        solve_for_menu.bind("<<ComboboxSelected>>", lambda _e: (_refresh_mode_state(), _solve()))
+        object_mode_menu.bind("<<ComboboxSelected>>", lambda _e: (_refresh_mode_state(), _solve()))
+        for entry in (effl_entry, ppa_entry, ppp_entry, object_distance_entry, image_distance_entry, magnification_entry):
+            entry.bind("<Return>", _solve)
+            entry.bind("<Tab>", _solve, add="+")
+            entry.bind("<FocusOut>", _solve)
+
+        _try_load_from_layout()
+        _refresh_mode_state()
+        _solve()
+        self._center_dialog_on_screen(dialog)
+
+    @staticmethod
+    def _open_document_with_system_viewer(document_path: Path) -> bool:
+        try:
+            if os.name == "nt":
+                os.startfile(str(document_path))  # type: ignore[attr-defined]
+                return True
+            if sys.platform == "darwin":
+                subprocess.Popen(["open", str(document_path)])
+                return True
+            if shutil.which("xdg-open"):
+                subprocess.Popen(["xdg-open", str(document_path)])
+                return True
+            if shutil.which("gio"):
+                subprocess.Popen(["gio", "open", str(document_path)])
+                return True
+        except Exception:
+            return False
+        return False
+
+    def _build_formula_help_html(self) -> str:
+        object_mode = html.escape(self._current_object_mode())
+        wavelength = self._current_wavelength()
+        object_gap = float(self.rows[0].thickness) if self.rows else float("nan")
+        image_gap = self._current_image_distance()
+        object_size = float(self.rows[0].diameter) if self.rows else float("nan")
+        sensor_size = float(self.rows[-1].diameter) if self.rows else float("nan")
+        field_type = html.escape(self._current_field_type())
+        field_value = self._current_field_value()
+        effl_text = "Unavailable"
+        ppa_text = "Unavailable"
+        ppp_text = "Unavailable"
+        image_size_text = "Unavailable"
+        fill_text = "Unavailable"
+        try:
+            effl, ppa, ppp = self._exact_paraxial_cardinals(wavelength)
+            effl_text = f"{effl:.6g} mm"
+            ppa_text = f"{ppa:.6g} mm"
+            ppp_text = f"{ppp:.6g} mm"
+            if self._current_object_mode() == "Finite" and object_gap > 0:
+                s = object_gap + ppa
+                if abs(s) > 1e-12:
+                    denom = (1.0 / effl) - (1.0 / s)
+                    if abs(denom) > 1e-12:
+                        sp = 1.0 / denom
+                        magnification = sp / s
+                        image_size = abs(magnification) * max(object_size, 0.0)
+                        image_size_text = f"{image_size:.6g} mm"
+                        if sensor_size > 1e-12:
+                            fill_text = f"{100.0 * image_size / sensor_size:.4g}%"
+        except Exception:
+            pass
+
+        return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>KrakenOS Optics Formula Sheet</title>
+  <style>
+    :root {{
+      --bg: #f6f8fc;
+      --panel: #ffffff;
+      --ink: #1f2937;
+      --muted: #4b5563;
+      --accent: #0f766e;
+      --line: #d1d5db;
+    }}
+    body {{
+      margin: 0;
+      background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 40%);
+      color: var(--ink);
+      font-family: \"Iosevka Aile\", \"Source Sans 3\", \"Noto Sans\", sans-serif;
+      line-height: 1.55;
+    }}
+    .wrap {{
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 28px 20px 40px;
+    }}
+    .hero {{
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 18px 20px;
+      box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
+      margin-bottom: 16px;
+    }}
+    h1 {{
+      margin: 0 0 8px 0;
+      font-size: 1.42rem;
+    }}
+    .grid {{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 8px 16px;
+      font-size: 0.96rem;
+    }}
+    .card {{
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--accent);
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin: 12px 0;
+      box-shadow: 0 6px 16px rgba(15, 23, 42, 0.05);
+    }}
+    h2 {{
+      margin: 0 0 8px 0;
+      font-size: 1.08rem;
+    }}
+    .note {{
+      color: var(--muted);
+      font-size: 0.94rem;
+    }}
+    ul {{
+      margin-top: 8px;
+      padding-left: 18px;
+    }}
+    code {{
+      background: #eef2ff;
+      border: 1px solid #c7d2fe;
+      border-radius: 5px;
+      padding: 0 5px;
+    }}
+  </style>
+  <script>
+    window.MathJax = {{
+      tex: {{ inlineMath: [['\\\\(','\\\\)'], ['$', '$']], displayMath: [['\\\\[','\\\\]']] }},
+      svg: {{ fontCache: 'global' }}
+    }};
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <h1>KrakenOS Formula Sheet</h1>
+      <p class="note">This page is generated from your current UI state. It uses the same centered paraxial model as the <code>Paraxial Solve</code> tool.</p>
+      <div class="grid">
+        <div><strong>Object mode:</strong> {object_mode}</div>
+        <div><strong>Wavelength:</strong> {wavelength:.6g} um</div>
+        <div><strong>Object gap:</strong> {object_gap:.6g} mm</div>
+        <div><strong>Image gap:</strong> {image_gap:.6g} mm</div>
+        <div><strong>Object size:</strong> {object_size:.6g} mm</div>
+        <div><strong>Sensor size:</strong> {sensor_size:.6g} mm</div>
+        <div><strong>Field:</strong> {field_type} = {field_value:.6g}</div>
+        <div><strong>EFFL / PPA / PPP:</strong> {html.escape(effl_text)} / {html.escape(ppa_text)} / {html.escape(ppp_text)}</div>
+        <div><strong>Paraxial image size:</strong> {html.escape(image_size_text)}</div>
+        <div><strong>Sensor fill:</strong> {html.escape(fill_text)}</div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Paraxial imaging</h2>
+      <p>\\[\\frac{{1}}{{f}} = \\frac{{1}}{{s}} + \\frac{{1}}{{s'}}\\]</p>
+      <p>\\[m = \\frac{{s'}}{{s}} = \\frac{{y'}}{{y}}\\]</p>
+      <p class="note">Solve in principal-plane space, then map to table thickness values.</p>
+    </section>
+
+    <section class="card">
+      <h2>UI thickness conversion</h2>
+      <p>\\[s = z_{{\\mathrm{{obj}}}} + \\mathrm{{PPA}}\\]</p>
+      <p>\\[z_{{\\mathrm{{img}}}} = s' + \\mathrm{{PPP}}\\]</p>
+      <p class="note"><code>Object Thickness</code> is \\(z_\\mathrm{{obj}}\\). Image solve writes to the last optical row thickness before <code>Image</code>.</p>
+    </section>
+
+    <section class="card">
+      <h2>2F rule for thick lenses</h2>
+      <p>\\[s = 2f \\Rightarrow s' = 2f\\]</p>
+      <p>\\[z_{{\\mathrm{{obj}},2F}} = 2f - \\mathrm{{PPA}},\\qquad z_{{\\mathrm{{img}},2F}} = 2f + \\mathrm{{PPP}}\\]</p>
+      <p class="note">The symmetry is around principal planes H1/H2, not lens vertices.</p>
+    </section>
+
+    <section class="card">
+      <h2>Image size and sensor fill</h2>
+      <p>\\[y' = \\left|\\frac{{s'}}{{s}}\\right|\\,y\\]</p>
+      <p>\\[\\mathrm{{fill}} = \\frac{{y'}}{{y_{{\\mathrm{{sensor}}}}}}\\]</p>
+      <p class="note">Changing <code>Image Diameter</code> does not change focus distance. It changes framing/fill.</p>
+    </section>
+
+    <section class="card">
+      <h2>Aperture quick rule</h2>
+      <p>\\[N = \\frac{{f}}{{D_{{\\mathrm{{EP}}}}}},\\qquad D_{{\\mathrm{{EP}}}} \\approx \\frac{{f}}{{N}}\\]</p>
+      <p class="note">Keep <code>STOP</code> and <code>EPD</code> choices consistent between analysis and optimization.</p>
+    </section>
+
+    <section class="card">
+      <h2>Practical UI reminders</h2>
+      <ul>
+        <li><code>Object Diameter</code> and <code>Image Diameter</code> are full sizes.</li>
+        <li><code>Field type = Object Height</code> uses semi-field values.</li>
+        <li>Paraxial solve is intended for centered refractive layouts. Mirror/tilt/decenter cases still need full trace validation.</li>
+      </ul>
+    </section>
+  </div>
+</body>
+</html>
+"""
+
+    def _exact_paraxial_cardinals(self, wavelength: float | None = None) -> tuple[float, float, float]:
+        if len(self.rows) < 3:
+            raise RuntimeError("Not enough surfaces for paraxial solve")
+        solve_rows = [SurfaceRow(**asdict(row)) for row in self.rows]
+        optical_rows = solve_rows[1:-1]
+        if not optical_rows:
+            raise RuntimeError("No optical block available for paraxial solve")
+        unsupported: list[str] = []
+        for row in optical_rows:
+            if row.surface not in {"Standard", "Thin Lens"}:
+                unsupported.append(row.name or row.surface)
+                continue
+            if any(
+                abs(value) > 1e-9
+                for value in (
+                    row.tilt_x,
+                    row.tilt_y,
+                    row.tilt_z,
+                    row.desp_x,
+                    row.desp_y,
+                    row.desp_z,
+                    row.axis_move,
+                )
+            ):
+                unsupported.append(row.name or row.surface)
+        if unsupported:
+            raise RuntimeError("Paraxial solve supports centered refractive systems only")
+        solve_rows[0].thickness = 0.0
+        solve_rows[-2].thickness = 0.0
+        solve_rows[-1].thickness = 0.0
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            solve_system = _build_system_from_specs([asdict(row) for row in solve_rows])
+            _, _, _, _a, _b, _c, _d, effl, ppa, ppp, *_rest = solve_system.Parax(
+                self._current_wavelength() if wavelength is None else float(wavelength)
+            )
+        return float(effl), float(ppa), float(ppp)
+
+    def _paraxial_two_f_gaps(self) -> tuple[float, float, float, float, float]:
+        effl, ppa, ppp = self._exact_paraxial_cardinals()
+        if not np.isfinite(effl) or abs(effl) <= 1e-12:
+            raise RuntimeError("Paraxial solve failed: invalid effective focal length")
+        two_f = 2.0 * effl
+        object_gap = two_f - ppa
+        image_gap = two_f + ppp
+        return float(effl), float(ppa), float(ppp), float(object_gap), float(image_gap)
+
+    @staticmethod
+    def _format_paraxial_value(value: float | str) -> str:
+        if isinstance(value, str):
+            return value
+        if not np.isfinite(value):
+            return "Infinity"
+        return f"{float(value):.6g}"
+
+    def _compute_paraxial_solve_result(self, target: str) -> dict[str, float | str]:
+        effl, ppa, ppp = self._exact_paraxial_cardinals()
+        if not np.isfinite(effl) or abs(effl) <= 1e-12:
+            raise RuntimeError("Paraxial solve failed: invalid effective focal length")
+        result: dict[str, float | str] = {
+            "target": target,
+            "effl": float(effl),
+            "ppa": float(ppa),
+            "ppp": float(ppp),
+            "object_mode_before": self._current_object_mode(),
+            "object_distance_before": float(self.rows[0].thickness) if self.rows else 0.0,
+            "image_distance_before": float(self._current_image_distance()),
+        }
+        if target == "image":
+            if self._current_object_mode() == "Infinity":
+                solved_distance = effl + ppp
+                result["object_principal"] = "Infinity"
+                result["image_principal"] = float(effl)
+            else:
+                object_distance = float(self.rows[0].thickness)
+                object_principal = object_distance + ppa
+                if abs(object_principal) <= 1e-12:
+                    raise RuntimeError("Object is located on the front principal plane")
+                power_balance = (1.0 / effl) - (1.0 / object_principal)
+                if abs(power_balance) <= 1e-12:
+                    raise RuntimeError("Paraxial image is at infinity for the current object distance")
+                image_principal = 1.0 / power_balance
+                solved_distance = image_principal + ppp
+                result["object_principal"] = float(object_principal)
+                result["image_principal"] = float(image_principal)
+            result["solved_distance"] = float(solved_distance)
+            result["message"] = f"Paraxial solve: image distance -> {float(solved_distance):.6g} mm | EFFL={effl:.6g} mm"
+            result["selected_row"] = max(0, len(self.rows) - 2)
+            result["object_mode_after"] = result["object_mode_before"]
+            return result
+
+        image_distance = self._current_image_distance()
+        image_principal = image_distance - ppp
+        if abs(image_principal) <= 1e-12:
+            raise RuntimeError("Image is located on the back principal plane")
+        power_balance = (1.0 / effl) - (1.0 / image_principal)
+        if abs(power_balance) <= 1e-12:
+            solved_distance = float("inf")
+            object_principal = float("inf")
+            object_mode_after = "Infinity"
+            message = f"Paraxial solve: object at infinity | EFFL={effl:.6g} mm"
+        else:
+            object_principal = 1.0 / power_balance
+            solved_distance = object_principal - ppa
+            object_mode_after = "Infinity" if (not np.isfinite(solved_distance) or abs(solved_distance) > 1e9) else "Finite"
+            if object_mode_after == "Infinity":
+                message = f"Paraxial solve: object at infinity | EFFL={effl:.6g} mm"
+            else:
+                message = f"Paraxial solve: object distance -> {float(solved_distance):.6g} mm | EFFL={effl:.6g} mm"
+        result["image_principal"] = float(image_principal)
+        result["object_principal"] = object_principal
+        result["solved_distance"] = solved_distance
+        result["message"] = message
+        result["selected_row"] = 0
+        result["object_mode_after"] = object_mode_after
+        return result
+
+    def _show_paraxial_solve_dialog(self, result: dict[str, float | str]) -> bool:
+        dialog = tk.Toplevel(self)
+        dialog.title("Paraxial Solve")
+        dialog.transient(self)
+        dialog.grab_set()
+        dialog.resizable(False, False)
+
+        target = str(result["target"])
+        intro = (
+            "Review the paraxial solve before applying it."
+            if target == "image"
+            else "Review the paraxial object-distance solve before applying it."
+        )
+        ttk.Label(dialog, text=intro, padding=(12, 12, 12, 4)).grid(row=0, column=0, columnspan=2, sticky="w")
+
+        rows = [
+            ("EFFL [mm]", self._format_paraxial_value(result["effl"])),
+            ("Front principal plane PPA [mm]", self._format_paraxial_value(result["ppa"])),
+            ("Back principal plane PPP [mm]", self._format_paraxial_value(result["ppp"])),
+            ("Object mode", str(result["object_mode_before"])),
+            ("Object distance before [mm]", self._format_paraxial_value(result["object_distance_before"])),
+            ("Image distance before [mm]", self._format_paraxial_value(result["image_distance_before"])),
+            ("Object distance from H1 [mm]", self._format_paraxial_value(result["object_principal"])),
+            ("Image distance from H2 [mm]", self._format_paraxial_value(result["image_principal"])),
+        ]
+        if target == "image":
+            rows.append(("Solved image gap [mm]", self._format_paraxial_value(result["solved_distance"])))
+            rows.append(("Apply to row", str(int(result["selected_row"]))))
+        else:
+            rows.append(("Solved object gap [mm]", self._format_paraxial_value(result["solved_distance"])))
+            rows.append(("Object mode after", str(result["object_mode_after"])))
+
+        for row_index, (label, value) in enumerate(rows, start=1):
+            ttk.Label(dialog, text=label).grid(row=row_index, column=0, padx=(12, 12), pady=2, sticky="w")
+            ttk.Label(dialog, text=value, font=("TkDefaultFont", 10, "bold")).grid(
+                row=row_index,
+                column=1,
+                padx=(0, 12),
+                pady=2,
+                sticky="e",
+            )
+
+        formula = "Thin-lens with principal planes: 1/f = 1/s + 1/s'"
+        ttk.Label(dialog, text=formula, foreground="#4b5563", padding=(12, 8, 12, 4)).grid(
+            row=len(rows) + 1,
+            column=0,
+            columnspan=2,
+            sticky="w",
+        )
+
+        decision = {"apply": False}
+
+        def accept() -> None:
+            decision["apply"] = True
+            dialog.destroy()
+
+        def cancel() -> None:
+            dialog.destroy()
+
+        dialog.protocol("WM_DELETE_WINDOW", cancel)
+        buttons = ttk.Frame(dialog, padding=(12, 4, 12, 12))
+        buttons.grid(row=len(rows) + 2, column=0, columnspan=2, sticky="e")
+        ttk.Button(buttons, text="Apply", command=accept).pack(side="left")
+        ttk.Button(buttons, text="Cancel", command=cancel).pack(side="left", padx=(8, 0))
+        self._center_dialog_over_main_window(dialog)
+        self.wait_window(dialog)
+        return bool(decision["apply"])
+
+    def _apply_paraxial_two_f(self, mode: str) -> None:
+        effl, _ppa, _ppp, object_gap, image_gap = self._paraxial_two_f_gaps()
+        if mode in {"object", "pair"}:
+            self.object_mode_var.set("Finite")
+            self.rows[0].thickness = object_gap
+        if mode in {"image", "pair"}:
+            self.rows[max(0, len(self.rows) - 2)].thickness = image_gap
+        self._normalize_special_rows()
+        self._sync_table()
+        selected_row = 0 if mode == "object" else max(0, len(self.rows) - 2)
+        self._select_table_row(selected_row)
+        self.refresh_plot()
+        if mode == "pair":
+            message = (
+                f"Paraxial 2F setup applied | EFFL={effl:.6g} mm | "
+                f"object={object_gap:.6g} mm | image={image_gap:.6g} mm"
+            )
+        elif mode == "object":
+            message = f"Paraxial 2F object gap -> {object_gap:.6g} mm | EFFL={effl:.6g} mm"
+        else:
+            message = f"Paraxial 2F image gap -> {image_gap:.6g} mm | EFFL={effl:.6g} mm"
+        self.status_var.set(message)
+        self.append_progress(message)
+
+    def set_current_object_to_two_f(self) -> None:
+        try:
+            self._apply_paraxial_two_f("object")
+        except Exception as exc:
+            error = _short_error_message(exc)
+            messagebox.showerror("Paraxial 2F", error)
+            self.append_debug(f"Paraxial 2F object failed: {exc}")
+            self.status_var.set(f"Paraxial 2F object failed: {error}")
+        finally:
+            self._cleanup_current_popup_menu()
+
+    def set_current_image_to_two_f(self) -> None:
+        try:
+            self._apply_paraxial_two_f("image")
+        except Exception as exc:
+            error = _short_error_message(exc)
+            messagebox.showerror("Paraxial 2F", error)
+            self.append_debug(f"Paraxial 2F image failed: {exc}")
+            self.status_var.set(f"Paraxial 2F image failed: {error}")
+        finally:
+            self._cleanup_current_popup_menu()
+
+    def set_current_two_f_pair(self) -> None:
+        try:
+            self._apply_paraxial_two_f("pair")
+        except Exception as exc:
+            error = _short_error_message(exc)
+            messagebox.showerror("Paraxial 2F", error)
+            self.append_debug(f"Paraxial 2F pair failed: {exc}")
+            self.status_var.set(f"Paraxial 2F pair failed: {error}")
+        finally:
+            self._cleanup_current_popup_menu()
+
+    def solve_current_paraxial_distance(self) -> None:
+        if self.current_menu_row_id is None or self.current_menu_field is None:
+            return
+        row_index = self.table.index(self.current_menu_row_id)
+        target = self._paraxial_solve_target_for_cell(row_index, self.current_menu_field)
+        try:
+            if target is None:
+                raise RuntimeError("Paraxial solve is only available for object/image distance cells")
+            result = self._compute_paraxial_solve_result(target)
+            if not self._show_paraxial_solve_dialog(result):
+                self.status_var.set("Paraxial solve cancelled")
+                return
+            selected_row = int(result["selected_row"])
+            solved_distance = result["solved_distance"]
+            if target == "image":
+                self.rows[selected_row].thickness = float(solved_distance)
+            else:
+                object_mode_after = str(result["object_mode_after"])
+                self.object_mode_var.set(object_mode_after)
+                if object_mode_after == "Finite":
+                    self.rows[0].thickness = float(solved_distance)
+            message = str(result["message"])
+            self._normalize_special_rows()
+            self._sync_table()
+            self._select_table_row(selected_row)
+            self.refresh_plot()
+            self.status_var.set(message)
+            self.append_progress(message)
+        except Exception as exc:
+            error = _short_error_message(exc)
+            messagebox.showerror("Paraxial Solve", error)
+            self.append_debug(f"Paraxial solve failed: {exc}")
+            self.status_var.set(f"Paraxial solve failed: {error}")
+        finally:
+            self._cleanup_current_popup_menu()
 
     def clear_optimization_marks(self) -> None:
         for row in self.rows:
@@ -2991,6 +5441,15 @@ class KrakenLayoutEditor(tk.Tk):
             return value
         return "average"
 
+    def _operand_mtf_algorithm(self, label: str) -> str:
+        var = self.operand_mtf_algorithm_vars.get(label)
+        if var is None:
+            return "psf_fft"
+        value = var.get().strip().lower()
+        if value == "lsf fft":
+            return "lsf_fft"
+        return "psf_fft"
+
     def _mtf_analysis_settings(self) -> dict[str, float | int | str]:
         label = "MTF @ freq"
         return {
@@ -3001,6 +5460,7 @@ class KrakenLayoutEditor(tk.Tk):
             "field_type": self._operand_field_type(label),
             "field_x": self._operand_field_x(label),
             "field_y": self._operand_field_y(label),
+            "algorithm": self._operand_mtf_algorithm(label),
         }
 
     @staticmethod
@@ -3049,6 +5509,8 @@ class KrakenLayoutEditor(tk.Tk):
     def refresh_plot(self) -> None:
         self._set_analysis_parallel_status(self.analysis_mode or "2D", 1, False)
         self._clear_cardinal_marker_artists()
+        self._clear_layout_selection_overlay()
+        self._layout_pick_regions = {}
         self._last_optics_info = None
         self._analysis_ax = None
         if not self.rows:
@@ -3090,6 +5552,7 @@ class KrakenLayoutEditor(tk.Tk):
             self.figure.text(0.5, 0.035, "KrakenOS Layout", ha="center", va="center")
             self._sync_object_controls()
             self._configure_plot_hover_hints()
+            self._update_layout_selection_overlay()
             self.canvas.draw_idle()
             self._autosave_plot()
             return
@@ -3105,6 +5568,7 @@ class KrakenLayoutEditor(tk.Tk):
             self.figure.text(0.5, 0.035, "KrakenOS Layout", ha="center", va="center")
             self._sync_object_controls()
             self._configure_plot_hover_hints()
+            self._update_layout_selection_overlay()
             self.canvas.draw_idle()
             self._autosave_plot()
             return
@@ -3126,6 +5590,8 @@ class KrakenLayoutEditor(tk.Tk):
             self.append_debug(capture.getvalue())
             self.last_system = system
             self.last_rays = rays
+            self._refresh_3d_inspector_if_open()
+            self._rebuild_layout_pick_regions(system)
             if self._has_native_drawn_surfaces():
                 Plot2DSurf(system, 0, self.ax)
             self._draw_custom_mirror_surfaces()
@@ -3179,6 +5645,7 @@ class KrakenLayoutEditor(tk.Tk):
         self.figure.text(0.5, 0.035, "KrakenOS Layout", ha="center", va="center")
         self._sync_object_controls()
         self._configure_plot_hover_hints()
+        self._update_layout_selection_overlay()
         self.canvas.draw_idle()
         self._autosave_plot()
         if self._initial_layout_passes < 40:
@@ -3739,6 +6206,7 @@ class KrakenLayoutEditor(tk.Tk):
                 mtf_settings = self._mtf_analysis_settings()
                 wavelength = float(mtf_settings["wavelength"])
                 mtf_mode = self._operand_mtf_mode("MTF @ freq")
+                mtf_algorithm = str(mtf_settings.get("algorithm", "psf_fft"))
                 target_freq = self._current_mtf_frequency()
                 field_samples = self._resolved_mtf_field_samples("MTF @ freq")
                 if not field_samples:
@@ -3781,6 +6249,7 @@ class KrakenLayoutEditor(tk.Tk):
                                 field_type=str(sample["field_type"]),
                                 field_x=float(sample["field_x"]),
                                 field_y=float(sample["field_y"]),
+                                algorithm=mtf_algorithm,
                             )
                             self.append_debug(
                                 "MTF sample {legend}: geometric ok: rays={rays}, pupil_samp={pupil_samp}, workers={workers}, accel={accel}".format(
@@ -3902,8 +6371,42 @@ class KrakenLayoutEditor(tk.Tk):
                 basis = str(sample_results[0]["basis"])
                 unit = str(sample_results[0]["unit"])
                 x_text = self._format_field_sample_value(float(sample_results[0]["display_x"]))
+                method_label = str(sample_results[0].get("method", "MTF"))
+                dl_fc = None
+                try:
+                    effl, _ppa, _ppp = self._exact_paraxial_cardinals(wavelength)
+                    pupil_ref = Kos.PupilCalc(
+                        system,
+                        int(mtf_settings["surface_index"]),
+                        wavelength,
+                        str(mtf_settings["aperture_type"]),
+                        float(mtf_settings["aperture_value"]),
+                    )
+                    ep_diameter = max(2.0 * abs(float(getattr(pupil_ref, "RadPupInp", 0.0))), 1e-9)
+                    f_number = abs(float(effl)) / ep_diameter
+                    if np.isfinite(f_number) and f_number > 1e-12:
+                        dl_fc = 1.0 / (max(wavelength, 1e-12) * 1e-3 * f_number)
+                        if np.isfinite(dl_fc) and dl_fc > 0.0:
+                            dl_freq = np.linspace(0.0, min(max_plot_freq, max(100.0, target_freq * 2.5)), 512)
+                            nu = np.clip(dl_freq / dl_fc, 0.0, 1.0)
+                            dl_curve = (2.0 / np.pi) * (
+                                np.arccos(nu) - nu * np.sqrt(np.clip(1.0 - nu * nu, 0.0, 1.0))
+                            )
+                            dl_curve = np.where(dl_freq <= dl_fc, dl_curve, 0.0)
+                            analysis_ax.plot(
+                                dl_freq,
+                                dl_curve,
+                                color="#475569",
+                                linewidth=1.3,
+                                linestyle=(0, (4, 2)),
+                                alpha=0.9,
+                                label="DL ref",
+                                zorder=2,
+                            )
+                except Exception:
+                    dl_fc = None
                 analysis_ax.set_title(
-                    f"MTF  |  {basis} samples  |  X={x_text} {unit}  |  {wavelength:.4g} um"
+                    f"MTF ({method_label})  |  {basis} samples  |  X={x_text} {unit}  |  {wavelength:.4g} um"
                 )
                 analysis_ax.set_xlabel("Spatial frequency [cycles/mm]")
                 analysis_ax.set_ylabel("MTF")
@@ -3918,6 +6421,8 @@ class KrakenLayoutEditor(tk.Tk):
                     summary_lines.append(f"{result['legend']}: {float(result['selected_value']):.3f}{overlap_tag}")
                 if len(sample_results) > 6:
                     summary_lines.append("...")
+                if dl_fc is not None and np.isfinite(dl_fc):
+                    summary_lines.append(f"DL cutoff: {float(dl_fc):.1f} cy/mm")
                 analysis_ax.text(
                     0.02,
                     0.02,
@@ -4044,18 +6549,16 @@ class KrakenLayoutEditor(tk.Tk):
         return self._field_metrics_for_value(self._current_field_type(), self._current_field_value())
 
     def _current_effl_estimate(self) -> float:
+        try:
+            effl, _ppa, _ppp = self._exact_paraxial_cardinals(self._current_wavelength())
+            return max(abs(float(effl)), 1e-6)
+        except Exception:
+            pass
         if self.last_system is not None:
             try:
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore", RuntimeWarning)
                     _a, _b, _c, _d, effl, *_rest = self.last_system.EFL(self._current_wavelength())  # type: ignore[misc]
-                return max(abs(float(effl)), 1e-6)
-            except Exception:
-                pass
-            try:
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore", RuntimeWarning)
-                    _, _, _, _, _, _, _, effl, *_rest = self.last_system.Parax(self._current_wavelength())
                 return max(abs(float(effl)), 1e-6)
             except Exception:
                 pass
@@ -4607,6 +7110,7 @@ class KrakenLayoutEditor(tk.Tk):
         self.append_debug(capture.getvalue())
         self.last_system = system
         self.last_rays = rays
+        self._refresh_3d_inspector_if_open()
 
         extent_points: list[np.ndarray] = []
         folded_elements = None
@@ -6385,7 +8889,7 @@ class KrakenLayoutEditor(tk.Tk):
         if zcoef is None:
             raise RuntimeError(f"Zernike fit failed: {last_error}")
 
-        focal = max(0.01, float(getattr(pupil, "EFFL", 0.0)))
+        focal = max(0.01, abs(float(getattr(pupil, "EFFL", 0.0))))
         diameter = max(0.01, 2.0 * float(getattr(pupil, "RadPupInp", 1.0)))
         mtf = Kos.calculate_mtf(
             np.asarray(zcoef, dtype=float),
@@ -6396,8 +8900,9 @@ class KrakenLayoutEditor(tk.Tk):
             PupilSample=4,
         )
         samples = int(mtf.shape[0])
-        freq_max = diameter / max(wavelength * 1e-3, 1e-9)
-        freq = np.linspace(0.0, freq_max, samples // 2) / 10.0
+        # Convert the FFT axis to image-plane cycles/mm using fc = D / (lambda * f).
+        freq_max = diameter / max(wavelength * 1e-3 * focal, 1e-12)
+        freq = np.linspace(0.0, freq_max, samples // 2)
         tangential = np.asarray(mtf[samples // 2, samples // 2:], dtype=float)
         sagittal = np.asarray(mtf[samples // 2 :, samples // 2], dtype=float)
         count = min(len(freq), len(tangential), len(sagittal))
@@ -6424,6 +8929,7 @@ class KrakenLayoutEditor(tk.Tk):
         field_type: str,
         field_x: float,
         field_y: float,
+        algorithm: str = "psf_fft",
     ) -> dict[str, object]:
         dense_count = max(24, self._current_ray_count() * 6)
         x_local, y_local, worker_count = self._build_geometric_image_samples(
@@ -6447,27 +8953,73 @@ class KrakenLayoutEditor(tk.Tk):
         if span <= 0:
             span = 1.0
         bins = 128
-        mtf, freq, _xedges, _unused, accelerator = self._compute_geometric_mtf_arrays(
-            x_local,
-            y_local,
-            bins,
-            span,
-        )
-        center = bins // 2
-        positive = np.asarray(freq[center:], dtype=float)
-        tangential = np.asarray(mtf[center, center:], dtype=float)
-        sagittal = np.asarray(mtf[center:, center], dtype=float)
+        if str(algorithm).strip().lower() == "lsf_fft":
+            positive, tangential, sagittal, accelerator = self._compute_lsf_mtf_arrays(
+                x_local,
+                y_local,
+                bins,
+                span,
+            )
+            method_name = "Geometric-LSF"
+        else:
+            mtf, freq, _xedges, _unused, accelerator = self._compute_geometric_mtf_arrays(
+                x_local,
+                y_local,
+                bins,
+                span,
+            )
+            center = bins // 2
+            positive = np.asarray(freq[center:], dtype=float)
+            tangential = np.asarray(mtf[center, center:], dtype=float)
+            sagittal = np.asarray(mtf[center:, center], dtype=float)
+            method_name = "Geometric-PSF"
         count = min(len(positive), len(tangential), len(sagittal))
         return {
             "plot_freq": np.asarray(positive[:count], dtype=float),
             "plot_tan": np.asarray(tangential[:count], dtype=float),
             "plot_sag": np.asarray(sagittal[:count], dtype=float),
-            "method": "Geometric",
+            "method": method_name,
             "worker_count": int(worker_count),
             "accelerator": str(accelerator),
             "sample_count": int(x_local.size),
             "pupil_samp": int(dense_count),
         }
+
+    @staticmethod
+    def _compute_lsf_mtf_arrays(
+        x_local: np.ndarray,
+        y_local: np.ndarray,
+        bins: int,
+        span: float,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, str]:
+        lower = -span / 2.0
+        upper = span / 2.0
+        hist_x, xedges = np.histogram(x_local, bins=bins, range=(lower, upper))
+        hist_y, _yedges = np.histogram(y_local, bins=bins, range=(lower, upper))
+        lsf_tan = np.asarray(hist_x, dtype=float)
+        lsf_sag = np.asarray(hist_y, dtype=float)
+        if float(np.sum(lsf_tan)) <= 0.0 or float(np.sum(lsf_sag)) <= 0.0:
+            raise RuntimeError("Not enough line-spread samples for LSF MTF")
+
+        # Apply a smooth window before FFT to stabilize high-frequency ringing.
+        window = np.hanning(bins)
+        lsf_tan *= window
+        lsf_sag *= window
+        lsf_tan /= max(float(np.sum(lsf_tan)), 1e-12)
+        lsf_sag /= max(float(np.sum(lsf_sag)), 1e-12)
+        mtf_tan = np.abs(np.fft.fft(lsf_tan))
+        mtf_sag = np.abs(np.fft.fft(lsf_sag))
+        mtf_tan /= max(float(mtf_tan[0]), 1e-12)
+        mtf_sag /= max(float(mtf_sag[0]), 1e-12)
+        dx = float(xedges[1] - xedges[0])
+        freq = np.fft.fftfreq(bins, d=dx)
+        positive = freq >= 0.0
+        return (
+            np.asarray(freq[positive], dtype=float),
+            np.asarray(mtf_tan[positive], dtype=float),
+            np.asarray(mtf_sag[positive], dtype=float),
+            "CPU",
+        )
 
     def _build_geometric_image_samples(
         self,
@@ -6717,6 +9269,8 @@ class KrakenLayoutEditor(tk.Tk):
             "magnification": None,
             "ppa": None,
             "ppp": None,
+            "paraxial_image_size": None,
+            "sensor_fill": None,
             "spot_rms": None,
             "spot_cen_x": None,
             "spot_cen_y": None,
@@ -6727,19 +9281,39 @@ class KrakenLayoutEditor(tk.Tk):
             "airy_radius": None,
         }
         try:
-            _, _, _, a, b, c, d, effl, ppa, ppp, _, _, _ = system.Parax(wavelength)
+            effl, ppa, ppp = self._exact_paraxial_cardinals(wavelength)
             info.update(
                 {
-                    "magnification": float(a),
                     "effl": float(effl),
                     "ppa": float(ppa),
                     "ppp": float(ppp),
-                    "parax_a": float(a),
-                    "parax_b": float(b),
-                    "parax_c": float(c),
-                    "parax_d": float(d),
                 }
             )
+            if self._current_object_mode() == "Finite" and len(self.rows) >= 2:
+                object_gap = max(float(self.rows[0].thickness), 1e-9)
+                object_size = max(float(self.rows[0].diameter), 0.0)
+                sensor_size = max(float(self.rows[-1].diameter), 0.0)
+                object_principal = object_gap + float(ppa)
+                if np.isfinite(object_principal) and abs(object_principal) > 1e-12:
+                    power_balance = (1.0 / float(effl)) - (1.0 / object_principal)
+                    if abs(power_balance) > 1e-12:
+                        image_principal = 1.0 / power_balance
+                        magnification = image_principal / object_principal
+                        image_size = abs(magnification) * object_size
+                        info["paraxial_image_size"] = float(image_size)
+                        info["magnification"] = float(magnification)
+                        if sensor_size > 1e-12:
+                            info["sensor_fill"] = float(image_size / sensor_size)
+        except Exception:
+            pass
+        try:
+            _, _, _, a, b, c, d, _effl, _ppa, _ppp, _, _, _ = system.Parax(wavelength)
+            info["parax_a"] = float(a)
+            info["parax_b"] = float(b)
+            info["parax_c"] = float(c)
+            info["parax_d"] = float(d)
+            if info.get("magnification") is None:
+                info["magnification"] = float(a)
         except Exception:
             pass
         try:
@@ -6827,6 +9401,10 @@ class KrakenLayoutEditor(tk.Tk):
             items.append(("Imaging", ""))
             items.append(("EFFL [mm]", f"{float(optics_info['effl']):.4g}"))
             items.append(("Magnification", f"{float(optics_info['magnification']):.4g}"))
+            if optics_info.get("paraxial_image_size") is not None:
+                items.append(("Paraxial image size [mm]", f"{float(optics_info['paraxial_image_size']):.4g}"))
+            if optics_info.get("sensor_fill") is not None:
+                items.append(("Sensor fill", f"{100.0 * float(optics_info['sensor_fill']):.3g}%"))
             items.append(("Principal Planes", ""))
             items.append(("Front principal plane [mm]", f"{float(optics_info['ppa']):.4g}"))
             items.append(("Back principal plane [mm]", f"{float(optics_info['ppp']):.4g}"))
@@ -6943,22 +9521,25 @@ class KrakenLayoutEditor(tk.Tk):
         return self._operand_field(label)
 
     def _operand_field_type(self, label: str) -> str:
-        if self._current_field_type() == "Angle":
+        if self._current_object_mode() == "Infinity":
             return "angle"
         return "height"
 
-    def _resolved_field_coordinate(self, field_basis: str, raw_value: float) -> float:
+    def _resolved_field_coordinate(self, field_basis: str, raw_value: float, resolved_field_type: str) -> float:
         metrics = self._field_metrics_for_value(field_basis, raw_value)
-        if field_basis == "Angle":
+        if resolved_field_type == "angle":
             return float(metrics["angle_deg"])
         return float(metrics["object_height"])
 
     def _resolved_mtf_field_samples(self, label: str) -> list[dict[str, float | str]]:
         field_basis = self._current_field_type()
-        resolved_field_type = "angle" if field_basis == "Angle" else "height"
+        resolved_field_type = "angle" if self._current_object_mode() == "Infinity" else "height"
+        basis_label = field_basis
+        if field_basis == "Angle" and resolved_field_type == "height":
+            basis_label = "Angle->Object Height"
         unit = self._field_type_unit(field_basis)
         raw_x = self._operand_field_x(label)
-        resolved_x = self._resolved_field_coordinate(field_basis, raw_x)
+        resolved_x = self._resolved_field_coordinate(field_basis, raw_x, resolved_field_type)
         field_var = self.operand_field_y_vars.get(label)
         raw_series = "" if field_var is None else field_var.get()
         raw_values = self._parse_numeric_series(raw_series)
@@ -6967,10 +9548,10 @@ class KrakenLayoutEditor(tk.Tk):
 
         samples: list[dict[str, float | str]] = []
         for raw_value in raw_values:
-            resolved_y = self._resolved_field_coordinate(field_basis, raw_value)
+            resolved_y = self._resolved_field_coordinate(field_basis, raw_value, resolved_field_type)
             samples.append(
                 {
-                    "basis": field_basis,
+                    "basis": basis_label,
                     "unit": unit,
                     "display_x": float(raw_x),
                     "display_y": float(raw_value),

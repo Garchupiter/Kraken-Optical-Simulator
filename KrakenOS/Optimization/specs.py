@@ -233,8 +233,8 @@ def _mtf_at_frequency_operands(editor) -> list[object]:
                 frequency=editor._current_mtf_frequency(),
                 ray_count=max(24, editor._current_ray_count() * 6),
                 mode=editor._operand_mtf_mode("MTF @ freq"),
-                aperture_type=editor._operand_aperture_type("MTF @ freq"),
-                aperture_value=editor._operand_aperture_value("MTF @ freq"),
+                aperture_type=editor._current_aperture_type(),
+                aperture_value=editor._current_aperture_value(),
                 field_type=str(sample["field_type"]),
                 field_x=float(sample["field_x"]),
                 field_y=float(sample["field_y"]),
@@ -259,7 +259,7 @@ OPERAND_REGISTRY: dict[str, OperandSpec] = {
         default_weight=1.0,
         default_target=0.0,
         build_operands=_wavefront_rms_operands,
-        controls=("weight", "target", "wavelength", "field", "surface", "aperture", "aperture_value"),
+        controls=("weight", "target", "wavelength", "field", "surface"),
     ),
     "effective_focal_length": OperandSpec(
         key="effective_focal_length",
@@ -286,7 +286,7 @@ OPERAND_REGISTRY: dict[str, OperandSpec] = {
         default_weight=1.0,
         default_target=0.0,
         build_operands=_entrance_pupil_position_operands,
-        controls=("weight", "target", "wavelength", "surface", "aperture", "aperture_value"),
+        controls=("weight", "target", "wavelength", "surface"),
     ),
     "exit_pupil_position": OperandSpec(
         key="exit_pupil_position",
@@ -295,7 +295,7 @@ OPERAND_REGISTRY: dict[str, OperandSpec] = {
         default_weight=1.0,
         default_target=0.0,
         build_operands=_exit_pupil_position_operands,
-        controls=("weight", "target", "wavelength", "surface", "aperture", "aperture_value"),
+        controls=("weight", "target", "wavelength", "surface"),
     ),
     "thickness_penalty": OperandSpec(
         key="thickness_penalty",
@@ -313,6 +313,6 @@ OPERAND_REGISTRY: dict[str, OperandSpec] = {
         default_weight=1.0,
         default_target=0.5,
         build_operands=_mtf_at_frequency_operands,
-        controls=("weight", "target", "wavelength", "field_xy", "surface", "aperture", "aperture_value", "frequency", "mtf_mode"),
+        controls=("weight", "target", "wavelength", "field_xy", "surface", "frequency", "mtf_mode"),
     ),
 }
