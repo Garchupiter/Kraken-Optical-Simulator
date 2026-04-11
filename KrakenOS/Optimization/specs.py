@@ -104,34 +104,38 @@ VARIABLE_REGISTRY: dict[str, VariableSpec] = {
 
 
 def _spot_rms_operands(editor) -> list[object]:
+    field_type = "angle" if editor._current_object_mode() == "Infinity" else "height"
+    field_y = editor._current_field_angle_deg() if field_type == "angle" else editor._current_field_height()
     return [
         SpotRMSOperand(
             name="Spot RMS",
             weight=editor._operand_weight("Spot RMS"),
             target=editor._operand_target("Spot RMS"),
             surface_index=-1,
-            wavelength=editor._operand_wavelength("Spot RMS"),
+            wavelength=editor._current_wavelength(),
             ray_count=max(5, editor._current_ray_count()),
             ray_height_factor=editor._current_ray_height_factor(),
-            field_type=editor._operand_field_type("Spot RMS"),
-            field_y=editor._operand_field("Spot RMS"),
+            field_type=field_type,
+            field_y=field_y,
         )
     ]
 
 
 def _wavefront_rms_operands(editor) -> list[object]:
+    field_type = "angle" if editor._current_object_mode() == "Infinity" else "height"
+    field_y = editor._current_field_angle_deg() if field_type == "angle" else editor._current_field_height()
     return [
         WavefrontRMSOperand(
             name="Wavefront RMS",
             weight=editor._operand_weight("Wavefront RMS"),
             target=editor._operand_target("Wavefront RMS"),
             surface_index=editor._analysis_surface_index(),
-            wavelength=editor._operand_wavelength("Wavefront RMS"),
+            wavelength=editor._current_wavelength(),
             aperture_type=editor._current_aperture_type(),
             aperture_value=editor._current_aperture_value(),
             sample_size=9,
-            field_type=editor._operand_field_type("Wavefront RMS"),
-            field_y=editor._operand_field("Wavefront RMS"),
+            field_type=field_type,
+            field_y=field_y,
         )
     ]
 
@@ -142,7 +146,7 @@ def _effective_focal_length_operands(editor) -> list[object]:
             name="EFFL",
             weight=editor._operand_weight("EFFL"),
             target=editor._operand_target("EFFL"),
-            wavelength=editor._operand_wavelength("EFFL"),
+            wavelength=editor._current_wavelength(),
         )
     ]
 
@@ -153,7 +157,7 @@ def _magnification_operands(editor) -> list[object]:
             name="Magnification",
             weight=editor._operand_weight("Magnification"),
             target=editor._operand_target("Magnification"),
-            wavelength=editor._operand_wavelength("Magnification"),
+            wavelength=editor._current_wavelength(),
         )
     ]
 
@@ -165,7 +169,7 @@ def _entrance_pupil_position_operands(editor) -> list[object]:
             weight=editor._operand_weight("Entrance pupil z"),
             target=editor._operand_target("Entrance pupil z"),
             surface_index=editor._analysis_surface_index(),
-            wavelength=editor._operand_wavelength("Entrance pupil z"),
+            wavelength=editor._current_wavelength(),
             aperture_type=editor._current_aperture_type(),
             aperture_value=editor._current_aperture_value(),
         )
@@ -179,7 +183,7 @@ def _exit_pupil_position_operands(editor) -> list[object]:
             weight=editor._operand_weight("Exit pupil z"),
             target=editor._operand_target("Exit pupil z"),
             surface_index=editor._analysis_surface_index(),
-            wavelength=editor._operand_wavelength("Exit pupil z"),
+            wavelength=editor._current_wavelength(),
             aperture_type=editor._current_aperture_type(),
             aperture_value=editor._current_aperture_value(),
         )
@@ -212,10 +216,14 @@ def _mtf_at_frequency_operands(editor) -> list[object]:
             {
                 "basis": editor._current_field_type(),
                 "unit": editor._field_type_unit(editor._current_field_type()),
-                "display_y": editor._operand_field_y("MTF @ freq"),
-                "field_type": editor._operand_field_type("MTF @ freq"),
-                "field_x": editor._operand_field_x("MTF @ freq"),
-                "field_y": editor._operand_field_y("MTF @ freq"),
+                "display_y": editor._current_field_value(),
+                "field_type": ("angle" if editor._current_object_mode() == "Infinity" else "height"),
+                "field_x": 0.0,
+                "field_y": (
+                    editor._current_field_angle_deg()
+                    if editor._current_object_mode() == "Infinity"
+                    else editor._current_field_height()
+                ),
             }
         ]
     total_weight = editor._operand_weight("MTF @ freq")
@@ -228,8 +236,8 @@ def _mtf_at_frequency_operands(editor) -> list[object]:
                 name=f"MTF @ freq [{sample['basis']}={sample_name}]",
                 weight=per_sample_weight,
                 target=editor._operand_target("MTF @ freq"),
-                surface_index=editor._operand_surface_index("MTF @ freq"),
-                wavelength=editor._operand_wavelength("MTF @ freq"),
+                surface_index=editor._analysis_surface_index(),
+                wavelength=editor._current_wavelength(),
                 frequency=editor._current_mtf_frequency(),
                 ray_count=max(24, editor._current_ray_count() * 6),
                 mode=editor._operand_mtf_mode("MTF @ freq"),
@@ -250,7 +258,7 @@ OPERAND_REGISTRY: dict[str, OperandSpec] = {
         default_weight=1.0,
         default_target=0.0,
         build_operands=_spot_rms_operands,
-        controls=("weight", "target", "wavelength", "field"),
+        controls=("weight", "target"),
     ),
     "wavefront_rms": OperandSpec(
         key="wavefront_rms",
@@ -259,7 +267,7 @@ OPERAND_REGISTRY: dict[str, OperandSpec] = {
         default_weight=1.0,
         default_target=0.0,
         build_operands=_wavefront_rms_operands,
-        controls=("weight", "target", "wavelength", "field", "surface"),
+        controls=("weight", "target"),
     ),
     "effective_focal_length": OperandSpec(
         key="effective_focal_length",
@@ -268,7 +276,7 @@ OPERAND_REGISTRY: dict[str, OperandSpec] = {
         default_weight=1.0,
         default_target=100.0,
         build_operands=_effective_focal_length_operands,
-        controls=("weight", "target", "wavelength"),
+        controls=("weight", "target"),
     ),
     "magnification": OperandSpec(
         key="magnification",
@@ -277,7 +285,7 @@ OPERAND_REGISTRY: dict[str, OperandSpec] = {
         default_weight=1.0,
         default_target=1.0,
         build_operands=_magnification_operands,
-        controls=("weight", "target", "wavelength"),
+        controls=("weight", "target"),
     ),
     "entrance_pupil_position": OperandSpec(
         key="entrance_pupil_position",
@@ -286,7 +294,7 @@ OPERAND_REGISTRY: dict[str, OperandSpec] = {
         default_weight=1.0,
         default_target=0.0,
         build_operands=_entrance_pupil_position_operands,
-        controls=("weight", "target", "wavelength", "surface"),
+        controls=("weight", "target"),
     ),
     "exit_pupil_position": OperandSpec(
         key="exit_pupil_position",
@@ -295,7 +303,7 @@ OPERAND_REGISTRY: dict[str, OperandSpec] = {
         default_weight=1.0,
         default_target=0.0,
         build_operands=_exit_pupil_position_operands,
-        controls=("weight", "target", "wavelength", "surface"),
+        controls=("weight", "target"),
     ),
     "thickness_penalty": OperandSpec(
         key="thickness_penalty",
@@ -313,6 +321,6 @@ OPERAND_REGISTRY: dict[str, OperandSpec] = {
         default_weight=1.0,
         default_target=0.5,
         build_operands=_mtf_at_frequency_operands,
-        controls=("weight", "target", "wavelength", "field_xy", "surface", "frequency", "mtf_mode"),
+        controls=("weight", "target", "frequency", "mtf_mode", "mtf_algorithm"),
     ),
 }

@@ -993,6 +993,8 @@ class KrakenLayoutEditor(tk.Tk):
         self.current_menu_field: str | None = None
         self._text_popup_menu: tk.Menu | None = None
         self._formula_help_path: Path | None = None
+        self._undo_button: ttk.Button | None = None
+        self._redo_button: ttk.Button | None = None
         self.analysis_mode = "none"
         self.last_system = None
         self.last_rays = None
@@ -1057,16 +1059,28 @@ class KrakenLayoutEditor(tk.Tk):
         self._legacy_3d_after_id = None
         self._layout_pick_regions: dict[int, np.ndarray] = {}
         self._layout_selection_artists: list = []
+        self._undo_stack: list[dict[str, object]] = []
+        self._redo_stack: list[dict[str, object]] = []
+        self._history_pending_state: dict[str, object] | None = None
+        self._history_restoring = False
+        self._history_limit = 80
 
         self._build_menu()
         self._build_ui()
         self._bind_global_copy_shortcuts()
+        self.bind_all("<Control-z>", self._undo_event, add="+")
+        self.bind_all("<Control-y>", self._redo_event, add="+")
+        self.bind_all("<Control-Shift-Z>", self._redo_event, add="+")
         self._reset_debug_log()
         self.load_layouts()
         self.load_examples()
         if self.layout_names:
             initial_layout = DEFAULT_LAYOUT_TITLE if DEFAULT_LAYOUT_TITLE in self.layout_files else self.layout_names[0]
             self.load_layout_by_name(initial_layout)
+        self._undo_stack.clear()
+        self._redo_stack.clear()
+        self._history_pending_state = None
+        self._update_undo_redo_buttons()
         self.after(0, self._report_compute_backends)
 
     def _maximize_window(self) -> None:
@@ -1097,6 +1111,11 @@ class KrakenLayoutEditor(tk.Tk):
         file_menu.add_separator()
         file_menu.add_command(label="Quit", command=self.destroy)
         menubar.add_cascade(label="File", menu=file_menu)
+
+        edit_menu = tk.Menu(menubar, tearoff=0)
+        edit_menu.add_command(label="Undo", command=self.undo, accelerator="Ctrl+Z")
+        edit_menu.add_command(label="Redo", command=self.redo, accelerator="Ctrl+Y")
+        menubar.add_cascade(label="Edit", menu=edit_menu)
 
         action_menu = tk.Menu(menubar, tearoff=0)
         action_menu.add_command(label="Refresh Plot", command=self.refresh_plot)
@@ -1234,6 +1253,10 @@ class KrakenLayoutEditor(tk.Tk):
 
         table_toolbar = ttk.Frame(table_frame)
         table_toolbar.grid(row=0, column=0, sticky="ew", pady=(0, 6))
+        self._undo_button = ttk.Button(table_toolbar, text="Undo", command=self.undo)
+        self._undo_button.pack(side="left")
+        self._redo_button = ttk.Button(table_toolbar, text="Redo", command=self.redo)
+        self._redo_button.pack(side="left", padx=(6, 6))
         ttk.Button(table_toolbar, text="Add surface", command=self.add_surface).pack(side="left")
         ttk.Button(table_toolbar, text="Delete", command=self.delete_selected).pack(side="left", padx=(6, 0))
         ttk.Button(table_toolbar, text="Duplicate", command=self.duplicate_selected).pack(side="left", padx=(6, 0))
@@ -1438,6 +1461,7 @@ class KrakenLayoutEditor(tk.Tk):
             values=["Finite", "Infinity"],
         )
         self.object_mode_menu.grid(row=1, column=0, sticky="ew", pady=(0, 8))
+        self.object_mode_menu.bind("<FocusIn>", self._begin_history_capture, add="+")
         self.object_mode_menu.bind("<<ComboboxSelected>>", self._on_object_mode_changed)
 
         ttk.Label(parent, text="Wavelength [um]").grid(row=0, column=1, sticky="w", pady=(0, 2), padx=(8, 0))
@@ -1457,6 +1481,7 @@ class KrakenLayoutEditor(tk.Tk):
             values=["Vertical", "Horizontal"],
         )
         self.display_orientation_menu.grid(row=3, column=0, sticky="ew", pady=(0, 8))
+        self.display_orientation_menu.bind("<FocusIn>", self._begin_history_capture, add="+")
         self.display_orientation_menu.bind("<<ComboboxSelected>>", self._mark_plot_update_pending)
 
         ttk.Label(parent, text="Ray fan count").grid(row=2, column=1, sticky="w", pady=(0, 2), padx=(8, 0))
@@ -1483,6 +1508,7 @@ class KrakenLayoutEditor(tk.Tk):
             values=["Auto"],
         )
         self.analysis_surface_menu.grid(row=5, column=1, sticky="ew", pady=(0, 8), padx=(8, 0))
+        self.analysis_surface_menu.bind("<FocusIn>", self._begin_history_capture, add="+")
         self.analysis_surface_menu.bind("<<ComboboxSelected>>", self._mark_plot_update_pending)
 
         ttk.Label(parent, text="Aperture type").grid(row=6, column=0, sticky="w", pady=(0, 2))
@@ -1495,6 +1521,7 @@ class KrakenLayoutEditor(tk.Tk):
             values=["STOP", "EPD"],
         )
         self.aperture_type_menu.grid(row=7, column=0, sticky="ew")
+        self.aperture_type_menu.bind("<FocusIn>", self._begin_history_capture, add="+")
         self.aperture_type_menu.bind("<<ComboboxSelected>>", self._mark_plot_update_pending)
 
         ttk.Label(parent, text="Aperture value").grid(row=6, column=1, sticky="w", pady=(0, 2), padx=(8, 0))
@@ -1514,14 +1541,17 @@ class KrakenLayoutEditor(tk.Tk):
             values=["Grid", "Absolute", "Centroid"],
         )
         self.spot_view_mode_menu.grid(row=9, column=0, sticky="ew")
+        self.spot_view_mode_menu.bind("<FocusIn>", self._begin_history_capture, add="+")
         self.spot_view_mode_menu.bind("<<ComboboxSelected>>", self._mark_plot_update_pending)
 
-        ttk.Checkbutton(
+        clipped_check = ttk.Checkbutton(
             parent,
             text="Show clipped rays",
             variable=self.show_clipped_rays_var,
             command=self._mark_plot_update_pending,
-        ).grid(row=9, column=1, sticky="w", padx=(8, 0))
+        )
+        clipped_check.grid(row=9, column=1, sticky="w", padx=(8, 0))
+        clipped_check.bind("<ButtonPress-1>", self._begin_history_capture, add="+")
 
         self.show_cardinals_var = tk.BooleanVar(value=True)
 
@@ -1544,6 +1574,7 @@ class KrakenLayoutEditor(tk.Tk):
             values=["Angle", "Object Height", "Paraxial Image Height", "Real Image Height"],
         )
         self.field_type_menu.grid(row=1, column=0, sticky="ew", pady=(0, 8))
+        self.field_type_menu.bind("<FocusIn>", self._begin_history_capture, add="+")
         self.field_type_menu.bind("<<ComboboxSelected>>", self._on_field_type_changed)
 
         self.field_mode_note_var = tk.StringVar(value="")
@@ -1562,6 +1593,19 @@ class KrakenLayoutEditor(tk.Tk):
         field_count_entry.grid(
             row=3, column=0, sticky="ew", pady=(0, 8)
         )
+
+        ttk.Label(parent, text="Image size").grid(row=2, column=1, sticky="w", pady=(0, 2), padx=(8, 0))
+        self.image_diameter_mode_var = tk.StringVar(value="Auto")
+        self.image_diameter_mode_menu = ttk.Combobox(
+            parent,
+            textvariable=self.image_diameter_mode_var,
+            state="readonly",
+            width=12,
+            values=["Auto", "Manual"],
+        )
+        self.image_diameter_mode_menu.grid(row=3, column=1, sticky="ew", pady=(0, 8), padx=(8, 0))
+        self.image_diameter_mode_menu.bind("<FocusIn>", self._begin_history_capture, add="+")
+        self.image_diameter_mode_menu.bind("<<ComboboxSelected>>", self._on_image_diameter_mode_changed)
 
         self.field_warning_var = tk.StringVar(value="")
         self.field_summary_var = tk.StringVar(value="")
@@ -1630,6 +1674,7 @@ class KrakenLayoutEditor(tk.Tk):
         if OPERAND_REGISTRY:
             self.merit_mode_list.selection_set(0)
         self.merit_mode_list.grid(row=2, column=0, sticky="nsw", pady=(0, 8), padx=(0, 8))
+        self.merit_mode_list.bind("<ButtonPress-1>", self._begin_history_capture, add="+")
         self.merit_mode_list.bind("<<ListboxSelect>>", lambda _e: self._update_operand_setup_visibility())
 
         setup_holder = ttk.Frame(parent, height=320)
@@ -1719,6 +1764,7 @@ class KrakenLayoutEditor(tk.Tk):
             surface_label.grid(row=surface_row, column=0, sticky="w")
             surface_menu = ttk.Combobox(card, textvariable=surface_var, state="readonly", width=12, values=["Auto"])
             surface_menu.grid(row=surface_row, column=1, sticky="ew", padx=(6, 0), pady=(0, 4))
+            surface_menu.bind("<FocusIn>", self._begin_history_capture, add="+")
             surface_menu.bind("<<ComboboxSelected>>", self._mark_plot_update_pending)
             control_widgets["surface"] = (surface_label, surface_menu)
 
@@ -1744,6 +1790,7 @@ class KrakenLayoutEditor(tk.Tk):
                     values=["Average", "Tangential", "Sagittal"],
                 )
                 mtf_mode_menu.grid(row=mode_row, column=1, sticky="ew", padx=(6, 0), pady=(4, 0))
+                mtf_mode_menu.bind("<FocusIn>", self._begin_history_capture, add="+")
                 mtf_mode_menu.bind("<<ComboboxSelected>>", self._mark_plot_update_pending)
                 control_widgets["mtf_mode"] = (mode_label, mtf_mode_menu)
 
@@ -1759,6 +1806,7 @@ class KrakenLayoutEditor(tk.Tk):
                     values=["PSF FFT", "LSF FFT"],
                 )
                 mtf_algorithm_menu.grid(row=algorithm_row, column=1, sticky="ew", padx=(6, 0), pady=(4, 0))
+                mtf_algorithm_menu.bind("<FocusIn>", self._begin_history_capture, add="+")
                 mtf_algorithm_menu.bind("<<ComboboxSelected>>", self._mark_plot_update_pending)
                 control_widgets["mtf_algorithm"] = (algorithm_label, mtf_algorithm_menu)
 
@@ -1780,6 +1828,7 @@ class KrakenLayoutEditor(tk.Tk):
         self.results_table.configure(yscrollcommand=scroll.set)
 
     def _bind_deferred_refresh(self, widget: tk.Widget) -> None:
+        widget.bind("<FocusIn>", self._begin_history_capture, add="+")
         widget.bind("<Return>", self._mark_plot_update_pending)
         widget.bind("<Tab>", self._mark_plot_update_pending)
         widget.bind("<FocusOut>", self._mark_plot_update_pending)
@@ -1790,11 +1839,13 @@ class KrakenLayoutEditor(tk.Tk):
                 self._sync_object_controls()
             self._mark_plot_update_pending()
 
+        widget.bind("<FocusIn>", self._begin_history_capture, add="+")
         widget.bind("<Return>", _on_commit)
         widget.bind("<Tab>", _on_commit)
         widget.bind("<FocusOut>", _on_commit)
 
     def _mark_plot_update_pending(self, _event=None) -> None:
+        self._commit_history_capture()
         if hasattr(self, "status_var"):
             self.status_var.set("Display settings changed. Click Update.")
 
@@ -1814,6 +1865,7 @@ class KrakenLayoutEditor(tk.Tk):
     def _update_operand_setup_visibility(self) -> None:
         if not hasattr(self, "merit_mode_list"):
             return
+        self._commit_history_capture()
         selected = {self.merit_mode_list.get(i) for i in self.merit_mode_list.curselection()}
         for label, frame in self.operand_setup_frames.items():
             visible = label in selected
@@ -3180,6 +3232,8 @@ class KrakenLayoutEditor(tk.Tk):
         path = self.layout_files.get(name)
         if path is None:
             return
+        if self.rows:
+            self._begin_history_capture()
         self.current_layout_file = path
         had_existing_rows = bool(self.rows)
         info: dict[str, object] = {"surfaces": [], "settings": {}}
@@ -3225,6 +3279,8 @@ class KrakenLayoutEditor(tk.Tk):
         if not had_existing_rows:
             self._apply_layout_settings(info.get("settings", {}))
         self._select_inserted_layout_rows(loaded_rows, insert_after=insert_after)
+        if had_existing_rows:
+            self._commit_history_capture()
         self.refresh_plot()
         self.layout_var.set(name)
         self.example_var.set("Examples")
@@ -3245,6 +3301,126 @@ class KrakenLayoutEditor(tk.Tk):
             if label in wanted:
                 self.merit_mode_list.selection_set(index)
         self._update_operand_setup_visibility()
+
+    def _capture_editor_state(self) -> dict[str, object]:
+        selected_indices = []
+        if hasattr(self, "table"):
+            try:
+                selected_indices = [int(self.table.index(item)) for item in self.table.selection()]
+            except Exception:
+                selected_indices = []
+        active_cell = None
+        if self._active_cell is not None:
+            row_id, field = self._active_cell
+            try:
+                active_cell = {"row": int(self.table.index(row_id)), "field": str(field)}
+            except Exception:
+                active_cell = None
+        layout_path = str(self.current_layout_file) if self.current_layout_file is not None else None
+        return {
+            "rows": [asdict(row) for row in self.rows],
+            "settings": self._collect_layout_settings(),
+            "selected_indices": selected_indices,
+            "active_cell": active_cell,
+            "current_layout_file": layout_path,
+        }
+
+    def _begin_history_capture(self, _event: tk.Event | None = None) -> None:
+        if self._history_restoring or self._history_pending_state is not None:
+            return
+        self._history_pending_state = self._capture_editor_state()
+
+    def _commit_history_capture(self) -> None:
+        if self._history_restoring:
+            self._history_pending_state = None
+            return
+        snapshot = self._history_pending_state
+        self._history_pending_state = None
+        if snapshot is None:
+            return
+        current = self._capture_editor_state()
+        if snapshot == current:
+            return
+        self._undo_stack.append(snapshot)
+        if len(self._undo_stack) > self._history_limit:
+            self._undo_stack = self._undo_stack[-self._history_limit :]
+        self._redo_stack.clear()
+        self._update_undo_redo_buttons()
+
+    def _push_history_snapshot(self) -> None:
+        if self._history_restoring:
+            return
+        self._history_pending_state = self._capture_editor_state()
+        self._commit_history_capture()
+
+    def _restore_history_state(self, state: dict[str, object]) -> None:
+        self._history_restoring = True
+        try:
+            rows = state.get("rows", [])
+            restored_rows = [SurfaceRow(**dict(item)) for item in rows if isinstance(item, dict)]
+            self.rows = self._normalized_rows_copy(restored_rows)
+            layout_path = state.get("current_layout_file")
+            self.current_layout_file = Path(layout_path) if isinstance(layout_path, str) and layout_path else None
+            self._sync_table()
+            self._apply_layout_settings(state.get("settings", {}))
+            self._normalize_special_rows()
+            self._sync_table()
+            selected_indices = [int(index) for index in state.get("selected_indices", []) if isinstance(index, int)]
+            items = list(self.table.get_children())
+            selected_items = [items[index] for index in selected_indices if 0 <= index < len(items)]
+            if selected_items:
+                self.table.selection_set(selected_items)
+                self.table.focus(selected_items[0])
+                self.table.see(selected_items[0])
+            else:
+                self.table.selection_remove(*items)
+            active_cell = state.get("active_cell")
+            self._active_cell = None
+            if isinstance(active_cell, dict):
+                row_index = int(active_cell.get("row", -1))
+                field = str(active_cell.get("field", ""))
+                if 0 <= row_index < len(items) and field in FIELDS:
+                    self._active_cell = (items[row_index], field)
+            self._update_active_cell_border()
+            self._refresh_analysis_surface_choices()
+            self._refresh_operand_surface_choices()
+        finally:
+            self._history_restoring = False
+            self._history_pending_state = None
+        self.refresh_plot()
+        self._update_undo_redo_buttons()
+
+    def _update_undo_redo_buttons(self) -> None:
+        if self._undo_button is not None:
+            self._undo_button.configure(state=("normal" if self._undo_stack else "disabled"))
+        if self._redo_button is not None:
+            self._redo_button.configure(state=("normal" if self._redo_stack else "disabled"))
+
+    def undo(self) -> None:
+        if not self._undo_stack:
+            return
+        current = self._capture_editor_state()
+        state = self._undo_stack.pop()
+        self._redo_stack.append(current)
+        self._restore_history_state(state)
+        self.status_var.set("Undo applied.")
+
+    def redo(self) -> None:
+        if not self._redo_stack:
+            return
+        current = self._capture_editor_state()
+        state = self._redo_stack.pop()
+        self._undo_stack.append(current)
+        self._restore_history_state(state)
+        self.status_var.set("Redo applied.")
+
+    def _undo_event(self, _event=None) -> str:
+        self.undo()
+        return "break"
+
+    def _redo_event(self, _event=None) -> str:
+        self.redo()
+        return "break"
 
     def _collect_layout_settings(self) -> dict[str, object]:
         operand_settings: dict[str, dict[str, object]] = {}
@@ -3305,6 +3481,7 @@ class KrakenLayoutEditor(tk.Tk):
             "field_type": self.field_type_var.get().strip(),
             "field_value": self.field_value_var.get().strip(),
             "field_count": self.field_count_var.get().strip(),
+            "image_diameter_mode": self.image_diameter_mode_var.get().strip() if hasattr(self, "image_diameter_mode_var") else "Auto",
             "analysis_mode": str(self.analysis_mode or "none").strip(),
             "auto_save_plot": bool(self.auto_save_plot_var.get()),
             "show_native_overlays": bool(self.show_native_overlays_var.get()),
@@ -3354,6 +3531,10 @@ class KrakenLayoutEditor(tk.Tk):
         field_count = settings.get("field_count")
         if field_count is not None:
             self.field_count_var.set(str(field_count).strip())
+
+        image_diameter_mode = str(settings.get("image_diameter_mode", "")).strip()
+        if image_diameter_mode in {"Auto", "Manual"} and hasattr(self, "image_diameter_mode_var"):
+            self.image_diameter_mode_var.set(image_diameter_mode)
 
         self._sync_field_mode_ui()
 
@@ -3454,9 +3635,12 @@ class KrakenLayoutEditor(tk.Tk):
         path = self.example_files.get(name)
         if path is None:
             return
+        if self.rows:
+            self._begin_history_capture()
         try:
             surfaces = self._extract_surfaces_from_example(path)
         except Exception as exc:
+            self._history_pending_state = None
             self.status_var.set(f"Failed to load example {name}: {exc}")
             return
         self.current_layout_file = None
@@ -3464,6 +3648,7 @@ class KrakenLayoutEditor(tk.Tk):
         self._normalize_special_rows()
         self._apply_example_display_defaults(path)
         self._sync_table()
+        self._commit_history_capture()
         self.refresh_plot()
         self.layout_var.set("Common Optical Layout")
         self.example_var.set(name)
@@ -3835,6 +4020,7 @@ class KrakenLayoutEditor(tk.Tk):
     def _sync_object_controls(self) -> None:
         if not hasattr(self, "field_summary_var"):
             return
+        self._apply_image_diameter_mode()
         self._sync_field_mode_ui()
         metrics = self._field_metrics()
         self.field_summary_var.set(
@@ -3856,6 +4042,12 @@ class KrakenLayoutEditor(tk.Tk):
     def _on_object_mode_changed(self, _event=None) -> None:
         self._sync_field_default_from_current_type()
         self._sync_field_mode_ui()
+        self._sync_object_controls()
+        self._mark_plot_update_pending()
+
+    def _on_image_diameter_mode_changed(self, _event=None) -> None:
+        self._apply_image_diameter_mode()
+        self._sync_table()
         self._sync_object_controls()
         self._mark_plot_update_pending()
 
@@ -3955,27 +4147,32 @@ class KrakenLayoutEditor(tk.Tk):
         self._update_field_status_hint()
 
     def add_surface(self) -> None:
+        self._begin_history_capture()
         insert_at = len(self.rows)
         if self.rows and self.rows[-1].surface == "Image":
             insert_at -= 1
         self.rows.insert(insert_at, SurfaceRow())
         self._sync_table()
+        self._commit_history_capture()
         self.refresh_plot()
 
     def delete_selected(self) -> None:
         selected = self.table.selection()
         if not selected:
             return
+        self._begin_history_capture()
         indices = sorted(self.table.index(item) for item in selected)
         for index in reversed(indices):
             del self.rows[index]
         self._sync_table()
+        self._commit_history_capture()
         self.refresh_plot()
 
     def duplicate_selected(self) -> None:
         selected = self.table.selection()
         if not selected:
             return
+        self._begin_history_capture()
         indices = sorted(self.table.index(item) for item in selected)
         insert_at = indices[-1] + 1
         duplicates = [SurfaceRow(**asdict(self.rows[index])) for index in indices]
@@ -3985,14 +4182,17 @@ class KrakenLayoutEditor(tk.Tk):
         self._sync_table()
         new_items = self.table.get_children()[insert_at:insert_at + len(duplicates)]
         self.table.selection_set(new_items)
+        self._commit_history_capture()
         self.refresh_plot()
 
     def flip_selected(self) -> None:
         selected = self.table.selection()
         if not selected:
             return
+        self._begin_history_capture()
         indices = sorted(self.table.index(item) for item in selected)
         if len(indices) < 2:
+            self._history_pending_state = None
             return
         selected_rows = [SurfaceRow(**asdict(self.rows[index])) for index in indices]
         selected_thicknesses = [row.thickness for row in selected_rows]
@@ -4021,30 +4221,37 @@ class KrakenLayoutEditor(tk.Tk):
         self._sync_table()
         items = self.table.get_children()
         self.table.selection_set([items[index] for index in indices])
+        self._commit_history_capture()
         self.refresh_plot()
 
     def move_up(self) -> None:
         selected = self.table.selection()
         if not selected:
             return
+        self._begin_history_capture()
         index = min(self.table.index(item) for item in selected)
         if index == 0:
+            self._history_pending_state = None
             return
         self.rows[index - 1], self.rows[index] = self.rows[index], self.rows[index - 1]
         self._sync_table()
         self.table.selection_set(self.table.get_children()[index - 1])
+        self._commit_history_capture()
         self.refresh_plot()
 
     def move_down(self) -> None:
         selected = self.table.selection()
         if not selected:
             return
+        self._begin_history_capture()
         index = max(self.table.index(item) for item in selected)
         if index >= len(self.rows) - 1:
+            self._history_pending_state = None
             return
         self.rows[index + 1], self.rows[index] = self.rows[index], self.rows[index + 1]
         self._sync_table()
         self.table.selection_set(self.table.get_children()[index + 1])
+        self._commit_history_capture()
         self.refresh_plot()
 
     def begin_edit(self, event: tk.Event) -> None:
@@ -4160,10 +4367,20 @@ class KrakenLayoutEditor(tk.Tk):
                 if not quiet:
                     messagebox.showerror("Invalid value", f"{COLUMN_LABELS[field]} expects a number.")
                 return
+        row_index = self.table.index(row_id)
+        self._begin_history_capture()
+        if (
+            field == "diameter"
+            and hasattr(self, "image_diameter_mode_var")
+            and 0 <= row_index < len(self.rows)
+            and self.rows[row_index].surface == "Image"
+        ):
+            self.image_diameter_mode_var.set("Manual")
         self.table.set(row_id, field, value)
         self._read_rows_from_table()
         self._normalize_special_rows()
         self._sync_table()
+        self._commit_history_capture()
         self._mark_plot_update_pending()
 
     def _cancel_edit(self) -> None:
@@ -4195,6 +4412,7 @@ class KrakenLayoutEditor(tk.Tk):
             menu.grab_release()
 
     def _apply_choice(self, row_id: str, field: str, value: str) -> None:
+        self._begin_history_capture()
         self.table.set(row_id, field, value)
         self._read_rows_from_table()
         if field == "surface":
@@ -4208,6 +4426,7 @@ class KrakenLayoutEditor(tk.Tk):
                 row.glass = "AIR"
         self._normalize_special_rows()
         self._sync_table()
+        self._commit_history_capture()
         self._mark_plot_update_pending()
         if self.popup_menu is not None:
             self.popup_menu.destroy()
@@ -4225,8 +4444,10 @@ class KrakenLayoutEditor(tk.Tk):
         spec = self._variable_spec_for_field(self.current_menu_field)
         if spec is None:
             return
+        self._begin_history_capture()
         spec.set_enabled(row, not spec.is_enabled(row))
         self._sync_table()
+        self._commit_history_capture()
         self.refresh_plot()
         if self.popup_menu is not None:
             self.popup_menu.destroy()
@@ -4247,6 +4468,7 @@ class KrakenLayoutEditor(tk.Tk):
         default_bounds = current or spec.default_bounds(current_value)
 
         dialog = tk.Toplevel(self)
+        dialog.withdraw()
         dialog.title(f"Bounds for {row.name} {spec.label}")
         dialog.transient(self)
         dialog.grab_set()
@@ -4270,7 +4492,9 @@ class KrakenLayoutEditor(tk.Tk):
             if lower >= upper:
                 self.append_debug("Optimization bounds rejected: lower must be less than upper.")
                 return
+            self._begin_history_capture()
             spec.set_bounds(row, (lower, upper))
+            self._commit_history_capture()
             self.append_progress(
                 f"Bounds set for row {index} {spec.label}: [{lower:g}, {upper:g}]"
             )
@@ -4281,13 +4505,33 @@ class KrakenLayoutEditor(tk.Tk):
         ttk.Button(buttons, text="Save", command=accept).pack(side="left")
         ttk.Button(buttons, text="Cancel", command=dialog.destroy).pack(side="left", padx=(8, 0))
 
-        self._center_dialog_over_main_window(dialog)
+        self._show_centered_dialog(dialog)
         self.wait_window(dialog)
         if self.popup_menu is not None:
             self.popup_menu.destroy()
             self.popup_menu = None
         self.current_menu_row_id = None
         self.current_menu_field = None
+
+    def _show_centered_dialog(self, dialog: tk.Toplevel) -> None:
+        def place_dialog() -> None:
+            if not dialog.winfo_exists():
+                return
+            dialog.update_idletasks()
+            dialog_width = max(dialog.winfo_reqwidth(), dialog.winfo_width(), 1)
+            dialog_height = max(dialog.winfo_reqheight(), dialog.winfo_height(), 1)
+            screen_width = max(dialog.winfo_screenwidth(), 1)
+            screen_height = max(dialog.winfo_screenheight(), 1)
+            pos_x = max((screen_width - dialog_width) // 2, 0)
+            pos_y = max((screen_height - dialog_height) // 2, 0)
+            dialog.geometry(f"{dialog_width}x{dialog_height}+{pos_x}+{pos_y}")
+
+        place_dialog()
+        dialog.deiconify()
+        dialog.lift()
+        dialog.focus_force()
+        dialog.after_idle(place_dialog)
+        dialog.after(80, place_dialog)
 
     def clear_current_bounds(self) -> None:
         if self.current_menu_row_id is None or self.current_menu_field is None:
@@ -4297,7 +4541,9 @@ class KrakenLayoutEditor(tk.Tk):
         spec = self._variable_spec_for_field(self.current_menu_field)
         if spec is None:
             return
+        self._begin_history_capture()
         spec.set_bounds(row, None)
+        self._commit_history_capture()
         self.append_progress(f"Bounds cleared for row {index} {spec.label}.")
         if self.popup_menu is not None:
             self.popup_menu.destroy()
@@ -4335,14 +4581,21 @@ class KrakenLayoutEditor(tk.Tk):
 
     @staticmethod
     def _center_dialog_on_screen(dialog: tk.Toplevel) -> None:
-        dialog.update_idletasks()
-        dialog_w = max(dialog.winfo_width(), dialog.winfo_reqwidth(), 1)
-        dialog_h = max(dialog.winfo_height(), dialog.winfo_reqheight(), 1)
-        screen_w = max(dialog.winfo_screenwidth(), 1)
-        screen_h = max(dialog.winfo_screenheight(), 1)
-        pos_x = max((screen_w - dialog_w) // 2, 0)
-        pos_y = max((screen_h - dialog_h) // 2, 0)
-        dialog.geometry(f"+{pos_x}+{pos_y}")
+        def place_dialog() -> None:
+            if not dialog.winfo_exists():
+                return
+            dialog.update_idletasks()
+            dialog_w = max(dialog.winfo_width(), dialog.winfo_reqwidth(), 1)
+            dialog_h = max(dialog.winfo_height(), dialog.winfo_reqheight(), 1)
+            screen_w = max(dialog.winfo_screenwidth(), 1)
+            screen_h = max(dialog.winfo_screenheight(), 1)
+            pos_x = max((screen_w - dialog_w) // 2, 0)
+            pos_y = max((screen_h - dialog_h) // 2, 0)
+            dialog.geometry(f"+{pos_x}+{pos_y}")
+
+        place_dialog()
+        dialog.after_idle(place_dialog)
+        dialog.after(80, place_dialog)
 
     def show_formula_help(self) -> None:
         try:
@@ -4364,6 +4617,7 @@ class KrakenLayoutEditor(tk.Tk):
 
     def open_paraxial_calculator(self) -> None:
         dialog = tk.Toplevel(self)
+        dialog.withdraw()
         dialog.title("Paraxial Calculator")
         dialog.transient(self)
         dialog.grab_set()
@@ -4749,6 +5003,9 @@ class KrakenLayoutEditor(tk.Tk):
         _refresh_mode_state()
         _solve()
         self._center_dialog_on_screen(dialog)
+        dialog.deiconify()
+        dialog.lift()
+        dialog.focus_force()
 
     @staticmethod
     def _open_document_with_system_viewer(document_path: Path) -> bool:
@@ -5136,6 +5393,7 @@ class KrakenLayoutEditor(tk.Tk):
 
     def _apply_paraxial_two_f(self, mode: str) -> None:
         effl, _ppa, _ppp, object_gap, image_gap = self._paraxial_two_f_gaps()
+        self._begin_history_capture()
         if mode in {"object", "pair"}:
             self.object_mode_var.set("Finite")
             self.rows[0].thickness = object_gap
@@ -5145,6 +5403,7 @@ class KrakenLayoutEditor(tk.Tk):
         self._sync_table()
         selected_row = 0 if mode == "object" else max(0, len(self.rows) - 2)
         self._select_table_row(selected_row)
+        self._commit_history_capture()
         self.refresh_plot()
         if mode == "pair":
             message = (
@@ -5205,6 +5464,7 @@ class KrakenLayoutEditor(tk.Tk):
                 return
             selected_row = int(result["selected_row"])
             solved_distance = result["solved_distance"]
+            self._begin_history_capture()
             if target == "image":
                 self.rows[selected_row].thickness = float(solved_distance)
             else:
@@ -5216,6 +5476,7 @@ class KrakenLayoutEditor(tk.Tk):
             self._normalize_special_rows()
             self._sync_table()
             self._select_table_row(selected_row)
+            self._commit_history_capture()
             self.refresh_plot()
             self.status_var.set(message)
             self.append_progress(message)
@@ -5451,16 +5712,15 @@ class KrakenLayoutEditor(tk.Tk):
         return "psf_fft"
 
     def _mtf_analysis_settings(self) -> dict[str, float | int | str]:
-        label = "MTF @ freq"
         return {
-            "wavelength": self._operand_wavelength(label),
-            "surface_index": self._operand_surface_index(label),
-            "aperture_type": self._operand_aperture_type(label),
-            "aperture_value": self._operand_aperture_value(label),
-            "field_type": self._operand_field_type(label),
-            "field_x": self._operand_field_x(label),
-            "field_y": self._operand_field_y(label),
-            "algorithm": self._operand_mtf_algorithm(label),
+            "wavelength": self._current_wavelength(),
+            "surface_index": self._analysis_surface_index(),
+            "aperture_type": self._current_aperture_type(),
+            "aperture_value": self._current_aperture_value(),
+            "field_type": ("angle" if self._current_object_mode() == "Infinity" else "height"),
+            "field_x": 0.0,
+            "field_y": (self._current_field_angle_deg() if self._current_object_mode() == "Infinity" else self._current_field_height()),
+            "algorithm": self._operand_mtf_algorithm("MTF @ freq"),
         }
 
     @staticmethod
@@ -6304,6 +6564,7 @@ class KrakenLayoutEditor(tk.Tk):
 
                 colors = self._field_colors(len(sample_results))
                 max_plot_freq = 0.0
+                label_specs: list[dict[str, object]] = []
                 for color, result in zip(colors, sample_results):
                     plot_freq = np.asarray(result["plot_freq"], dtype=float)
                     plot_tan = np.asarray(result["plot_tan"], dtype=float)
@@ -6325,10 +6586,19 @@ class KrakenLayoutEditor(tk.Tk):
                             plot_tan,
                             label=f"T=S {legend}",
                             color=color,
-                            linewidth=2.2,
+                            linewidth=1.1,
                             alpha=1.0,
                             linestyle="-",
                             zorder=3,
+                        )
+                        label_specs.append(
+                            {
+                                "label": f"T=S {legend}",
+                                "curve_x": plot_freq,
+                                "curve_y": plot_tan,
+                                "color": color,
+                                "linestyle": (0, (2, 2)),
+                            }
                         )
                     else:
                         analysis_ax.plot(
@@ -6336,7 +6606,7 @@ class KrakenLayoutEditor(tk.Tk):
                             plot_tan,
                             label=f"T {legend}",
                             color=color,
-                            linewidth=2.2,
+                            linewidth=1.1,
                             alpha=1.0,
                             linestyle="-",
                             zorder=3,
@@ -6346,28 +6616,48 @@ class KrakenLayoutEditor(tk.Tk):
                             plot_sag,
                             label=f"S {legend}",
                             color=color,
-                            linewidth=2.0,
+                            linewidth=1.0,
                             alpha=1.0,
                             linestyle=(0, (6, 3)),
-                            marker="o",
-                            markerfacecolor="white",
-                            markeredgecolor=color,
-                            markeredgewidth=0.9,
-                            markersize=3.2,
-                            markevery=max(1, len(plot_freq) // 10),
                             zorder=4,
                         )
-                    analysis_ax.scatter(
-                        [target_freq],
-                        [float(result["selected_value"])],
-                        color=color,
-                        edgecolors="white",
-                        linewidths=0.8,
-                        s=42,
-                        zorder=5,
-                    )
-
-                analysis_ax.axvline(target_freq, color="#2c3e50", linewidth=1.0, linestyle="--", alpha=0.8)
+                        label_specs.extend(
+                            [
+                                {
+                                    "label": f"T {legend}",
+                                    "curve_x": plot_freq,
+                                    "curve_y": plot_tan,
+                                    "color": color,
+                                    "linestyle": (0, (2, 2)),
+                                },
+                                {
+                                    "label": f"S {legend}",
+                                    "curve_x": plot_freq,
+                                    "curve_y": plot_sag,
+                                    "color": color,
+                                    "linestyle": (0, (1, 2)),
+                                },
+                            ]
+                        )
+                analysis_ax.plot(
+                    [target_freq, target_freq],
+                    [0.0, 0.08],
+                    color="#2c3e50",
+                    linewidth=0.9,
+                    linestyle="-",
+                    alpha=0.9,
+                    zorder=1.8,
+                )
+                analysis_ax.text(
+                    target_freq,
+                    0.085,
+                    f"ref {target_freq:.1f}",
+                    ha="center",
+                    va="bottom",
+                    fontsize=6.5,
+                    color="#2c3e50",
+                    bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.45, "pad": 0.2},
+                )
                 basis = str(sample_results[0]["basis"])
                 unit = str(sample_results[0]["unit"])
                 x_text = self._format_field_sample_value(float(sample_results[0]["display_x"]))
@@ -6406,33 +6696,78 @@ class KrakenLayoutEditor(tk.Tk):
                 except Exception:
                     dl_fc = None
                 analysis_ax.set_title(
-                    f"MTF ({method_label})  |  {basis} samples  |  X={x_text} {unit}  |  {wavelength:.4g} um"
+                    f"MTF ({method_label})  |  {basis} samples  |  ref {target_freq:.1f} cy/mm  |  {wavelength:.4g} um"
                 )
                 analysis_ax.set_xlabel("Spatial frequency [cycles/mm]")
                 analysis_ax.set_ylabel("MTF")
                 analysis_ax.set_ylim(0.0, 1.05)
                 analysis_ax.set_xlim(0.0, min(max_plot_freq, max(100.0, target_freq * 2.5)))
+                analysis_ax.set_aspect("auto")
+                analysis_ax.set_box_aspect(0.62)
                 analysis_ax.grid(True, alpha=0.2)
-                analysis_ax.legend(loc="upper right", fontsize=8, ncol=(2 if len(sample_results) > 3 else 1))
-
-                summary_lines = [f"{target_freq:.1f} cy/mm  {sample_results[0]['selected_label']}"]
-                for result in sample_results[:6]:
-                    overlap_tag = " T=S" if bool(result.get("ts_overlap")) else ""
-                    summary_lines.append(f"{result['legend']}: {float(result['selected_value']):.3f}{overlap_tag}")
-                if len(sample_results) > 6:
-                    summary_lines.append("...")
+                y_top = analysis_ax.get_ylim()[1]
+                if label_specs:
+                    x_min, x_max = [float(v) for v in analysis_ax.get_xlim()]
+                    y_min, _ = [float(v) for v in analysis_ax.get_ylim()]
+                    active_x_max = x_max
+                    for spec in label_specs:
+                        curve_x = np.asarray(spec["curve_x"], dtype=float)
+                        curve_y = np.asarray(spec["curve_y"], dtype=float)
+                        nonzero = curve_x[curve_y > 0.03]
+                        if nonzero.size:
+                            active_x_max = min(active_x_max, float(np.max(nonzero)))
+                    label_left = max(x_min + 0.06 * (x_max - x_min), min(target_freq + 1.5, active_x_max * 0.25))
+                    label_right = max(label_left + 1.0, min(x_max - 0.06 * (x_max - x_min), active_x_max * 0.98))
+                    label_x_positions = np.linspace(label_left, label_right, len(label_specs))
+                    row_levels = [y_top - 0.02, y_top - 0.07, y_top - 0.12, y_top - 0.17]
+                    for index, (spec, label_x) in enumerate(zip(label_specs, label_x_positions)):
+                        curve_x = np.asarray(spec["curve_x"], dtype=float)
+                        curve_y = np.asarray(spec["curve_y"], dtype=float)
+                        marker_value = float(np.interp(label_x, curve_x, curve_y, left=curve_y[0], right=curve_y[-1]))
+                        if not np.isfinite(marker_value):
+                            continue
+                        label_y = max(row_levels[index % len(row_levels)], marker_value + 0.06)
+                        analysis_ax.plot(
+                            [label_x, label_x],
+                            [marker_value, label_y - 0.015],
+                            color=str(spec["color"]),
+                            linewidth=0.75,
+                            linestyle=spec["linestyle"],
+                            alpha=0.8,
+                            zorder=2.5,
+                        )
+                        analysis_ax.text(
+                            label_x,
+                            label_y,
+                            str(spec["label"]),
+                            rotation=0,
+                            ha="center",
+                            va="top",
+                            fontsize=6.1,
+                            color=str(spec["color"]),
+                            bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.45, "pad": 0.2},
+                        )
                 if dl_fc is not None and np.isfinite(dl_fc):
-                    summary_lines.append(f"DL cutoff: {float(dl_fc):.1f} cy/mm")
-                analysis_ax.text(
-                    0.02,
-                    0.02,
-                    "\n".join(summary_lines),
-                    transform=analysis_ax.transAxes,
-                    ha="left",
-                    va="bottom",
-                    fontsize=8,
-                    bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.75, "pad": 1.5},
-                )
+                    dl_x = float(np.clip(dl_fc, analysis_ax.get_xlim()[0], analysis_ax.get_xlim()[1]))
+                    analysis_ax.axvline(
+                        dl_x,
+                        color="#475569",
+                        linewidth=0.9,
+                        linestyle=(0, (1, 2)),
+                        alpha=0.7,
+                        zorder=1.5,
+                    )
+                    label_x = min(dl_x, analysis_ax.get_xlim()[1] - 0.5)
+                    analysis_ax.text(
+                        label_x,
+                        0.035,
+                        f"DL cutoff {float(dl_fc):.1f} cy/mm",
+                        ha="right" if dl_x >= analysis_ax.get_xlim()[1] - 1.0 else "center",
+                        va="bottom",
+                        fontsize=7,
+                        color="#475569",
+                        bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.45, "pad": 0.2},
+                    )
 
                 self._set_analysis_parallel_status("MTF", max_workers, max_workers > 1)
                 if accelerators:
@@ -6548,6 +6883,25 @@ class KrakenLayoutEditor(tk.Tk):
     def _field_metrics(self) -> dict[str, float]:
         return self._field_metrics_for_value(self._current_field_type(), self._current_field_value())
 
+    def _field_metrics_summary(self) -> dict[str, float]:
+        field_type = self._current_field_type()
+        sample_values = self._sample_field_values(self._current_field_value())
+        if not sample_values:
+            sample_values = [self._current_field_value()]
+        metrics = [self._field_metrics_for_value(field_type, value) for value in sample_values]
+        current_metrics = self._field_metrics()
+        max_paraxial = max(abs(float(item.get("paraxial_image_height", 0.0))) for item in metrics) if metrics else 0.0
+        max_real = max(abs(float(item.get("real_image_height", 0.0))) for item in metrics) if metrics else 0.0
+        return {
+            "current_angle_deg": float(current_metrics.get("angle_deg", 0.0)),
+            "current_object_height": float(current_metrics.get("object_height", 0.0)),
+            "current_paraxial_image_height": float(current_metrics.get("paraxial_image_height", 0.0)),
+            "current_real_image_height": float(current_metrics.get("real_image_height", 0.0)),
+            "max_paraxial_image_height": float(max_paraxial),
+            "max_real_image_height": float(max_real),
+            "image_diameter": float(max(2.0 * max_real, 0.0)),
+        }
+
     def _current_effl_estimate(self) -> float:
         try:
             effl, _ppa, _ppp = self._exact_paraxial_cardinals(self._current_wavelength())
@@ -6586,6 +6940,9 @@ class KrakenLayoutEditor(tk.Tk):
         for index, line in enumerate(self.ax.lines):
             if index < surf_line_count:
                 line.set_linewidth(max(line.get_linewidth(), 1.25))
+                line.set_zorder(max(float(line.get_zorder()), 20.0))
+            else:
+                line.set_zorder(min(float(line.get_zorder()), 10.0))
 
     def _field_colors(self, count: int) -> list[str]:
         if count <= 1:
@@ -6605,20 +6962,23 @@ class KrakenLayoutEditor(tk.Tk):
     def _draw_colored_rays(self, rays) -> None:
         show_clipped_rays = self.show_clipped_rays_var.get()
         final_surface_index = max(0, len(self.rows) - 1)
+        ray_count_hint = max(1, self._preview_field_ray_count)
+        ray_linewidth = 1.1 if ray_count_hint <= 9 else 0.8
+        ray_alpha = 0.92 if ray_count_hint <= 9 else 0.72
         if self._has_off_axis_geometry():
             if show_clipped_rays:
                 before = len(self.ax.lines)
                 try:
                     Plot2DRays(rays, 0, 0, self.ax, 0)
                     for line in self.ax.lines[before:]:
-                        line.set_linewidth(1.8)
-                        line.set_alpha(0.95)
+                        line.set_linewidth(ray_linewidth)
+                        line.set_alpha(ray_alpha)
                 except Exception:
                     for ray in rays.CC:
                         points = np.asarray(ray, dtype=float)
                         if points.shape[0] < 2:
                             continue
-                        self.ax.plot(points[:, 2], points[:, 1], color="#39FF14", linewidth=1.8, alpha=0.95)
+                        self.ax.plot(points[:, 2], points[:, 1], color="#39FF14", linewidth=ray_linewidth, alpha=ray_alpha)
             else:
                 for index, ray in enumerate(rays.CC):
                     points = np.asarray(ray, dtype=float)
@@ -6630,7 +6990,7 @@ class KrakenLayoutEditor(tk.Tk):
                             continue
                     except Exception:
                         continue
-                    self.ax.plot(points[:, 2], points[:, 1], color="#39FF14", linewidth=1.8, alpha=0.95)
+                    self.ax.plot(points[:, 2], points[:, 1], color="#39FF14", linewidth=ray_linewidth, alpha=ray_alpha)
             return
         ray_count = max(1, self._preview_field_ray_count)
         field_count = max(1, self._current_field_count())
@@ -6645,10 +7005,10 @@ class KrakenLayoutEditor(tk.Tk):
                     if surf_ids.size == 0 or int(surf_ids[-1]) != final_surface_index:
                         continue
                 except Exception:
-                    continue
+                        continue
             field_index = min(index // ray_count, field_count - 1)
             color = colors[field_index]
-            self.ax.plot(points[:, 2], points[:, 1], color=color, linewidth=1.8, alpha=0.95)
+            self.ax.plot(points[:, 2], points[:, 1], color=color, linewidth=ray_linewidth, alpha=ray_alpha)
 
     def _current_display_orientation(self) -> str:
         value = getattr(self, "display_orientation_var", None)
@@ -9387,12 +9747,18 @@ class KrakenLayoutEditor(tk.Tk):
         items.append(("Analysis surface", str(self._analysis_surface_index())))
         items.append(("Aperture type", self._current_aperture_type()))
         items.append(("Aperture value", f"{self._current_aperture_value():.4g}"))
-        field_metrics = self._field_metrics()
+        field_metrics = self._field_metrics_summary()
         items.append(("Field type", self._current_field_type()))
-        items.append(("Field angle [deg]", f"{field_metrics['angle_deg']:.4g}"))
-        items.append(("Object height [mm]", f"{field_metrics['object_height']:.4g}"))
-        items.append(("Paraxial image height [mm]", f"{field_metrics['paraxial_image_height']:.4g}"))
-        items.append(("Real image height [mm]", f"{field_metrics['real_image_height']:.4g}"))
+        items.append(("Field angle [deg]", f"{field_metrics['current_angle_deg']:.4g}"))
+        items.append(("Object height [mm]", f"{field_metrics['current_object_height']:.4g}"))
+        items.append(("Paraxial img semi-ht [mm]", f"{field_metrics['current_paraxial_image_height']:.4g}"))
+        items.append(("Real img semi-ht [mm]", f"{field_metrics['current_real_image_height']:.4g}"))
+        if self._current_field_count() > 1:
+            items.append(("Max parax img semi-ht [mm]", f"{field_metrics['max_paraxial_image_height']:.4g}"))
+            items.append(("Max real img semi-ht [mm]", f"{field_metrics['max_real_image_height']:.4g}"))
+            items.append(("Required image dia [mm]", f"{field_metrics['image_diameter']:.4g}"))
+        if self.rows and self.rows[-1].surface == "Image":
+            items.append(("Image row diameter [mm]", f"{float(self.rows[-1].diameter):.4g}"))
 
         total_length = sum(max(float(row.thickness), 0.0) for row in self.rows)
         items.append(("Total length [mm]", f"{total_length:.4g}"))
@@ -9538,13 +9904,11 @@ class KrakenLayoutEditor(tk.Tk):
         if field_basis == "Angle" and resolved_field_type == "height":
             basis_label = "Angle->Object Height"
         unit = self._field_type_unit(field_basis)
-        raw_x = self._operand_field_x(label)
-        resolved_x = self._resolved_field_coordinate(field_basis, raw_x, resolved_field_type)
-        field_var = self.operand_field_y_vars.get(label)
-        raw_series = "" if field_var is None else field_var.get()
-        raw_values = self._parse_numeric_series(raw_series)
+        raw_x = 0.0
+        resolved_x = 0.0
+        raw_values = self._sample_field_values(self._current_field_value())
         if not raw_values:
-            raw_values = [self._operand_field_y(label)]
+            raw_values = [self._current_field_value()]
 
         samples: list[dict[str, float | str]] = []
         for raw_value in raw_values:
@@ -9882,7 +10246,7 @@ class KrakenLayoutEditor(tk.Tk):
     def _sample_field_values(self, maximum: float) -> list[float]:
         count = self._current_field_count()
         if count == 1:
-            return [0.0]
+            return [float(maximum)]
         span = abs(float(maximum))
         if span <= 1e-9:
             if self._current_object_mode() == "Finite" and self.rows:
@@ -9894,6 +10258,38 @@ class KrakenLayoutEditor(tk.Tk):
         if span <= 1e-9:
             return [0.0]
         return list(np.linspace(-span, span, count))
+
+    def _current_image_diameter_mode(self) -> str:
+        if not hasattr(self, "image_diameter_mode_var"):
+            return "Auto"
+        value = self.image_diameter_mode_var.get().strip()
+        return value if value in {"Auto", "Manual"} else "Auto"
+
+    def _auto_image_diameter_value(self) -> float:
+        if not self.rows:
+            return 3.0
+        current_diameter = max(float(self.rows[-1].diameter), 1.0)
+        sample_values = self._sample_field_values(self._current_field_value())
+        if not sample_values:
+            sample_values = [self._current_field_value()]
+        image_heights = [
+            abs(float(self._field_metrics_for_value(self._current_field_type(), value).get("real_image_height", 0.0)))
+            for value in sample_values
+        ]
+        if not image_heights:
+            return current_diameter
+        max_height = max(image_heights)
+        if max_height <= 1e-9:
+            return current_diameter
+        diameter = 2.0 * max_height
+        return max(float(diameter), 1.0)
+
+    def _apply_image_diameter_mode(self) -> None:
+        if not self.rows or self.rows[-1].surface != "Image":
+            return
+        if self._current_image_diameter_mode() != "Auto":
+            return
+        self.rows[-1].diameter = self._auto_image_diameter_value()
 
     def _sample_fan_angles_deg(self) -> list[float]:
         maximum = self._current_field_angle_deg()
@@ -10326,6 +10722,7 @@ class KrakenLayoutEditor(tk.Tk):
         self.rows[-1].surface = "Image"
         if not self.rows[-1].name or self.rows[-1].name == "Surface":
             self.rows[-1].name = "Image"
+        self._apply_image_diameter_mode()
 
     @staticmethod
     def _flipped_name(name: str) -> str:
