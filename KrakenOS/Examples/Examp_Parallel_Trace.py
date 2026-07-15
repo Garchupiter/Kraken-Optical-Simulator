@@ -117,7 +117,7 @@ def trace_batch_with_system(system, batch):
     results = []
     for ray in batch:
         system.Trace(ray["origin"], ray["direction"], ray["wavelength"])
-        result = Kos.extract_ray_result(system)
+        result = Kos.extract_ray_result(system, copy=True)
         result["index"] = ray["index"]
         results.append(result)
     return results
@@ -155,7 +155,12 @@ def trace_parallel(rays, workers):
 
     total_elapsed = time.perf_counter() - total_start
     results = [result for group in grouped_results for result in group]
-    return sorted(results, key=lambda item: item["index"]), total_elapsed, trace_elapsed
+    return (
+        sorted(results, key=lambda item: item["index"]),
+        total_elapsed,
+        trace_elapsed,
+        grouped_results,
+    )
 
 
 def result_last_lmn(result):
@@ -199,14 +204,25 @@ def build_raykeeper_from_results(results):
     return rays
 
 
+def build_raykeeper_from_batches(grouped_results):
+    """Ingest one batch at a time to limit peak retained result dicts."""
+    import KrakenOS as Kos
+
+    system = build_simple_system(build=0)
+    rays = Kos.raykeeper(system)
+    for batch in grouped_results:
+        rays.extend_results(sorted(batch, key=lambda item: item["index"]))
+    return rays
+
+
 def main():
     ray_count = 1000
     workers = min(4, os.cpu_count() or 1)
     rays = generate_rays(ray_count)
 
     sequential, sequential_time = trace_sequential(rays)
-    parallel, parallel_total_time, parallel_trace_time = trace_parallel(rays, workers)
-    reconstructed_rays = build_raykeeper_from_results(parallel)
+    parallel, parallel_total_time, parallel_trace_time, grouped = trace_parallel(rays, workers)
+    reconstructed_rays = build_raykeeper_from_batches(grouped)
 
     total_speedup = sequential_time / parallel_total_time if parallel_total_time else float("inf")
     warm_speedup = sequential_time / parallel_trace_time if parallel_trace_time else float("inf")

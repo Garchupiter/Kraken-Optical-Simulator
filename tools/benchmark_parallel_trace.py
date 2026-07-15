@@ -104,7 +104,7 @@ def trace_batch_with_system(system, batch):
     results = []
     for ray in batch:
         system.Trace(ray["origin"], ray["direction"], ray["wavelength"])
-        result = Kos.extract_ray_result(system)
+        result = Kos.extract_ray_result(system, copy=True)
         result["index"] = ray["index"]
         results.append(result)
     return results
