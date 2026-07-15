@@ -114,3 +114,22 @@ def test_raykeeper_push_records_invalid_trace_separately():
     assert len(rays.valid_XYZ) == 0
     assert np.allclose(rays.CC[0], [[1000.0, 0.0, 0.0]])
     assert np.allclose(rays.XYZ[0].astype(float), [[1000.0, 0.0, 0.0], [1000.0, 0.0, 0.0]])
+
+
+def test_invalid_trace_does_not_extend_vld_after_valid_rays():
+    import KrakenOS as Kos
+
+    system = build_simple_system(build=0)
+    rays = Kos.raykeeper(system)
+
+    system.Trace([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.55)
+    rays.push()
+    trace_invalid_ray(system)
+    rays.push()
+
+    assert rays.nrays == 2
+    assert rays.vld.tolist() == [1.0]
+    assert len(rays.valid_XYZ) == 1
+    assert len(rays.invalid_XYZ) == 1
+    assert rays.XYZ[0] is rays.valid_XYZ[0]
+    assert rays.XYZ[1] is rays.invalid_XYZ[0]

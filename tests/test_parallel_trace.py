@@ -91,7 +91,7 @@ def trace_batch_with_system(system, batch):
     results = []
     for ray in batch:
         system.Trace(ray["origin"], ray["direction"], ray["wavelength"])
-        result = Kos.extract_ray_result(system)
+        result = Kos.extract_ray_result(system, copy=True)
         result["index"] = ray["index"]
         results.append(result)
     return results
@@ -172,6 +172,17 @@ def build_raykeeper_from_results(results):
     return rays
 
 
+def build_raykeeper_from_batches(grouped_results):
+    """Ingest batches as they arrive to avoid retaining one giant result list."""
+    import KrakenOS as Kos
+
+    system = build_simple_system(build=0)
+    rays = Kos.raykeeper(system)
+    for batch in grouped_results:
+        rays.extend_results(sorted(batch, key=lambda item: item["index"]))
+    return rays
+
+
 def build_classic_raykeeper(rays_to_trace):
     import KrakenOS as Kos
 
@@ -214,14 +225,24 @@ def test_parallel_sequential_trace_matches_serial_results():
 
     for workers in worker_counts_to_test():
         batch_size = max(1, math.ceil(ray_count / workers))
-        parallel, parallel_total_time, parallel_trace_time = trace_parallel(
-            rays,
-            workers=workers,
-            batch_size=batch_size,
-        )
+        batches = chunked(rays, batch_size)
+        total_start = time.perf_counter()
+        with ProcessPoolExecutor(
+            max_workers=workers,
+            mp_context=get_context("spawn"),
+            initializer=init_worker_system,
+        ) as pool:
+            list(pool.map(trace_batch_with_worker_system, make_warmup_batches(workers)))
+            trace_start = time.perf_counter()
+            grouped_results = list(pool.map(trace_batch_with_worker_system, batches))
+            parallel_trace_time = time.perf_counter() - trace_start
+        parallel_total_time = time.perf_counter() - total_start
 
+        parallel = [result for group in grouped_results for result in group]
+        parallel = sorted(parallel, key=lambda item: item["index"])
         assert_results_match(sequential, parallel)
-        reconstructed_raykeeper = build_raykeeper_from_results(parallel)
+
+        reconstructed_raykeeper = build_raykeeper_from_batches(grouped_results)
         assert_raykeepers_match(classic_raykeeper, reconstructed_raykeeper)
 
         total_speedup = sequential_time / parallel_total_time if parallel_total_time else float("inf")
@@ -231,3 +252,23 @@ def test_parallel_sequential_trace_matches_serial_results():
             f"{parallel_total_time:14.6f}s  {parallel_trace_time:19.6f}s  "
             f"{total_speedup:13.3f}x  {warm_speedup:12.3f}x"
         )
+
+
+def test_extract_snapshot_copy_is_independent_after_pickle_roundtrip():
+    import pickle
+
+    import KrakenOS as Kos
+
+    system = build_simple_system(build=0)
+    system.Trace([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.55)
+    snapshot = Kos.extract_ray_result(system, copy=True)
+    payload = pickle.dumps(snapshot)
+    restored = pickle.loads(payload)
+
+    system.Trace([1000.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.55)
+    rays = Kos.raykeeper(system)
+    rays.push_result(restored)
+
+    assert rays.vld.tolist() == [1.0]
+    assert not np.allclose(np.asarray(restored["XYZ"], dtype=float)[-1], [1000.0, 0.0, 0.0])
+    assert not np.allclose(np.asarray(rays.XYZ[0], dtype=float)[-1], [1000.0, 0.0, 0.0])

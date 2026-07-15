@@ -121,3 +121,41 @@ def test_trace_result_collection_costs_are_measurable():
         f"\n  minimal_extract_overhead={minimal_time - trace_only_time:.6f}s"
         f"\n  raykeeper_push_overhead={raykeeper_time - trace_only_time:.6f}s"
     )
+
+
+def test_raykeeper_ingestion_scales_near_linearly():
+    import KrakenOS as Kos
+    import tracemalloc
+
+    def ingest(count):
+        system = build_simple_system(build=0)
+        keeper = Kos.raykeeper(system)
+        payload = generate_rays(count)
+        tracemalloc.start()
+        start = time.perf_counter()
+        for origin, direction, wavelength in payload:
+            system.Trace(origin, direction, wavelength)
+            keeper.push()
+        elapsed = time.perf_counter() - start
+        current, peak = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+        retained = sum(
+            np.asarray(item).nbytes if isinstance(item, np.ndarray) else 0
+            for item in keeper.XYZ
+        )
+        return elapsed, peak, current, retained, keeper.nrays
+
+    t1, p1, _, r1, n1 = ingest(500)
+    t2, p2, _, r2, n2 = ingest(1000)
+
+    assert n1 == 500
+    assert n2 == 1000
+    assert t2 / max(t1, 1e-9) < 2.8
+    assert p2 / max(p1, 1) < 2.8
+    assert r2 / max(r1, 1) < 2.8
+
+    print(
+        "\nraykeeper ingestion scaling:"
+        f"\n  n=500 time={t1:.6f}s peak={p1} retained_xyz={r1}"
+        f"\n  n=1000 time={t2:.6f}s peak={p2} retained_xyz={r2}"
+    )
