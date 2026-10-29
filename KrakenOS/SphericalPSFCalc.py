@@ -9,6 +9,8 @@ import scipy
 from scipy.optimize import curve_fit
 from pickle import DICT
 import copy
+
+from KrakenOS.PhaseCalc import _copy_without_vtk
 ###############################################################################
 
 def adjust_tilt(X, Y, Z):
@@ -277,12 +279,11 @@ def CreateRefSphere(Rays, Pupil, SYS, POZ, NPx, NPy, NPz, L, M, N, w, CR_pSource
     ArrSup = SYS.SDT
     SS = []
     for ii in range(len(ArrSup)):
-        ArrSup[ii].EraseVTK()
-        ss = copy.deepcopy(ArrSup[ii])
+        ss = _copy_without_vtk(ArrSup[ii])
         SS.append(ss)
     SS[-1].Thickness = POZ
     """ Generate the surface that is the reference sphere """
-    ss = copy.deepcopy(ArrSup[ii])
+    ss = _copy_without_vtk(ArrSup[ii])
     SS.append(ss)
     SS[-1].Diameter = SphRefRad
     SS[-1].Rc = -np.sign(POZ) * np.abs(SphRefRad)

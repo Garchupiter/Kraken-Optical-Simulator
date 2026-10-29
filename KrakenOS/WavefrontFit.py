@@ -48,6 +48,9 @@ def Zernike_Fitting(x1, y1, Z1, Arr, minimum=0.000000001):
         minimum
     """
 
+    # the selector as floats: the coefficient array is made like it (zeros_like), and an integer
+    # mask (np.ones(15, dtype=int), a list of 1s) truncated every coefficient to an integer
+    Arr = np.asarray(Arr, dtype=float)
     NC = len(Arr)
     (Zern_pol, z_pow) = zernike_expand(NC)
     for i in range(0, 2):
@@ -61,7 +64,9 @@ def Zernike_Fitting(x1, y1, Z1, Arr, minimum=0.000000001):
         D = D.T
         SA = np.zeros_like(Arr)
         NA = Arr.shape[0]
-        MA = np.asarray(np.matmul(ZTZ_1_ZT, D))
+        # a flat array: indexing the np.matrix product gave 1 x 1 matrices, which NumPy 2 will not
+        # set into SA ("setting an array element with a sequence")
+        MA = np.asarray(np.matmul(ZTZ_1_ZT, D)).reshape(-1)
 
         p = 2.5
         A=Zi
@@ -74,7 +79,7 @@ def Zernike_Fitting(x1, y1, Z1, Arr, minimum=0.000000001):
         Inv_A_T_A_A_T = np.matmul(Inv_A_T_A, A_T)
         x=np.matmul(Inv_A_T_A_A_T, b)
 
-        MA=x
+        MA = np.asarray(x).reshape(-1)
 
         cont = 0
         ZZ = []
@@ -83,7 +88,7 @@ def Zernike_Fitting(x1, y1, Z1, Arr, minimum=0.000000001):
         ZZ = np.asarray(ZZ)
         for i2 in range(0, NA):
             if (Arr[i2] != 0):
-                SA[i2] = MA[cont][0]
+                SA[i2] = MA[cont]
                 cont = (cont + 1)
             else:
                 SA[i2] = 0.0

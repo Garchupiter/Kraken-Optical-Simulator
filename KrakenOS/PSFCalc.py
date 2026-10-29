@@ -41,7 +41,8 @@ def psf4mtf(COEF, Focal, Diameter, Wave, pixels=600, PupilSample=4):
     R = np.sqrt(x**2 + y**2)
 
     # Calcular el frente de onda usando los polinomios de Zernike
-    W = Wavefront_Zernike_Phase(x, y, COEF)
+    # all-zero coefficients (a perfect lens) give a scalar 0.0, which the mask below cannot index
+    W = np.array(Wavefront_Zernike_Phase(x, y, COEF) + np.zeros_like(x), dtype=float)
     W[R > 1] = 0.0  # Máscara para limitar a la apertura
 
     # Crear la función pupila
@@ -59,7 +60,7 @@ def psf4mtf(COEF, Focal, Diameter, Wave, pixels=600, PupilSample=4):
 
 def calculate_mtf(COEF, Focal, Diameter, w, pixels=600, PupilSample=4):
     """Calcula la MTF a partir de la PSF."""
-    psf = psf4mtf(COEF, Focal, Diameter, w, pixels=600, PupilSample=4)
+    psf = psf4mtf(COEF, Focal, Diameter, w, pixels=pixels, PupilSample=PupilSample)
     psf = psf / np.sum(psf)  # Normalizar la PSF por su área total
     F0 = np.fft.fft2(psf)  # Transformada de Fourier de la PSF
     F0 = np.fft.fftshift(F0)  # Centrar la transformada de Fourier
@@ -67,12 +68,19 @@ def calculate_mtf(COEF, Focal, Diameter, w, pixels=600, PupilSample=4):
     mtf = mtf / np.max(mtf)  # Normalización para que MTF(0) = 1
     return mtf
 
-def plot_mtf(mtf, Diameter, w, freq_limit = 1100):
+def plot_mtf(mtf, Diameter, w, freq_limit = 1100, Focal=None, PupilSample=4):
     """Función para graficar las MTF tangencial y sagital."""
     N = mtf.shape[0]
 
     # Calcular la frecuencia máxima en cycles per mm
-    freq_max = (Diameter / (w * 1e-3))  # Frecuencia máxima
+    # psf4mtf spreads the pupil over pixels / PupilSample pixels, so the MTF's last bin is
+    # Diameter * PupilSample / (2 wave Focal) cycles/mm and a perfect lens's MTF ends at its cutoff
+    # Diameter / (wave Focal). Without Focal the axis is the one it always was, Diameter / wave / 10:
+    # right only when Focal = 5 * PupilSample (20 mm for calculate_mtf's default of 4).
+    if Focal is None:
+        freq_max = (Diameter / (w * 1e-3)) / 10.0
+    else:
+        freq_max = Diameter * PupilSample / (2.0 * (w * 1e-3) * Focal)
     freq = np.linspace(0, freq_max, N // 2)  # Frecuencia espacial positiva
 
     # Curvas tangencial y sagital (direcciones X y Y de la MTF)
@@ -81,8 +89,8 @@ def plot_mtf(mtf, Diameter, w, freq_limit = 1100):
 
     # Graficar ambas curvas en la misma figura
     plt.figure(figsize=(10, 6))
-    plt.plot(freq/10, mtf_tangential[:len(freq)], label='Tangential MTF', color='blue')
-    plt.plot(freq/10, mtf_sagittal[:len(freq)], label='Sagittal MTF', color='red')
+    plt.plot(freq, mtf_tangential[:len(freq)], label='Tangential MTF', color='blue')
+    plt.plot(freq, mtf_sagittal[:len(freq)], label='Sagittal MTF', color='red')
     plt.xlabel('Spatial Frequency in cycles per mm')
     plt.ylabel('Modulus of the OTF')
     plt.title('Polychromatic Diffraction MTF')
@@ -97,7 +105,10 @@ def plot_mtf(mtf, Diameter, w, freq_limit = 1100):
 
 #########################################################################333
 
-def psf(COEF, Focal, Diameter, Wave, pixels=600, PupilSample=4,  plot=0, sqr=0):
+def psf(COEF, Focal, Diameter, Wave, pixels=600, PupilSample=4,  plot=0, sqr=0, cmap=None, return_extent=False):
+    """The PSF from Zernike coefficients. With ``return_extent`` also its extent in um,
+    ``[umin, umax, vmax, vmin]`` as imshow takes it (PSFMap.generate_psf_map unpacks it); ``cmap``
+    colours the plot (bone by default)."""
 
     ''' Generando los polinomios de Zernike (Nomenclarura Noll)con:
                    zernike_expand de Jherrera
@@ -144,7 +155,7 @@ def psf(COEF, Focal, Diameter, Wave, pixels=600, PupilSample=4,  plot=0, sqr=0):
     y = ((Y - center) / r)
     R=np.sqrt((x**2)+(y**2))
 
-    W = Wavefront_Zernike_Phase(x, y, COEF)
+    W = np.array(Wavefront_Zernike_Phase(x, y, COEF) + np.zeros_like(x), dtype=float)
 
     f=R>1
     W[f]=0.0
@@ -212,7 +223,7 @@ def psf(COEF, Focal, Diameter, Wave, pixels=600, PupilSample=4,  plot=0, sqr=0):
     if plot !=0:
         plt.figure("PSF")
         if sqr == 0:
-            plt.imshow(I,extent=[umn,umx,vmx,vmn], cmap= plt.cm.bone)
+            plt.imshow(I,extent=[umn,umx,vmx,vmn], cmap=cmap or plt.cm.bone)
             plt.colorbar()
             plt.ylabel('V[μm]')
             plt.xlabel('U[μm]')
@@ -220,7 +231,7 @@ def psf(COEF, Focal, Diameter, Wave, pixels=600, PupilSample=4,  plot=0, sqr=0):
 
         if sqr == 1:
             II=np.sqrt(I/np.max(I))*255
-            plt.imshow(II,extent=[umn,umx,vmx,vmn], cmap= plt.cm.bone)
+            plt.imshow(II,extent=[umn,umx,vmx,vmn], cmap=cmap or plt.cm.bone)
             plt.colorbar()
             plt.ylabel('V[μm]')
             plt.xlabel('U[μm]')
@@ -231,13 +242,16 @@ def psf(COEF, Focal, Diameter, Wave, pixels=600, PupilSample=4,  plot=0, sqr=0):
             III = III-np.min(III)
             III = 255*III/np.max(III)
 
-            plt.imshow(III,extent=[umn,umx,vmx,vmn], cmap= plt.cm.bone)
+            plt.imshow(III,extent=[umn,umx,vmx,vmn], cmap=cmap or plt.cm.bone)
             plt.colorbar()
             plt.ylabel('V[μm]')
             plt.xlabel('U[μm]')
             plt.title('Fraunhofer Prop - PSF ( note: sqrt(I) )')
 
+    if return_extent:
+        return I, [umn, umx, vmx, vmn]
     return I
+
 
 
 

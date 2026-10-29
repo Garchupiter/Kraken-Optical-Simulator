@@ -301,11 +301,14 @@ class PSFMap:
                 Diameter = 3.45 * Pup_i.RadPupInp # DJ - red wavelength creates a smaller PSF diameter than the others.
             #if group plots are disabled, plot the um plots of the PSFs
             if plot == 0:
-                I, param = Kos.psf(COEF, Focal, Diameter, self.Wx, PupilSample=PupilSample, pixels=pixels, plot=0, sqr=sqr)
+                I, param = Kos.psf(COEF, Focal, Diameter, self.Wx, PupilSample=PupilSample, pixels=pixels, plot=0, sqr=sqr,
+                                   return_extent=True)
             elif plot == 1:
-                I, param = Kos.psf(COEF, Focal, Diameter, self.Wx, PupilSample=PupilSample, pixels=pixels, plot=0, sqr=sqr)
+                I, param = Kos.psf(COEF, Focal, Diameter, self.Wx, PupilSample=PupilSample, pixels=pixels, plot=0, sqr=sqr,
+                                   return_extent=True)
             else:
-                I, param = Kos.psf(COEF, Focal, Diameter, self.Wx, PupilSample=PupilSample, pixels=pixels, plot=1, sqr=sqr, cmap=cmap)
+                I, param = Kos.psf(COEF, Focal, Diameter, self.Wx, PupilSample=PupilSample, pixels=pixels, plot=1, sqr=sqr, cmap=cmap,
+                                   return_extent=True)
             
             if downsample==True:
                 I = Image.fromarray(I).resize((9, 9), Image.BILINEAR)

@@ -167,7 +167,48 @@ def calculate_angles_tx_ty(dCos_new):
 
 ###############################################################################
 
+def _copy_without_vtk(surface):
+    """A copy of ``surface`` without its mask, for a wavefront's own system (which ignores vignetting).
+
+    EraseVTK used to run on the caller's surface before the copy, so its mask shape was gone for
+    good, and the copy kept Mask_Type with no shape: a masked system's wavefront raised
+    "'int' object is not iterable". The caller's surface keeps its mask now."""
+    shape = surface.Mask_Shape
+    surface.EraseVTK()
+    try:
+        copied = copy.deepcopy(surface)
+    finally:
+        surface.Mask_Shape = shape
+    copied.Mask_Type = 0
+    return copied
+
+
+def _vignetting_state(system):
+    return tuple(getattr(holder, name, None) for holder in (system.INORM, system.Pr3D)
+                 for name in ("Disable_Inner", "ExtraDiameter"))
+
+
+def _restore_vignetting(system, state):
+    """Phase and Phase2 switch the caller's system to ignore vignetting for their chief ray; give it
+    back what it had."""
+    for (holder, name), value in zip(((system.INORM, "Disable_Inner"), (system.INORM, "ExtraDiameter"),
+                                      (system.Pr3D, "Disable_Inner"), (system.Pr3D, "ExtraDiameter")), state):
+        if value is not None:
+            setattr(holder, name, value)
+
+
 def Phase2(Pupil):
+    """Precise determination of the exit pupil -- see _phase2. The caller's system keeps its
+    vignetting setting."""
+    system = Pupil.SYSTEM
+    state = _vignetting_state(system)
+    try:
+        return _phase2(Pupil)
+    finally:
+        _restore_vignetting(system, state)
+
+
+def _phase2(Pupil):
     "Precise determination of the exit pupil "
     
     SYS = Pupil.SYSTEM
@@ -314,13 +355,12 @@ def Phase2(Pupil):
     ArrSup = SYS.SDT
     SS = []
     for ii in range(0, len(ArrSup)):
-        ArrSup[ii].EraseVTK()
-        ss = copy.deepcopy(ArrSup[ii])
+        ss = _copy_without_vtk(ArrSup[ii])
         SS.append(ss)
     SS[-1].Thickness = POZ
     
     """ Generate the surface that is the reference sphere """
-    ss = copy.deepcopy(ArrSup[ii])
+    ss = _copy_without_vtk(ArrSup[ii])
     SS.append(ss)
     SS[-1].Diameter = SphRefRad
     SS[-1].Rc = -np.sign(SS[-2].Thickness) * np.abs(SphRefRad)
@@ -400,6 +440,16 @@ def Posc(X0, Y0, L, M, N, DeltaZ):
 
 
 def Phase(PUPIL):
+    """The wavefront of the pupil -- see _phase. The caller's system keeps its vignetting setting."""
+    system = PUPIL.SYSTEM
+    state = _vignetting_state(system)
+    try:
+        return _phase(PUPIL)
+    finally:
+        _restore_vignetting(system, state)
+
+
+def _phase(PUPIL):
 #############################################################
     """ Crea una pupila con las propiedades pasadas como parámetro"""
 
@@ -461,8 +511,7 @@ def Phase(PUPIL):
 
     SS = []
     for ii in range(0,len(ArrSup)):
-        ArrSup[ii].EraseVTK()
-        ss = copy.deepcopy(ArrSup[ii])
+        ss = _copy_without_vtk(ArrSup[ii])
         SS.append(ss)
 
     DisPup = SS[0].Thickness
