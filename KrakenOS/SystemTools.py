@@ -3,6 +3,14 @@ import numpy as np
 
 
 
+def _looks_numeric(token):
+    try:
+        float(token)
+    except Exception:
+        return False
+    return True
+
+
 def load_metal_complex(file):
     """load_metal_complex.
 
@@ -68,6 +76,10 @@ def load_Catalog(FileCat):
             names.append(cadena[1])
         con = (con + 1)
     names = np.asarray(names)
+    section_keys = {"NM", "ED", "CD", "TD", "OD", "LD", "IT"}
+    continuation_keys = {"ED", "CD", "TD", "OD", "LD"}
+    # each glass's block runs to the next NM line, the last one to the end of the catalogs
+    coords.append(len(cat))
     for i in range(0, (len(coords) - 1)):
         
         ITT = []
@@ -78,26 +90,37 @@ def load_Catalog(FileCat):
         OD = []
         LD = []
         IT = []
+        current_key = None
         for j in range(coords[i], coords[(i + 1)]):
             cadena = cat[j].split()
-            cad = cat[j][2:].split()
-            if (cadena[0] == 'NM'):
+            if not cadena:
+                continue
+            # a section's data may wrap onto following lines (Nikon's CD and TD do): a line that
+            # starts with a number continues the section above it
+            if cadena[0] in section_keys:
+                current_key = cadena[0]
+                cad = cadena[1:]
+            else:
+                if current_key not in continuation_keys or not _looks_numeric(cadena[0]):
+                    continue
+                cad = cadena
+            if current_key == 'NM' and cadena[0] == 'NM':
                 NM = cad
-            if (cadena[0] == 'ED'):
-                ED = cad
-                if ED[1]=="-":
-                    ED[1]="0.0"
-            if (cadena[0] == 'CD'):
-                CD = cad
-            if (cadena[0] == 'TD'):
-                TD = cad
-            if (cadena[0] == 'OD'):
-                OD = cad
-            if (cadena[0] == 'LD'):
-                LD = cad
-            if (cadena[0] == 'IT'):
+            if current_key == 'ED':
+                ED = cad if cadena[0] == 'ED' else ED + cad
+                if len(ED) > 1 and ED[1] == "-":
+                    ED[1] = "0.0"
+            if current_key == 'CD':
+                CD = cad if cadena[0] == 'CD' else CD + cad
+            if current_key == 'TD':
+                TD = cad if cadena[0] == 'TD' else TD + cad
+            if current_key == 'OD':
+                OD = cad if cadena[0] == 'OD' else OD + cad
+            if current_key == 'LD':
+                LD = cad if cadena[0] == 'LD' else LD + cad
+            if current_key == 'IT' and cadena[0] == 'IT':
                 IT = cad
-                if len(IT)==3:
+                if len(IT) == 3:
                     ITT.append(IT)
 
         NM = np.asarray(NM[1:(- 1)], dtype=np.float64)

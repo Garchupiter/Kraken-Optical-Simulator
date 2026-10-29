@@ -155,6 +155,38 @@ def Abbe_refractive_correction(n: float, v: float, wave: float):
     else:
         return n
 
+def absorption_from_transmittance_table(Wa, Tr, Th, Wave):
+    """The absorption coefficient at ``Wave`` from a glass's internal-transmittance table.
+
+    A row is (wavelength, transmittance, sample thickness). A table with rising wavelengths and
+    one thickness is read as before: the transmittance interpolated, then ``-ln(T) / thickness``.
+    A table listed out of order, or with rows of two thicknesses (BAF50: 5 mm and 25 mm), gives
+    each row its own ``-ln(T) / thickness``, averaged per wavelength and interpolated. A table
+    with no rows or no stated thickness is no absorption; an opaque sample is the largest finite
+    absorption rather than ``log(0)``.
+    """
+    Wa = np.asarray(Wa, dtype=float).reshape(-1)
+    Tr = np.asarray(Tr, dtype=float).reshape(-1)
+    Th = np.asarray(Th, dtype=float).reshape(-1)
+    stated = Th[Th > 0.0]
+    if Th.size == 0 or Wa.size == 0 or Tr.size == 0 or stated.size == 0:
+        return 0.0
+    if Th[0] <= 0.0:
+        Th = np.where(Th > 0.0, Th, stated[0])
+    regular = bool(np.all(stated == Th[0])) and bool(np.all(np.diff(Wa) >= 0.0))
+    if regular:
+        TR = np.maximum(np.interp(Wave, Wa, Tr), np.finfo(float).tiny)
+        return ((- np.log(TR)) / Th[0])
+    usable = (Tr > 0.0) & np.isfinite(Wa) & np.isfinite(Tr)
+    if not np.any(usable):
+        return 0.0
+    waves = Wa[usable]
+    per_row = (- np.log(Tr[usable])) / Th[usable]
+    distinct = np.unique(waves)
+    merged = np.asarray([float(np.mean(per_row[waves == wave])) for wave in distinct])
+    return float(np.interp(Wave, distinct, merged))
+
+
 def n_wave_dispersion(krakenSetup, GLSS, Wave):
     """
     n_wave_dispersion.
@@ -231,10 +263,11 @@ def n_wave_dispersion(krakenSetup, GLSS, Wave):
         try:
             r = np.argwhere((NAMES == GLSS))[0][0]
         except:
-            raise f'This material({GLSS}) not in the database'
+            raise ValueError(f'This material({GLSS}) not in the database')
 
         # [Dispersion_Formula, MIL, Nd, Vd, Exclude_sub, Status] = NM[r]
-        [Dispersion_Formula, MIL, Nd, Vd, *_] = NM[r]
+        # only the formula's number is used; the NM row of some glasses (Zeon's plastics) is shorter
+        Dispersion_Formula = NM[r][0]
         C = CD[r]
         lam2 = Wave **2.
 
@@ -263,7 +296,7 @@ def n_wave_dispersion(krakenSetup, GLSS, Wave):
             CD = C[3]
             CE = C[4]
             CF = C[5]
-            CL = (1.0 / ((Wave * 2.0) - 0.028))
+            CL = (1.0 / ((Wave ** 2.0) - 0.028))
             n = (((((CA + (CB * CL)) + (CC * (CL ** 2.0))) + (CD * (Wave ** 2.0))) + (CE * (Wave ** 4.0))) + (CF * (Wave ** 6.0)))
         if (Dispersion_Formula == 4):
             """Sellmeier 2"""
@@ -329,9 +362,12 @@ def n_wave_dispersion(krakenSetup, GLSS, Wave):
 
             n = np.sqrt(GLSN)
 
-        [Wa, Tr, Th] = IT[r]
-        TR = np.interp(Wave, np.asarray(Wa), np.asarray(Tr))
-        Alpha = ((- np.log(TR)) / Th[0])
+        # a glass with no internal-transmittance table (fused silicas, liquids) has no known absorption
+        table = IT[r]
+        if (len(table) == 3) and (len(table[0]) > 0):
+            Alpha = absorption_from_transmittance_table(table[0], table[1], table[2], Wave)
+        else:
+            Alpha = 0.0
 
     return (n, Alpha)
 

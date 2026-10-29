@@ -82,7 +82,10 @@ class Setup():
 
         print("Glass catalog loaded")
         utilities = (rute + 'UTILIDADES.AGF')
-        GL.append(utilities)
+        # leave the caller's list as it is, and read UTILIDADES.AGF once (the default list holds it)
+        GL = list(GL)
+        if utilities not in GL:
+            GL.append(utilities)
 
         [self.CAT, self.NAMES, self.NM, self.ED, self.CD, self.TD, self.OD, self.LD, self.IT] = load_Catalog(GL)
 
