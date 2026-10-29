@@ -42,6 +42,15 @@ def extract_ray_result(System):
     }
 
 
+def _as_array(seq):
+    """``seq`` as an array, or as an object array when its rows differ in shape (a ray stopped part way
+    keeps a placeholder record, which NumPy 2 will not stack)."""
+    try:
+        return np.asarray(seq)
+    except ValueError:
+        return np.asarray(list(seq), dtype=object)
+
+
 class raykeeper():
     """raykeeper.
     """
@@ -81,9 +90,7 @@ class raykeeper():
             self.invalid_T_XYZ.append(np.asarray(result["T_XYZ"]))
             self.invalid_XYZ.append(np.asarray(result["XYZ"]))
 
-            lst = result["OST_XYZ"]
-            ll = filter(None, lst)
-            self.invalid_OST_XYZ.append(np.asarray(ll))
+            self.invalid_OST_XYZ.append(_as_array(result["OST_XYZ"]))
             self.invalid_OST_LMN.append(np.asarray(result["OST_LMN"]))
             self.invalid_S_LMN.append(np.asarray(result["S_LMN"]))
             self.invalid_LMN.append(np.asarray(result["LMN"]))
@@ -98,9 +105,7 @@ class raykeeper():
             self.invalid_OP.append(np.asarray(result["OP"]))
             self.invalid_TOP_S.append(np.asarray(result["TOP_S"]))
             self.invalid_TOP.append(np.asarray(result["TOP"]))
-            lst = result["ALPHA"]
-            ll = filter(None, lst)
-            self.invalid_ALPHA.append(np.asarray(ll))
+            self.invalid_ALPHA.append(_as_array(result["ALPHA"]))
             self.invalid_BULK_TRANS.append(np.asarray(result["BULK_TRANS"]))
             self.invalid_RP.append(np.asarray(result["RP"]))
             self.invalid_RS.append(np.asarray(result["RS"]))
@@ -155,12 +160,8 @@ class raykeeper():
         self.T_XYZ.append(np.asarray(result["T_XYZ"]))
         self.XYZ.append(np.asarray(result["XYZ"]))
 
-        # revisar
-        lst = result["OST_XYZ"]
-        ll = filter(None, lst)
-        self.OST_XYZ.append(np.asarray(ll))
-
-        # self.OST_XYZ.append(np.asarray(self.SYSTEM.OST_XYZ))
+        # the points themselves: np.asarray(filter(None, lst)) stored a 0-d array holding the filter object
+        self.OST_XYZ.append(_as_array(result["OST_XYZ"]))
         self.OST_LMN.append(np.asarray(result["OST_LMN"]))
         self.S_LMN.append(np.asarray(result["S_LMN"]))
         self.LMN.append(np.asarray(result["LMN"]))
@@ -175,9 +176,7 @@ class raykeeper():
         self.OP.append(np.asarray(result["OP"]))
         self.TOP_S.append(np.asarray(result["TOP_S"]))
         self.TOP.append(np.asarray(result["TOP"]))
-        lst = result["ALPHA"]
-        ll = filter(None, lst)
-        self.ALPHA.append(np.asarray(ll))
+        self.ALPHA.append(_as_array(result["ALPHA"]))
         self.BULK_TRANS.append(np.asarray(result["BULK_TRANS"]))
         self.RP.append(np.asarray(result["RP"]))
         self.RS.append(np.asarray(result["RS"]))
