@@ -319,13 +319,13 @@ def slalib_refraction(l, zenith, conditions='STANDARD', T=288.15, p=101325,
 		    print('pySLALIB package not found! Try installing it first.')
 		for wl in l:
 			# If using original slalib (e.g. PySLALIB)
-			Refrac = slalib.sla_refro(_zenith, h, T, _P, RH, wl, phi, tlr, eps)
+			Refrac = slalib.sla_refro(_zenith, h, T, _P, RH, wl, _phi, tlr, eps)
 			R.append(np.degrees(Refrac))
 	
 	# If using internal slalib port
 	else:
 		for wl in l:
-			Refrac = sla_refro(_zenith, h, T, _P, RH, wl, phi, tlr, eps)
+			Refrac = sla_refro(_zenith, h, T, _P, RH, wl, _phi, tlr, eps)
 			R.append(np.degrees(Refrac))
 
 	if len(l) == 1:

@@ -396,6 +396,8 @@ class Observatory:
 				Uncertainty in the refractive index of air
 		'''
 
+		if dl == None:		# dl alone was never defaulted (a TypeError on None)
+			dl = self.dl
 		if dP == None:
 			dP = self.dP
 		if dT == None:

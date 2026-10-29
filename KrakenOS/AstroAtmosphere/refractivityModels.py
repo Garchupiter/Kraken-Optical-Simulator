@@ -491,7 +491,7 @@ def Mathar(l, T=288.15, p=101325, RH=0):
 		cTH  = [ 0.674488e-4, -0.406775e-7,   0.289063e-11,  0.819898e-13,  0.468386e-14, -0.191182e-16] # cm^j · K · %^-1
 		cTp  = [ 0.778627e-6,  0.593296e-12,  0.145042e-14,  0.489815e-17,  0.327941e-19,  0.128020e-21] # cm^j · K · Pa^-1
 		cHp  = [-0.211676e-15, 0.487921e-20, -0.682545e-23,  0.942802e-25, -0.946422e-27, -0.153682e-29] # cm^j · %^-1 · Pa^-1
-		σref = 1e4/4.8     # cm^−1, reference wavenumber
+		sref = 1e4/4.8     # cm^−1, reference wavenumber
 		Tref = 273.15+17.5 # K, reference temperature
 		pref = 75000       # Pa, reference pressure
 		Href = 10          #%, reference humdity in percent
@@ -510,7 +510,7 @@ def Mathar(l, T=288.15, p=101325, RH=0):
 		cTH  = [ 0.106776e-3, -0.168516e-6,   0.226201e-9,  -0.356457e-12,  0.437980e-15, -0.194545e-17] # cm^j · K · %^-1
 		cTp  = [ 0.77368e-6,   0.216404e-12,  0.581805e-15, -0.189618e-17, -0.198869e-19,  0.589381e-22] # cm^j · K · Pa^-1
 		cHp  = [-0.206365e-15, 0.300234e-19, -0.426519e-22,  0.684306e-25, -0.467320e-29,  0.126117e-30] # cm^j · %^-1 · Pa^-1
-		σref = 1e4/10.1    # cm^−1, reference wavenumber
+		sref = 1e4/10.1    # cm^−1, reference wavenumber
 		Tref = 273.15+17.5 # K, reference temperature
 		pref = 75000       # Pa, reference pressure
 		Href = 10          #%, reference humdity in percent
@@ -521,8 +521,8 @@ def Mathar(l, T=288.15, p=101325, RH=0):
 		########################################################################
 		# model parameters for wavelengths between 16 and 24 microns
 		cref = [ 0.199436e-3,  0.299123e-8,  -0.214862e-10,  0.143338e-12,  0.122398e-14, -0.114628e-16] # cm^j
-		# something seems to be wrong with cT...
-		cT   = [ 0.621723e-1, -0.177074e-4,   0.152213e-6,  -0.954584-9,   -0.996706e-11,  0.921476e-13] # cm^j · K
+		# cT[3] read -0.954584-9 (= -9.954584) for Mathar's -0.954584e-9
+		cT   = [ 0.621723e-1, -0.177074e-4,   0.152213e-6,  -0.954584e-9,   -0.996706e-11,  0.921476e-13] # cm^j · K
 		cTT  = [-23.2409,      0.108557,     -0.102439e-2,   0.634072e-5,   0.762517e-7,  -0.675587e-9 ] # cm^j · K^2
 		cH   = [-0.772707e-7,  0.347237e-9,  -0.272675e-11,  0.170858e-13,  0.156889e-15, -0.150004e-17] # cm^j · %^-1
 		cHH  = [-0.326604e-12, 0.463606e-14, -0.364272e-16,  0.228756e-18,  0.209502e-20, -0.200547e-22] # cm^j · %^-2
@@ -531,12 +531,14 @@ def Mathar(l, T=288.15, p=101325, RH=0):
 		cTH  = [ 0.375974e-3, -0.171849e-5,   0.146704e-7,  -0.917231e-10, -0.955922e-12,  0.880502e-14] # cm^j · K · %^-1
 		cTp  = [ 0.778436e-6,  0.461840e-12,  0.306229e-14, -0.623183e-16, -0.161119e-18,  0.800756e-20] # cm^j · K · Pa^-1
 		cHp  = [-0.272614e-15, 0.304662e-18, -0.239590e-20,  0.149285e-22,  0.136086e-24, -0.130999e-26] # cm^j · %^-1 · Pa^-1
-		σref = 1e4/20      # cm^−1, reference wavenumber
+		sref = 1e4/20      # cm^−1, reference wavenumber
 		Tref = 273.15+17.5 # K, reference temperature
 		pref = 75000       # Pa, reference pressure
 		Href = 10          # %, reference humdity in percent
 		########################################################################
 
+	# the reference wavenumber is sref in every band -- above 4.275 um it was set as
+	# σref and the sum read sref, an UnboundLocalError
 	s = 1e4/l # cm^-1
 	n = 1
 	H = RH*100
