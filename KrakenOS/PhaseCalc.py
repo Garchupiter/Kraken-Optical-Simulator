@@ -83,17 +83,11 @@ def R_RMS_delta(Z1, L, M, N, X0, Y0):
     return R_RMS
 
 def BestExitPupilPos(X, Y, Z, L, M, N):
-    delta_Z = 0
-    ZZ = (L, M, N, X, Y)
-    vz = scipy.optimize.fsolve(R_RMS_delta, delta_Z, args=ZZ)
+    """The shift along z at which the bundle's RMS radius is least, exactly, as LibRMS.BestFocus
+    (fsolve looked for a zero of the RMS radius, which a real bundle has not)."""
+    from KrakenOS.LibRMS import BestFocus
 
-    Delta_Z = vz[0]
-    X1 = ((L / N) * Delta_Z) + X
-    Y1 = ((M / N) * Delta_Z) + Y
-    cenX = np.mean(X1)
-    cenY = np.mean(Y1)
-
-    return Delta_Z
+    return BestFocus(X, Y, Z, L, M, N)
 
 ###############################################################################
 def find_intersections(pSource, dCos, x0_v, y0_v, z0_v):
@@ -466,6 +460,14 @@ def Phase(PUPIL):
         SS.append(ss)
 
     DisPup = SS[0].Thickness
+    # The input plane below is tilted square to the chief ray, through its start on the launch
+    # plane, and the stop lies DisPup -- the object gap -- further on. With no gap (the stop right
+    # after an object at infinity) half the rays off axis met the tilted plane past the stop, and
+    # their way back to it was counted forward: the wavefront was flat over one half of the pupil
+    # and a ramp over the other. They start a lead before the stop instead, along their own lines,
+    # as they do across a gap; the paths from the input plane on are the same.
+    lead = 10.0 * max(1.0, float(np.ravel(PUPIL.RadPupInp)[0])) if abs(DisPup) < 1e-9 else 0.0
+    lead_c = [xc[0] - lead * Lc[0] / Nc[0], yc[0] - lead * Mc[0] / Nc[0], zc[0]]
 
 # - - - - - - - - - - - - - - - - - - - - - -
     """ No mover """
@@ -477,11 +479,11 @@ def Phase(PUPIL):
     """ No mover """
     INP_P = Kos.surf()
     INP_P.Rc = 0
-    INP_P.Thickness = DisPup
+    INP_P.Thickness = DisPup + lead
     INP_P.Diameter = PUPIL.RadPupInp * 3.0
     INP_P.Glass = 'AIR'
-    INP_P.DespX = xc[0]
-    INP_P.DespY = yc[0]
+    INP_P.DespX = lead_c[0]
+    INP_P.DespY = lead_c[1]
     INP_P.TiltX = np.rad2deg(np.arcsin((- Mc[0])))
     INP_P.TiltY = np.rad2deg(np.arcsin((Lc[0] / np.cos(np.arcsin((- Mc[0]))))))
     INP_P.AxisMove = 0
@@ -525,7 +527,7 @@ def Phase(PUPIL):
 
     for i in range(0, len(x)):
         """ Traza los rayos al diametro de la pupila"""
-        pSource_0 = [x[i], y[i], z[i]]
+        pSource_0 = [x[i] - lead * L[i] / N[i], y[i] - lead * M[i] / N[i], z[i]]
         dCos = [L[i], M[i], N[i]]
         SYSTEM.Trace(pSource_0, dCos, W)
         RR.push()
@@ -542,7 +544,7 @@ def Phase(PUPIL):
 
     """ Traza el rayo principal"""
 
-    SYSTEM.Trace(pSource_0_c, dCos_c, W)
+    SYSTEM.Trace(lead_c, dCos_c, W)
 
     Chief = np.asarray(SYSTEM.OP)
 

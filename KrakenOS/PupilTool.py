@@ -86,7 +86,7 @@ class RayStop:
         self.Wave = Wave
         self.GlCorStop = np.asarray([0,0,0])
         self.System.IgnoreVignetting(0)
-        self.IMP_LMN = [0,0,1]
+        self.INP_LMN = [0,0,1]   # the direction calculateXYZ reads
         self.Ang_X = 0
         self.Ang_Y = 0
         self.rx = 0
@@ -280,6 +280,15 @@ def RMS_Pupil(r, SYSTEM, Surf, W, tet):
     RP.clean()
     return R_RMS
 
+def minimize_R_RMS(delta_Z, L, M, N, X, Y):
+    """The axial shift with the least ``R_RMS``. ``R_RMS`` is never negative and seldom reaches zero,
+    so ``fsolve`` looking for its zero stopped wherever it gave up."""
+    result = minimize_scalar(R_RMS, args=(L, M, N, X, Y))
+    if result.success:
+        return np.asarray([result.x])
+    return np.asarray([delta_Z])
+
+
 def R_RMS(delta_Z, L, M, N, X, Y):
     """R_RMS.
 
@@ -449,9 +458,10 @@ def Fpupil(SYSTEM, XY, H, Surf, tet, W, xy):
         pSource_0 = [0.0, XY, 0.0]
         dCos = [0.0, np.sin(np.deg2rad(tet)), np.cos(np.deg2rad(tet))]
     SYSTEM.Trace(pSource_0, dCos, W)
-    s = np.asarray(SYSTEM.SurfACE)
+    s = np.asarray(SYSTEM.SURFACE)
     a = np.squeeze(np.argwhere((s == Surf)))
-    [X2, Y2, Z2] = SYSTEM.OST_XYZ[a]
+    # OST_XYZ starts with the launch point, SURFACE with the first surface met
+    [X2, Y2, Z2] = SYSTEM.OST_XYZ[a + 1]
     if (xy == 0):
         R = (X2 - H)
     else:
@@ -558,10 +568,21 @@ class PupilCalc():
         cnt = 0
         while True:
             fun = RMS_Pupil(r, self.SYSTEM, Surf, self.W, self.tet)
+            # r is found once the probes meet on the axis at the stop. A stop on the launch plane
+            # (an object at infinity with no gap before its stop) is found at r = 0, where RMS_Pupil
+            # is |r|-shaped: the next step was 0/0, r became NaN and the pick below raised IndexError.
+            if abs(fun) < 1e-12:
+                break
             h = 1e-7
             f1 = RMS_Pupil((r + h), self.SYSTEM, Surf, self.W, self.tet)
             f2 = RMS_Pupil((r - h), self.SYSTEM, Surf, self.W, self.tet)
             der = ((f1 - f2) / (2 * h))
+            if der == 0.0:
+                # the probes meet the stop with the same spread from any r: nothing to solve for
+                # (a telecentric object space has its pupil at infinity)
+                raise ValueError(
+                    f"PupilCalc: no entrance pupil to find from surface {Surf} -- the probe rays meet it with the same "
+                    f"spread ({fun:.3g}) from any start; a telecentric object space puts the pupil at infinity")
             r2 = (r - (fun / der))
             if (np.abs((r - r2)) < 1e-7):
                 break
@@ -648,10 +669,10 @@ class PupilCalc():
 
         delta_Z = 0
         ZZ = (Ls, Ms, Ns, Xs, Ys)
-        v0 = scipy.optimize.fsolve(R_RMS, delta_Z, args=ZZ)
+        v0 = minimize_R_RMS(delta_Z, *ZZ)
 
         ZZ = (Le, Me, Ne, Xe, Ye)
-        vf = scipy.optimize.fsolve(R_RMS, delta_Z, args=ZZ)
+        vf = minimize_R_RMS(delta_Z, *ZZ)
 
         PosPupInp = np.asarray([0, 0, v0[0]])
         OPS = np.asarray([Le[0], Me[0], Ne[0]])
@@ -788,9 +809,11 @@ class PupilCalc():
                 ty = (self.FieldY + (atm_dispersion * np.cos(theta)))
                 shiftX = (Pz * np.tan(np.deg2rad((- tx))))
                 shiftY = (Pz * np.tan(np.deg2rad((- ty))))
+                field_x, field_y = tx, ty
             else:
                 shiftX = (Pz * np.tan(np.deg2rad((- self.FieldX))))
                 shiftY = (Pz * np.tan(np.deg2rad((- self.FieldY))))
+                field_x, field_y = self.FieldX, self.FieldY
             f_type = 1.0
         else:
             shiftX = (- self.FieldX)
@@ -805,6 +828,16 @@ class PupilCalc():
         y0 = (np.copy((y * f_type)) + shiftY)
         z = (np.ones_like(x) * Pz)
         z0 = 0.0*np.copy(x)
+        if f_type == 1.0 and Pz == 0.0:
+            # the entrance pupil ON the launch plane: each ray starts at its pupil point, so "towards
+            # it" is 0/0; its direction is the field's, as it is for any pupil in front of the plane
+            tan_x = np.tan(np.deg2rad(field_x))
+            tan_y = np.tan(np.deg2rad(field_y))
+            norm = np.sqrt((tan_x * tan_x) + (tan_y * tan_y) + 1.0)
+            L = (np.ones_like(x) * (tan_x / norm))
+            M = (np.ones_like(x) * (tan_y / norm))
+            N = (np.ones_like(x) * (1.0 / norm))
+            return (x0, y0, z0, L, M, N)
         X2 = ((x - x0) * (x - x0))
         Y2 = ((y - y0) * (y - y0))
         Z2 = ((z - z0) * (z - z0))

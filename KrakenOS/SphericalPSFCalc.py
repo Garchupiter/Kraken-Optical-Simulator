@@ -101,17 +101,11 @@ def R_RMS_delta(Z1, L, M, N, X0, Y0):
     return R_RMS
 
 def BestExitPupilPos(X, Y, Z, L, M, N):
-    delta_Z = 0
-    ZZ = (L, M, N, X, Y)
-    vz = scipy.optimize.fsolve(R_RMS_delta, delta_Z, args=ZZ)
+    """The shift along z at which the bundle's RMS radius is least, exactly, as LibRMS.BestFocus
+    (fsolve looked for a zero of the RMS radius, which a real bundle has not)."""
+    from KrakenOS.LibRMS import BestFocus
 
-    Delta_Z = vz[0]
-    X1 = ((L / N) * Delta_Z) + X
-    Y1 = ((M / N) * Delta_Z) + Y
-    cenX = np.mean(X1)
-    cenY = np.mean(Y1)
-
-    return Delta_Z
+    return BestFocus(X, Y, Z, L, M, N)
 
 ###############################################################################
 def Cat2SurfSimple(cat_dict: DICT):
