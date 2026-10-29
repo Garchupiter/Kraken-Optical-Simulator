@@ -258,19 +258,32 @@ def cat2surf(cat_dict: DICT, Thickness: float=0, Glass: str='AIR', inverse: bool
     surf_name = [surface for surface in surf_name if cat_dict[surface].get('Diameter') not in [None, 0]]
 
     surf_list = []
+
+    def new_surface(idx):
+        # AxisMove 0 moves and tilts every surface by itself -- the tilts were left out --
+        # and any other AxisMove moves the first surface and the axis with it (only 1 was handled; 2
+        # left the surface unbound)
+        if int(AxisMove) == 0:
+            return surf(DespX=DespX, DespY=DespY, DespZ=DespZ, TiltX=TiltX, TiltY=TiltY, TiltZ=TiltZ,
+                        AxisMove=AxisMove)
+        if idx == 0:
+            return surf(DespX=DespX, DespY=DespY, DespZ=DespZ, TiltX=TiltX, TiltY=TiltY, TiltZ=TiltZ,
+                        Order=0, AxisMove=AxisMove)
+        return surf()
+
+    def aspherics(values, sign=1.0):
+        # the 200 terms a surface has; the catalog lists only up to its last PARM, and a
+        # shorter array failed in Kos.system ("could not be broadcast together")
+        terms = np.zeros(200)
+        values = np.asarray(values, dtype=float).ravel()[:200]
+        terms[:values.size] = sign * values
+        return terms
+
     if inverse:
         surf_name = surf_name[::-1]
 
         for idx, surface in enumerate(surf_name):
-            if int(AxisMove)==0:
-                sf = surf(DespX=DespX, DespY=DespY, DespZ=DespZ, AxisMove=AxisMove)
-            elif int(AxisMove)==1:
-                if idx==0:
-                    sf = surf(DespX=DespX, DespY=DespY, DespZ=DespZ,
-                        TiltX=TiltX, TiltY=TiltY, TiltZ=TiltZ,
-                            Order=0, AxisMove=AxisMove)
-                else:
-                    sf = surf()
+            sf = new_surface(idx)
 
             current_surf = cat_dict[surface]
 
@@ -278,7 +291,7 @@ def cat2surf(cat_dict: DICT, Thickness: float=0, Glass: str='AIR', inverse: bool
             sf.Rc = -current_surf.get('Rc', 0)
             sf.Diameter = current_surf.get('Diameter', max_diameter) # default 25 mm
             sf.k = current_surf.get('conic', 0)
-            sf.AspherData = -1*np.array(current_surf.get('aspherics', [0]*200))
+            sf.AspherData = aspherics(current_surf.get('aspherics', []), -1.0)
 
             # next value => properties of material
             if idx!=len(surf_name)-1:
@@ -287,22 +300,13 @@ def cat2surf(cat_dict: DICT, Thickness: float=0, Glass: str='AIR', inverse: bool
                 sf.Glass = next_surf.get('Glass', 'AIR')
 
             else:
-                sf.Thickness = 0
+                sf.Thickness = Thickness   # the space after the block (it was set to 0)
                 sf.Glass = Glass
             surf_list.append(sf)
 
     else:
         for idx, surface in enumerate(surf_name):
-            # print(surf_name)
-            if int(AxisMove)==0:
-                sf = surf(DespX=DespX, DespY=DespY, DespZ=DespZ, AxisMove=AxisMove)
-            elif int(AxisMove)==1:
-                if idx==0:
-                    sf = surf(DespX=DespX, DespY=DespY, DespZ=DespZ,
-                        TiltX=TiltX, TiltY=TiltY, TiltZ=TiltZ,
-                            Order=0, AxisMove=AxisMove)
-                else:
-                    sf = surf()
+            sf = new_surface(idx)
 
             current_surf = cat_dict[surface]
             sf.Rc = current_surf.get('Rc', 0)
@@ -310,12 +314,12 @@ def cat2surf(cat_dict: DICT, Thickness: float=0, Glass: str='AIR', inverse: bool
 
             sf.Diameter = current_surf.get('Diameter', max_diameter)
             sf.k = current_surf.get('conic', 0)
-            sf.AspherData = np.array(current_surf.get('aspherics', [0]*200))
+            sf.AspherData = aspherics(current_surf.get('aspherics', []))
 
             sf.Glass = current_surf.get('Glass', 'AIR')
 
             if idx==len(surf_name)-1:
-                sf.Thickness = 0
+                sf.Thickness = Thickness   # the space after the block (it was set to 0)
                 sf.Glass = Glass
 
             surf_list.append(sf)

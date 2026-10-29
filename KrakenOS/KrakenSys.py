@@ -566,7 +566,18 @@ class system():
         self.Object_Num = np.arange(0, self.n, 1)
         self.__SurFuncSuscrip()
         self.Pr3D.Prerequisites3SMath()
-        self.INORM = InterNormalCalc(self.SDT, self.TypeTotal, self.Pr3D, self.HS)
+        self.INORM = self.__InterNormalCalcKeepingVignetting()
+
+    def __InterNormalCalcKeepingVignetting(self):
+        """A new InterNormalCalc carrying the old one's vignetting setting: SetData and SetSolid made a
+        fresh one, so after IgnoreVignetting a SetData traced with vignetting again, while Pr3D still
+        said ignored."""
+        old = getattr(self, "INORM", None)
+        inorm = InterNormalCalc(self.SDT, self.TypeTotal, self.Pr3D, self.HS)
+        for name in ("Disable_Inner", "ExtraDiameter"):
+            if old is not None and hasattr(old, name):
+                setattr(inorm, name, getattr(old, name))
+        return inorm
 
     def SetSolid(self):
         """SetSolid.
@@ -576,7 +587,7 @@ class system():
         self.Pr3D.Prerequisites3D_UDA()
         
         self.Pr3D.Prerequisites3DSolids()
-        self.INORM = InterNormalCalc(self.SDT, self.TypeTotal, self.Pr3D, self.HS)
+        self.INORM = self.__InterNormalCalcKeepingVignetting()
         self.AAA = self.Pr3D.AAA
         self.BBB = self.Pr3D.BBB
         self.DDD = self.Pr3D.DDD
@@ -898,10 +909,11 @@ class system():
         self.Wave = WaveLength
         self.RAY.append(RayOrig)
         self.__WavePrecalc()
-        j = 0
-        Glass = self.GlobGlass[j+1]
-        (PrevN, alpha) = (self.N_Prec[j+1], self.AlphaPrecal[j+1])
-        j = 1
+        # the ray starts ON the stop, in the medium after it, and crosses each surface j backwards
+        # into the medium before it, N_Prec[j - 1]. It started in N_Prec[1] and refracted into
+        # N_Prec[j + 1] -- two media off -- so it did not retrace the forward ray.
+        Glass = self.GlobGlass[StopSurf]
+        (PrevN, alpha) = (self.N_Prec[StopSurf], self.AlphaPrecal[StopSurf])
         SIGN = np.ones_like(ResVec)
         HitObjSpace = [0,0,0]
         j = StopSurf
@@ -909,9 +921,9 @@ class system():
         while True:
             if (j == self.Targ_Surf):
                 break
-            if (j  < -1):
-                break
-            j_gg = j+1
+            if (j < 0):
+                break   # j = -1 is the image surface by Python's indexing, not "before the object"
+            j_gg = max(j - 1, 0)
             Glass = self.GlobGlass[j_gg]
            
             if (self.Glass[j] != 'NULL'):
@@ -1117,7 +1129,9 @@ class system():
 
             if self.Glass[j] == 'NULL':
                 ang = 0
-                ValToSav = [Glass, alpha, RayOrig, pTarget, HitObjSpace, SurfNorm, ImpVec, ResVec, PrevN, CurrN, WaveLength, D, Ord, GrSpa, Name, j, RayTraceType, ang]
+                # the record __CollectData unpacks: this one left out LMNObjSpace and added ang, so every
+                # field after HitObjSpace landed one place off
+                ValToSav = [Glass, alpha, RayOrig, pTarget, HitObjSpace, LMNObjSpace, SurfNorm, ImpVec, ResVec, PrevN, CurrN, WaveLength, D, Ord, GrSpa, Name, j, RayTraceType]
                 self.__CollectData(ValToSav)
 
             if self.Glass[j] == 'ABSORB':

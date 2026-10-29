@@ -143,7 +143,7 @@ class surf():
 
 
     def __init__(self, Rc = 0.0, Thickness = 1e-11,Diameter = 1.0, InDiameter = 0.0, k = 0.0, Glass = 'AIR'\
-        ,ZNK = np.zeros(36)\
+        ,ZNK = None\
         ,DespX = 0.0\
         ,DespY = 0.0\
         ,DespZ = 0.0\
@@ -164,24 +164,38 @@ class surf():
         ,Solid_3d_stl = "None"\
         ,Cylinder_Rxy_Ratio = 1.0\
         ,Axicon = 0.0\
-        ,AspherData = np.zeros(200)\
-        ,ExtraData = np.zeros(200)\
+        ,AspherData = None\
+        ,ExtraData = None\
         ,Thin_Lens = 0.0\
         ,Name = ''\
         ,Nm_Pos = (0.0, 0.0)\
         ,Note = "None"\
         ,Drawing = 1.0\
-        ,Color = [0, 0, 0]\
-        ,Error_map = []\
+        ,Color = None\
+        ,Error_map = None\
         ,Res = 1\
         ,Surface_type = 0.0\
-        ,SURF_FUNC = [conic__surf(0.0, 0.0, 1.0)]\
-        ,SPECIAL_SURF_FUNC = []\
+        ,SURF_FUNC = None\
+        ,SPECIAL_SURF_FUNC = None\
         ,DerPres = 0
-        ,SubAperture = [1,0,0], Coating = [[],[],[],[]], CoatingMet = 0, Const = [0,0,0,0,0,0,0,0,0,0], NumLabel = 1):
+        ,SubAperture = None, Coating = None, CoatingMet = 0, Const = None, NumLabel = 1):
 
         """__init__.
         """
+        # every array and list default is made here, for this surface: made once in the signature,
+        # they were shared -- s.ZNK[3] = 0.1 (or AspherData, Coating, ...) on one surface changed
+        # every surface built without its own, the ones made later too
+        ZNK = np.zeros(36) if ZNK is None else ZNK
+        AspherData = np.zeros(200) if AspherData is None else AspherData
+        ExtraData = np.zeros(200) if ExtraData is None else ExtraData
+        Color = [0, 0, 0] if Color is None else Color
+        Error_map = [] if Error_map is None else Error_map
+        SURF_FUNC = [conic__surf(0.0, 0.0, 1.0)] if SURF_FUNC is None else SURF_FUNC
+        SPECIAL_SURF_FUNC = [] if SPECIAL_SURF_FUNC is None else SPECIAL_SURF_FUNC
+        SubAperture = [1, 0, 0] if SubAperture is None else SubAperture
+        Coating = [[], [], [], []] if Coating is None else Coating
+        Const = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] if Const is None else Const
+
         pass
 
 
